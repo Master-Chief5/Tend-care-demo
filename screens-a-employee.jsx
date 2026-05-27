@@ -6,7 +6,7 @@ function ScreenA_MyDay() {
 
   const tasks = [
     { kind: 'med',     text: 'R. Johnson — 2pm meds, need second signoff', done: false, urgent: true },
-    { kind: ‘drive’,   text: "M. Lee → Dr. Patel’s office · 1:30pm", done: false },
+    { kind: 'drive',   text: "M. Lee → Dr. Patel's office · 1:30pm", done: false },
     { kind: 'grocery', text: 'Grocery run to Whole Foods · 4pm', done: false },
     { kind: 'note',    text: 'Write end-of-shift note', done: false },
     { kind: 'grocery', text: 'Checked in with Ruth Johnson', done: true },
