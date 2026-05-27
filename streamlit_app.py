@@ -86,17 +86,43 @@ html = f"""<!DOCTYPE html>
     ::-webkit-scrollbar-track {{ background: transparent; }}
     ::-webkit-scrollbar-thumb {{ background: #d8ccb1; border-radius: 999px; border: 2px solid var(--a-bg); }}
     ::-webkit-scrollbar-thumb:hover {{ background: #c0b291; }}
+    #tend-loading {{
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: var(--a-bg); font-family: Geist, system-ui, sans-serif;
+      font-size: 14px; color: var(--a-ink3); letter-spacing: 0.02em;
+    }}
+    #tend-error {{
+      position: fixed; inset: 0; overflow: auto;
+      background: #fff8f6; font-family: monospace; font-size: 12px;
+      color: #a93a25; padding: 24px; white-space: pre-wrap; line-height: 1.5;
+    }}
   </style>
 
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+  <!-- jsDelivr CDN — production builds for faster/smaller loading -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.10/babel.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div id="tend-loading">Loading Tend…</div>
+  </div>
+
+  <!-- Catch JS errors and display them visibly for debugging -->
+  <script>
+    window.onerror = function(msg, src, line, col, err) {{
+      var root = document.getElementById('root');
+      if (root) {{
+        root.innerHTML = '<div id="tend-error">JS Error: ' + msg +
+          '\\n\\nSource: ' + (src || 'unknown') + ':' + line +
+          (err && err.stack ? '\\n\\n' + err.stack : '') + '</div>';
+      }}
+    }};
+  </script>
+
   {scripts}
 </body>
 </html>"""
 
-# Use a large height — the CSS above forces the iframe to fill 100vh anyway
-components.html(html, height=1000, scrolling=False)
+# Height is overridden to 100vh by the outer Streamlit CSS; use a generous value
+components.html(html, height=900, scrolling=False)
