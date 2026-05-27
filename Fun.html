@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Proxy</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        input[type="url"] {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 16px;
+        }
+        button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,212,255,0.3); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        select {
+            padding: 12px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        .output {
+            margin-top: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            min-height: 300px;
+            max-height: 500px;
+            overflow: auto;
+            padding: 20px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #00d4ff;
+        }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab.active { background: #00d4ff; color: #000; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.error { background: rgba(255,0,0,0.2); border: 1px solid #ff4444; }
+        .status.success { background: rgba(0,255,0,0.1); border: 1px solid #44ff44; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Web Proxy</h1>
+        <div class="box">
+            <div class="input-row">
+                <input type="url" id="urlInput" placeholder="Enter URL to fetch (e.g., https://example.com)" />
+                <button onclick="fetchUrl()">Fetch</button>
+            </div>
+            
+            <select id="proxySelect">
+                <option value="https://corsproxy.io/?">corsproxy.io (Recommended)</option>
+                <option value="https://api.allorigins.win/raw?url=">allorigins.win</option>
+                <option value="https://api.codetabs.com/v1/proxy?quest=">codetabs.com</option>
+            </select>
+            
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('text')">Text/HTML</div>
+                <div class="tab" onclick="switchTab('json')">JSON</div>
+                <div class="tab" onclick="switchTab('preview')">Preview</div>
+            </div>
+            
+            <div id="status" class="status"></div>
+            
+            <div id="textTab" class="tab-content active">
+                <div id="output" class="output">Enter a URL and click Fetch to see content...</div>
+            </div>
+            
+            <div id="jsonTab" class="tab-content">
+                <div id="jsonOutput" class="output">JSON content will appear here...</div>
+            </div>
+            
+            <div id="previewTab" class="tab-content">
+                <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const output = document.getElementById('output');
+        const jsonOutput = document.getElementById('jsonOutput');
+        const preview = document.getElementById('preview');
+        const status = document.getElementById('status');
+        
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') fetchUrl();
+        });
+        
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+        
+        function showStatus(msg, isError = false) {
+            status.textContent = msg;
+            status.className = 'status show ' + (isError ? 'error' : 'success');
+        }
+        
+        function hideStatus() {
+            status.className = 'status';
+        }
+        
+        async function fetchUrl() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                showStatus('Please enter a URL', true);
+                return;
+            }
+            
+            const proxy = document.getElementById('proxySelect').value;
+            const fullUrl = proxy + encodeURIComponent(url);
+            
+            output.innerHTML = '<div class="loading">Loading...</div>';
+            jsonOutput.innerHTML = '<div class="loading">Loading...</div>';
+            hideStatus();
+            
+            try {
+                const response = await fetch(fullUrl);
+                const contentType = response.headers.get('content-type') || '';
+                const text = await response.text();
+                
+                // Text/HTML tab
+                output.textContent = text.substring(0, 50000);
+                
+                // JSON tab
+                try {
+                    const json = JSON.parse(text);
+                    jsonOutput.textContent = JSON.stringify(json, null, 2);
+                } catch {
+                    jsonOutput.textContent = 'Not valid JSON';
+                }
+                
+                // Preview tab
+                preview.srcdoc = text;
+                
+                showStatus(`Success! Fetched ${text.length} bytes`);
+                
+            } catch (err) {
+                const msg = 'Error: ' + err.message;
+                output.innerHTML = `<span class="error">${msg}</span>`;
+                jsonOutput.innerHTML = `<span class="error">${msg}</span>`;
+                showStatus(msg, true);
+            }
+        }
+    </script>
+</body>
+</html>
