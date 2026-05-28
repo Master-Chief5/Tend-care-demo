@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ROLES } from '../../data/constants'
+import { isDemoMode } from '../../lib/supabase'
 import { ScreenA_Houses } from '../../screens/Houses'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
 import { ScreenA_ScheduleDay } from '../../screens/ScheduleDay'
@@ -76,7 +77,7 @@ function RoleSwitcher({ role, setRole, open, setOpen }) {
 }
 
 export function MobileShell({ user, onLogout }) {
-  const [role, setRole] = useState(user.id)
+  const [role, setRole] = useState(user.role ?? user.id)
   const [tab, setTab] = useState('home')
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false)
   const [houseDetail, setHouseDetail] = useState(null)
@@ -107,7 +108,7 @@ export function MobileShell({ user, onLogout }) {
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
-        <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />
+        {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}
       </div>
       <div className="web-tab-bar">
         {tabs.map(t => (
