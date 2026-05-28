@@ -1,34 +1,59 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { LoginScreen } from './components/layout/LoginScreen'
 import { MobileShell } from './components/layout/MobileShell'
 import { DesktopShell } from './components/layout/DesktopShell'
 import { useIsMobile } from './hooks/useIsMobile'
 import { supabase, isDemoMode } from './lib/supabase'
+import { fetchStaffProfile } from './lib/db'
 
-function userFromSession(session) {
+async function buildUser(session) {
   const meta = session?.user?.user_metadata ?? {}
   const role = meta.role ?? 'staff'
   const name = meta.name ?? session?.user?.email ?? ''
-  return { id: role, name, role }
+  const base = { id: role, name, role }
+
+  if (!supabase || !session?.user) return base
+
+  try {
+    const profile = await fetchStaffProfile(session.user.id, session.user.email)
+    if (profile) {
+      const r = profile.role || role
+      return { ...base, ...profile, id: r, role: r, name: profile.name || name }
+    }
+  } catch (e) {
+    console.error('profile lookup failed:', e)
+  }
+
+  return base
 }
 
 export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(!isDemoMode)
   const isMobile = useIsMobile(820)
+  const lastUid = useRef(null)
 
   useEffect(() => {
     if (isDemoMode) return
 
-    // Restore existing session on page load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setUser(userFromSession(session))
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        lastUid.current = session.user.id
+        setUser(await buildUser(session))
+      }
       setLoading(false)
     })
 
-    // Keep user state in sync with auth events (tab focus, token refresh, sign out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session ? userFromSession(session) : null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session) {
+        lastUid.current = null
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      if (session.user.id === lastUid.current) return
+      lastUid.current = session.user.id
+      setUser(await buildUser(session))
       setLoading(false)
     })
 

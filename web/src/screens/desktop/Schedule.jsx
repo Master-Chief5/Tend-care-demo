@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HOUSES, TODAY_SHIFTS } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
 import { useNowMinute } from '../../hooks/useNowMinute'
+import { fetchShifts } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 
@@ -187,11 +188,11 @@ function ScheduleRow({ house }) {
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
+function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts }) {
   const week = buildWeek(new Date())
   const nowFrac = useNowMinute()
   const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter)
-  const filteredShifts = houseFilter === 'all' ? TODAY_SHIFTS : TODAY_SHIFTS.filter(s => s.house === houseFilter)
+  const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
 
   return (
     <>
@@ -219,9 +220,9 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
-        <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub="14 shifts" />
+        <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub={`${shifts.length} shifts`} />
         {HOUSES.map(h => {
-          const count = TODAY_SHIFTS.filter(s => s.house === h.id).length
+          const count = shifts.filter(s => s.house === h.id).length
           return (
             <DskHouseTab key={h.id} active={houseFilter === h.id} onClick={() => setHouseFilter(h.id)}
               color={h.color} short={h.short} label={h.name} sub={`${count} shifts`} />
@@ -232,7 +233,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
         <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{fmtDayLabel(week[dayIdx].date)}</span>
         <span style={{ fontSize: 12, color: 'var(--a-ink3)' }}>
-          {houseFilter === 'all' ? '14 shifts · 7 staff on now · ' : `${filteredShifts.length} shifts · `}
+          {`${filteredShifts.length} shifts · `}
           <strong style={{ color: 'var(--a-clay)' }}>{filteredShifts.filter(s => s.status === 'open').length} open</strong>
           {filteredShifts.some(s => s.status === 'late') && <> · 1 late</>}
           {filteredShifts.some(s => s.status === 'swap') && <> · 1 swap</>}
@@ -275,7 +276,7 @@ function WeekScheduleView() {
   )
 }
 
-export function PageScheduleDesktopExpanded() {
+export function PageScheduleDesktopExpanded({ user }) {
   const [view, setView] = useState('day')
   const [dayIdx, setDayIdx] = useState(() => {
     const w = buildWeek(new Date())
@@ -283,6 +284,14 @@ export function PageScheduleDesktopExpanded() {
     return i >= 0 ? i : 0
   })
   const [houseFilter, setHouseFilter] = useState('all')
+  const [shifts, setShifts] = useState(TODAY_SHIFTS)
+
+  useEffect(() => {
+    if (!user?.orgId) return
+    fetchShifts(user.orgId, null, new Date()).then(data => {
+      if (data.length > 0) setShifts(data)
+    })
+  }, [user?.orgId])
 
   return (
     <>
@@ -299,7 +308,7 @@ export function PageScheduleDesktopExpanded() {
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {view === 'day'
-          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} />
+          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} />
           : <WeekScheduleView />}
       </div>
     </>

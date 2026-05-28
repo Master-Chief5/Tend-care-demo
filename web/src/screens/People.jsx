@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HOUSES, STAFF_LIST } from '../data/constants'
+import { fetchStaff } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
@@ -19,7 +20,7 @@ export function RingChart({ pct = 0.9, color = 'var(--a-sage)', size = 40 }) {
 }
 
 export function StaffCard({ name, role, house, score, sub, highlight, onClick }) {
-  const h = HOUSES.find(x => x.id === house)
+  const h = HOUSES.find(x => x.id === house) || { color: '#888', name: 'Staff' }
   const initials = name.split(' ').map(n => n[0]).join('')
   const scoreColor = score >= 90 ? '#3f7050' : score >= 80 ? '#a47012' : '#a93a25'
   const flagMap = {
@@ -88,14 +89,22 @@ function StaffDetail({ staff, onBack }) {
   )
 }
 
-export function ScreenA_Staff({ onLogout }) {
+export function ScreenA_Staff({ user, onLogout }) {
   const [query, setQuery] = useState('')
+  const [staffList, setStaffList] = useState(STAFF_LIST)
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [toast, showToast] = useToast()
 
+  useEffect(() => {
+    if (!user?.orgId) return
+    fetchStaff(user.orgId, null).then(data => {
+      if (data.length > 0) setStaffList(data)
+    })
+  }, [user?.orgId])
+
   if (selectedStaff) return <StaffDetail staff={selectedStaff} onBack={() => setSelectedStaff(null)} />
 
-  const filtered = STAFF_LIST.filter(s =>
+  const filtered = staffList.filter(s =>
     s.name.toLowerCase().includes(query.toLowerCase()) ||
     s.role.toLowerCase().includes(query.toLowerCase())
   )

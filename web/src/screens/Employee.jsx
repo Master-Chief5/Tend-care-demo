@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { buildWeek, fmtDayLabel, getGreeting } from '../lib/utils'
+import { fetchTasks, toggleTask } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
@@ -7,7 +8,7 @@ import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
 import { IconCheck, IconCal, IconCar, IconChat, IconBook } from '../components/icons'
 
-const INITIAL_TASKS = [
+const FALLBACK_TASKS = [
   { kind: 'med',   text: 'Morning meds — Ruth J., Marcus L., Tom R., Donna P.',   done: true,  urgent: false },
   { kind: 'drive', text: '1:30pm — M. Lee to dentist (Dr. Patel, 14 Oak St)',     done: false, urgent: true },
   { kind: 'note',  text: 'Document shift note before 3pm handoff',                done: false, urgent: false },
@@ -22,10 +23,27 @@ const kindMap = {
   shop:  { label: 'Shop',  bg: '#f5e9d6', tc: '#a47012' },
 }
 
-export function ScreenA_MyDay() {
-  const [tasks, setTasks] = useState(INITIAL_TASKS)
-  const toggle = (i) => setTasks(prev => prev.map((t, idx) => idx === i ? { ...t, done: !t.done } : t))
+export function ScreenA_MyDay({ user }) {
+  const [tasks, setTasks] = useState(FALLBACK_TASKS)
+  const [loading, setLoading] = useState(!!user?.staffId)
   const today = new Date()
+  const firstName = user?.name?.split(' ')[0] || 'Aisha'
+
+  useEffect(() => {
+    if (!user?.staffId) return
+    setLoading(true)
+    fetchTasks(user.staffId, today).then(data => {
+      if (data.length > 0) setTasks(data)
+      setLoading(false)
+    })
+  }, [user?.staffId])
+
+  const toggle = async (task, idx) => {
+    const newDone = !task.done
+    setTasks(prev => prev.map((t, i) => i === idx ? { ...t, done: newDone } : t))
+    if (task.id) await toggleTask(task.id, newDone)
+  }
+
   const done = tasks.filter(t => t.done).length
 
   return (
@@ -35,7 +53,7 @@ export function ScreenA_MyDay() {
           <div>
             <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 2 }}>{fmtDayLabel(today)}</div>
             <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              {getGreeting()},<br /><em style={{ color: 'var(--a-sage)' }}>Aisha</em>
+              {getGreeting()},<br /><em style={{ color: 'var(--a-sage)' }}>{firstName}</em>
             </div>
           </div>
           <TendLogo size={13} />
@@ -46,7 +64,7 @@ export function ScreenA_MyDay() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>{done}/{tasks.length} tasks done</div>
               <div style={{ height: 4, background: 'var(--a-paper)', borderRadius: 999, marginTop: 6, overflow: 'hidden' }}>
-                <div style={{ width: `${(done / tasks.length) * 100}%`, height: '100%', background: 'var(--a-sage)', borderRadius: 999, transition: 'width 0.3s' }} />
+                <div style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%`, height: '100%', background: 'var(--a-sage)', borderRadius: 999, transition: 'width 0.3s' }} />
               </div>
             </div>
             <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 600 }}>
@@ -56,10 +74,15 @@ export function ScreenA_MyDay() {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
-          {tasks.map((t, i) => {
+          {loading && (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>
+              Loading tasks…
+            </div>
+          )}
+          {!loading && tasks.map((t, i) => {
             const k = kindMap[t.kind] || kindMap.note
             return (
-              <div key={i} onClick={() => toggle(i)} style={{
+              <div key={t.id ?? i} onClick={() => toggle(t, i)} style={{
                 display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
                 background: 'var(--a-card)', border: '1px solid var(--a-line)',
                 borderRadius: 12, marginBottom: 8, cursor: 'pointer',
@@ -83,6 +106,11 @@ export function ScreenA_MyDay() {
               </div>
             )
           })}
+          {!loading && tasks.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--a-ink3)', fontSize: 13, paddingTop: 32 }}>
+              No tasks for today.
+            </div>
+          )}
         </div>
       </div>
       <TabBar active="home" />
@@ -133,7 +161,13 @@ export function ScreenA_MySchedule() {
   )
 }
 
-export function ScreenA_Me({ onLogout }) {
+export function ScreenA_Me({ user, onLogout }) {
+  const name = user?.name || 'Aisha Mendez'
+  const initial = name[0] || 'A'
+  const sub = user?.role === 'supervisor' ? 'Supervisor'
+    : user?.role === 'manager' ? `House Mgr · ${user.houseSlug || 'House'}`
+    : `DSP Lead · ${user?.houseSlug || 'Oak House'}`
+
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -142,11 +176,10 @@ export function ScreenA_Me({ onLogout }) {
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 18, padding: '20px 18px', marginBottom: 14, textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--a-sage)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 24, margin: '0 auto 12px' }}>A</div>
-            <div className="serif" style={{ fontSize: 22 }}>Aisha Mendez</div>
-            <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>DSP Lead · Oak House</div>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--a-sage)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 24, margin: '0 auto 12px' }}>{initial}</div>
+            <div className="serif" style={{ fontSize: 22 }}>{name}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>{sub}</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-              <Pill color="var(--a-sage)">2.1 yrs</Pill>
               <Pill color="var(--a-sage)">Score: 96</Pill>
             </div>
           </div>

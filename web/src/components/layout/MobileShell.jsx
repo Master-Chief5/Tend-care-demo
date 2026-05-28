@@ -9,24 +9,24 @@ import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_MySchedule, ScreenA_Me } from '../../screens/Employee'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck } from '../icons'
 
-function pickScreen(role, tab, onHouseClick, switchTab, onLogout) {
+function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
   if (role === 'staff') {
     switch (tab) {
-      case 'home':  return <ScreenA_MyDay />
+      case 'home':  return <ScreenA_MyDay user={user} />
       case 'sched': return <ScreenA_MySchedule />
       case 'team':  return <ScreenA_Chat />
       case 'drive': return <ScreenA_Driving />
-      case 'me':    return <ScreenA_Me onLogout={onLogout} />
+      case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} />
     }
   }
   switch (tab) {
     case 'home':  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />
-    case 'sched': return <ScreenA_ScheduleDay />
+    case 'sched': return <ScreenA_ScheduleDay user={user} />
     case 'team':  return <ScreenA_Chat />
     case 'drive': return <ScreenA_Driving />
     case 'me':    return role === 'supervisor'
-      ? <ScreenA_Staff onLogout={onLogout} />
-      : <ScreenA_Me onLogout={onLogout} />
+      ? <ScreenA_Staff user={user} onLogout={onLogout} />
+      : <ScreenA_Me user={user} onLogout={onLogout} />
   }
   return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />
 }
@@ -101,7 +101,7 @@ export function MobileShell({ user, onLogout }) {
 
   const screen = houseDetail
     ? <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
-    : pickScreen(role, tab, setHouseDetail, switchTab, onLogout)
+    : pickScreen(role, tab, user, setHouseDetail, switchTab, onLogout)
 
   return (
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>

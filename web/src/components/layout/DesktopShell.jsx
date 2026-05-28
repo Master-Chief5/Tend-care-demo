@@ -6,14 +6,14 @@ import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDeskto
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow } from '../icons'
 
-function DesktopPage({ tab, onHouseClick }) {
+function DesktopPage({ tab, onHouseClick, user }) {
   if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
-  if (tab === 'schedule')    return <PageScheduleDesktopExpanded />
+  if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} />
   if (tab === 'team')        return <PageTeamDesktop />
   if (tab === 'driving')     return <PageDrivingDesktop />
   if (tab === 'resources')   return <PageResourcesDesktop />
-  if (tab === 'staff')       return <PageStaffDesktop />
+  if (tab === 'staff')       return <PageStaffDesktop user={user} />
   if (tab === 'orientation') return <PageOrientationDesktop />
   return <PageTodayDesktop onHouseClick={onHouseClick} />
 }
@@ -82,7 +82,7 @@ export function DesktopShell({ user, onLogout }) {
     <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} />
       </div>
       {houseDetail && (
         <div
