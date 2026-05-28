@@ -27,6 +27,9 @@ const DAY_END = 24;    // midnight (last gridline)
 function ScreenA_ScheduleDay({ employee = false }) {
   const [view, setView] = useState('day'); // 'day' | 'week'
   const [houseFilter, setHouseFilter] = useState('all'); // 'all' | house.id
+  const week = buildWeek(new Date());
+  const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0; });
+  const nowFrac = useNowMinute();
 
   if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} />;
 
@@ -40,7 +43,7 @@ function ScreenA_ScheduleDay({ employee = false }) {
         <div style={{ padding: '14px 22px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>Tuesday · May 27 · 14 shifts</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{fmtDayLabel(week[dayIdx].date)} · 14 shifts</div>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <ViewToggle view={view} setView={setView} />
@@ -59,7 +62,7 @@ function ScreenA_ScheduleDay({ employee = false }) {
         </div>
 
         {/* Day strip */}
-        <DayStrip />
+        <DayStrip week={week} dayIdx={dayIdx} setDayIdx={setDayIdx} />
 
         {/* House filter chips */}
         <HouseFilterChips active={houseFilter} setActive={setHouseFilter} />
@@ -67,7 +70,7 @@ function ScreenA_ScheduleDay({ employee = false }) {
         {/* Now-line label */}
         <div style={{ padding: '4px 22px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--a-clay)' }} />
-          <span style={{ fontSize: 11, color: 'var(--a-clay)', fontWeight: 600 }}>Now · 9:48 AM</span>
+          <span style={{ fontSize: 11, color: 'var(--a-clay)', fontWeight: 600 }}>Now · {fmtNow(nowFrac)}</span>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', gap: 4 }}>
             {HOUSES.map(h => (
@@ -81,7 +84,7 @@ function ScreenA_ScheduleDay({ employee = false }) {
 
         {/* The grid */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
-          <TimeGrid shifts={filteredShifts} houses={visibleHouses} />
+          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} />
         </div>
       </div>
       <TabBar active="sched" />
@@ -105,40 +108,33 @@ function ViewToggle({ view, setView }) {
   );
 }
 
-function DayStrip() {
-  const week = [
-    { dow: 'Mon', num: 26, today: false },
-    { dow: 'Tue', num: 27, today: true },
-    { dow: 'Wed', num: 28 },
-    { dow: 'Thu', num: 29 },
-    { dow: 'Fri', num: 30 },
-    { dow: 'Sat', num: 31 },
-    { dow: 'Sun', num: 1 },
-  ];
+function DayStrip({ week, dayIdx, setDayIdx }) {
   return (
     <div style={{ padding: '0 22px 12px', display: 'flex', gap: 4 }}>
-      {week.map((d, i) => (
-        <div key={i} style={{
-          flex: 1, padding: '7px 0', textAlign: 'center', borderRadius: 10,
-          background: d.today ? 'var(--a-ink)' : 'transparent',
-          color: d.today ? 'var(--a-card)' : 'var(--a-ink2)',
-          border: d.today ? '0' : '1px solid var(--a-line)',
-        }}>
-          <div style={{ fontSize: 9.5, letterSpacing: '0.04em', opacity: d.today ? 0.7 : 1 }}>{d.dow}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>{d.num}</div>
-        </div>
-      ))}
+      {week.map((d, i) => {
+        const sel = i === dayIdx;
+        return (
+          <div key={i} onClick={() => setDayIdx(i)} style={{
+            flex: 1, padding: '7px 0', textAlign: 'center', borderRadius: 10, cursor: 'pointer',
+            background: sel ? 'var(--a-ink)' : 'transparent',
+            color: sel ? 'var(--a-card)' : 'var(--a-ink2)',
+            border: sel ? '0' : '1px solid var(--a-line)',
+          }}>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.04em', opacity: sel ? 0.7 : 1 }}>{d.dow}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>{d.num}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ── The actual time grid ──────────────────────────────────────────────
-function TimeGrid({ shifts, houses = HOUSES }) {
+function TimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
   const hours = [];
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h);
 
-  // current time: 9:48 AM = 9.8
-  const nowTop = (9.8 - DAY_START) * HOUR_PX;
+  const nowTop = (nowFrac - DAY_START) * HOUR_PX;
   const single = houses.length === 1;
 
   return (
@@ -270,13 +266,16 @@ function ShiftBlock({ shift, houseColor, expanded }) {
 
 // ── Week view (reused, with finer detail) ─────────────────────────────
 function ScreenA_ScheduleWeek({ setView }) {
+  const week = buildWeek(new Date());
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`;
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 22px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>May 26 – Jun 1</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{weekLabel}</div>
           </div>
           <ViewToggle view="week" setView={setView} />
         </div>

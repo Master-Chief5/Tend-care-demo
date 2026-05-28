@@ -4,7 +4,7 @@ const DSK_HOUR_PX = 56;
 
 function PageScheduleDesktopExpanded() {
   const [view, setView] = useState('day');
-  const [dayIdx, setDayIdx] = useState(1); // Tuesday selected
+  const [dayIdx, setDayIdx] = useState(() => { const w = buildWeek(new Date()); const i = w.findIndex(d => d.today); return i >= 0 ? i : 0; });
   const [houseFilter, setHouseFilter] = useState('all');
 
   return (
@@ -49,15 +49,8 @@ function ViewToggleDesktop({ view, setView }) {
 }
 
 function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
-  const week = [
-    { dow: 'Mon', num: 26, label: 'May 26' },
-    { dow: 'Tue', num: 27, label: 'May 27 · today' },
-    { dow: 'Wed', num: 28, label: 'May 28' },
-    { dow: 'Thu', num: 29, label: 'May 29' },
-    { dow: 'Fri', num: 30, label: 'May 30' },
-    { dow: 'Sat', num: 31, label: 'May 31' },
-    { dow: 'Sun', num: 1, label: 'Jun 1' },
-  ];
+  const week = buildWeek(new Date());
+  const nowFrac = useNowMinute();
 
   const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter);
   const filteredShifts = houseFilter === 'all' ? TODAY_SHIFTS : TODAY_SHIFTS.filter(s => s.house === houseFilter);
@@ -70,7 +63,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
         <div style={{ display: 'flex', gap: 6, flex: 1 }}>
           {week.map((d, i) => {
             const sel = i === dayIdx;
-            const today = i === 1;
+            const isToday = d.today;
             return (
               <button key={i} onClick={() => setDayIdx(i)} style={{
                 flex: 1, padding: '10px 6px', textAlign: 'center', borderRadius: 10,
@@ -81,7 +74,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
               }}>
                 <span style={{ fontSize: 10, opacity: 0.7, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{d.dow}</span>
                 <span className="tnum" style={{ fontSize: 18, fontWeight: 700 }}>{d.num}</span>
-                {today && !sel && <span style={{ fontSize: 9, color: 'var(--a-clay)', fontWeight: 600 }}>today</span>}
+                {isToday && !sel && <span style={{ fontSize: 9, color: 'var(--a-clay)', fontWeight: 600 }}>today</span>}
               </button>
             );
           })}
@@ -104,7 +97,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
 
       {/* Summary */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{week[dayIdx].label}</span>
+        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{fmtDayLabel(week[dayIdx].date)}</span>
         <span style={{ fontSize: 12, color: 'var(--a-ink3)' }}>
           {houseFilter === 'all' ? '14 shifts · 7 staff on now · ' : `${filteredShifts.length} shifts · `}
           <strong style={{ color: 'var(--a-clay)' }}>{filteredShifts.filter(s => s.status === 'open').length} open</strong>
@@ -116,7 +109,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter }) {
       </div>
 
       {/* The big grid */}
-      <DesktopTimeGrid shifts={filteredShifts} houses={visibleHouses} />
+      <DesktopTimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} />
     </>
   );
 }
@@ -146,10 +139,10 @@ function DskHouseTab({ active, onClick, color, short, label, count, sub }) {
 }
 
 // ── The big desktop day-view time grid ────────────────────────────────
-function DesktopTimeGrid({ shifts, houses = HOUSES }) {
+function DesktopTimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
   const hours = [];
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h);
-  const nowTop = (9.8 - DAY_START) * DSK_HOUR_PX;
+  const nowTop = (nowFrac - DAY_START) * DSK_HOUR_PX;
 
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
@@ -208,7 +201,7 @@ function DesktopTimeGrid({ shifts, houses = HOUSES }) {
           borderTop: '1.5px solid var(--a-clay)', zIndex: 10,
         }}>
           <div style={{ position: 'absolute', left: -34, top: -10, background: 'var(--a-clay)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, fontVariantNumeric: 'tabular-nums' }}>
-            9:48a
+            {fmtNow(nowFrac)}
           </div>
           <div style={{ position: 'absolute', left: -6, top: -4, width: 8, height: 8, borderRadius: '50%', background: 'var(--a-clay)' }} />
         </div>
@@ -270,11 +263,14 @@ function DskShiftBlock({ shift, houseColor }) {
 
 // ── Week view (compact, same data) ────────────────────────────────────
 function WeekScheduleView() {
+  const week = buildWeek(new Date());
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`;
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
         <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
-        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>May 26 – Jun 1</span>
+        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{weekLabel}</span>
         <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>3</strong></span>
@@ -283,15 +279,12 @@ function WeekScheduleView() {
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
           <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>House</div>
-          {['Mon 26', 'Tue 27', 'Wed 28', 'Thu 29', 'Fri 30', 'Sat 31', 'Sun 1'].map((d, i) => {
-            const [day, num] = d.split(' ');
-            return (
-              <div key={d} style={{ padding: '10px 0', textAlign: 'center', borderLeft: '1px solid var(--a-line)' }}>
-                <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{day}</div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: i === 1 ? 'var(--a-clay)' : 'var(--a-ink)' }}>{num}</div>
-              </div>
-            );
-          })}
+          {week.map((d, i) => (
+            <div key={i} style={{ padding: '10px 0', textAlign: 'center', borderLeft: '1px solid var(--a-line)' }}>
+              <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{d.dow}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: d.today ? 'var(--a-clay)' : 'var(--a-ink)' }}>{d.num}</div>
+            </div>
+          ))}
         </div>
         {HOUSES.map(h => (
           <ScheduleRow key={h.id} house={h} />

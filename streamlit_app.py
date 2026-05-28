@@ -49,6 +49,7 @@ css = read("styles.css")
 
 JSX_ORDER = [
     "common.jsx",
+    "screens-login.jsx",
     "screens-a-houses.jsx",
     "screens-a-house-detail.jsx",
     "screens-a-resources.jsx",
