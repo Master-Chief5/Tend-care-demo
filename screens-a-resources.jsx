@@ -1,12 +1,15 @@
-// screens-a-rest.jsx — Resource analyzer, Schedule, Driving, Staff/Quality, Orientation, Chat
+// screens-a-resources.jsx — Resource analyzer
 
-// ── Resource analyzer ───────────────────────────────────────────────────
 function ScreenA_Resources() {
+  const [dismissed, setDismissed] = useState(false);
+  const [toast, showToast] = useToast();
+
   return (
     <div className="phone-screen">
+      <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 22px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink2)' }}><IconChev size={20} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+          <button style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink2)', cursor: 'pointer' }}><IconChev size={20} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
           <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>Resources</span>
         </div>
         <div style={{ padding: '4px 22px 14px' }}>
@@ -15,36 +18,31 @@ function ScreenA_Resources() {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
-          {/* Top stat row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <BigStat label="Weekly avg" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
             <BigStat label="Per resident" value="$64" sub="↓ $4 vs Apr" tone="good" />
           </div>
 
-          {/* House comparison bar chart */}
           <SectionHeader title="Spend by house · this month" />
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
             <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-            <HouseBar house={HOUSES[1]} value="$840" pct={0.66} />
-            <HouseBar house={HOUSES[2]} value="$1,250" pct={1} />
-            <HouseBar house={HOUSES[3]} value="$910" pct={0.72} last />
+            <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
+            <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
+            <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
-              <span>0</span>
-              <span>$1,250</span>
+              <span>0</span><span>$1,250</span>
             </div>
           </div>
 
-          {/* Top items */}
           <SectionHeader title="What you buy most" sub="across all houses" />
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '6px 14px', marginBottom: 14 }}>
-            <TopItem rank={1} name="Milk (gallon)" qty="84 ct" trend="steady" />
-            <TopItem rank={2} name="Bread" qty="62 loaves" trend="up" />
-            <TopItem rank={3} name="Eggs (dozen)" qty="48 ct" trend="steady" />
-            <TopItem rank={4} name="Chicken breast" qty="44 lb" trend="up" />
-            <TopItem rank={5} name="Paper towels" qty="38 pk" trend="down" last />
+            <TopItem rank={1} name="Milk (gallon)"  qty="84 ct"      trend="steady" />
+            <TopItem rank={2} name="Bread"          qty="62 loaves"  trend="up" />
+            <TopItem rank={3} name="Eggs (dozen)"   qty="48 ct"      trend="steady" />
+            <TopItem rank={4} name="Chicken breast" qty="44 lb"      trend="up" />
+            <TopItem rank={5} name="Paper towels"   qty="38 pk"      trend="down" last />
           </div>
 
-          {/* Cross-house borrow */}
           <SectionHeader title="Cross-house swaps" sub="save a shopping run" />
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
             <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow has 24 surplus; Oak is out" />
@@ -52,20 +50,29 @@ function ScreenA_Resources() {
             <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar overbought last week" />
           </div>
 
-          {/* Coach moment */}
-          <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <IconFlag size={14} color="#a47012" sw={2} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
+          {!dismissed && (
+            <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <IconFlag size={14} color="#a47012" sw={2} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
+              </div>
+              <div style={{ fontSize: 13.5, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
+                <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda. Want to flag to Saira?
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button
+                  onClick={() => showToast('Message sent to Saira K.')}
+                  style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>
+                  Send to Saira
+                </button>
+                <button
+                  onClick={() => setDismissed(true)}
+                  style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist', cursor: 'pointer' }}>
+                  Dismiss
+                </button>
+              </div>
             </div>
-            <div style={{ fontSize: 13.5, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
-              <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda. Want to flag to Saira?
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist' }}>Send to Saira</button>
-              <button style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist' }}>Dismiss</button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -124,7 +131,7 @@ function SwapRow({ from, to, item, note }) {
         <span style={{ fontSize: 10, fontWeight: 700, color: to.color, letterSpacing: '0.06em' }}>{to.short}</span>
         <span style={{ fontSize: 13, color: 'var(--a-ink)', fontWeight: 500 }}>{item}</span>
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginLeft: 0 }}>{note}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>{note}</div>
     </div>
   );
 }

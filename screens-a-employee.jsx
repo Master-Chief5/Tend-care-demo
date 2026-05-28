@@ -3,14 +3,20 @@
 // ── My Day (staff home screen) ─────────────────────────────────────────
 function ScreenA_MyDay() {
   const house = HOUSES[0]; // Oak House — Aisha's house
+  const dateLabel = fmtDayLabel(new Date());
+  const greeting = getGreeting();
 
-  const tasks = [
+  const [tasks, setTasks] = useState([
     { kind: 'med',     text: 'R. Johnson — 2pm meds, need second signoff', done: false, urgent: true },
     { kind: 'drive',   text: "M. Lee → Dr. Patel's office · 1:30pm", done: false },
     { kind: 'grocery', text: 'Grocery run to Whole Foods · 4pm', done: false },
     { kind: 'note',    text: 'Write end-of-shift note', done: false },
     { kind: 'grocery', text: 'Checked in with Ruth Johnson', done: true },
-  ];
+  ]);
+
+  const toggleTask = (i) => {
+    setTasks(prev => prev.map((t, idx) => idx === i ? { ...t, done: !t.done } : t));
+  };
 
   const kindMap = {
     med:     { tag: 'MAR',    bg: '#fadcd7', tc: '#a93a25', ico: IconCheck },
@@ -22,16 +28,14 @@ function ScreenA_MyDay() {
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Greeting */}
         <div style={{ padding: '14px 22px 6px' }}>
-          <div style={{ fontSize: 12, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 500 }}>Tuesday · May 27</div>
+          <div style={{ fontSize: 12, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 500 }}>{dateLabel}</div>
           <div className="serif" style={{ fontSize: 30, lineHeight: 1.05, marginTop: 4, letterSpacing: '-0.02em' }}>
-            Good morning, <em style={{ fontStyle: 'italic', color: 'var(--a-sage)' }}>Aisha</em>
+            {greeting}, <em style={{ fontStyle: 'italic', color: 'var(--a-sage)' }}>Aisha</em>
           </div>
           <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 4 }}>DSP Lead · {house.name}</div>
         </div>
 
-        {/* Current shift card */}
         <div style={{ margin: '10px 22px 4px', background: 'var(--a-ink)', borderRadius: 16, padding: '14px 18px', color: '#fbf6ec' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: '#7dd28a', boxShadow: '0 0 0 4px rgba(125,210,138,0.2)' }} />
@@ -55,7 +59,6 @@ function ScreenA_MyDay() {
           </div>
         </div>
 
-        {/* Tasks */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 22px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Today's tasks</div>
@@ -66,9 +69,9 @@ function ScreenA_MyDay() {
             const k = kindMap[t.kind] || kindMap.note;
             const Ico = k.ico;
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: 'var(--a-card)', border: t.urgent ? `1px solid ${k.tc}44` : '1px solid var(--a-line)', borderRadius: 10, marginBottom: 6, opacity: t.done ? 0.5 : 1 }}>
+              <div key={i} onClick={() => toggleTask(i)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: 'var(--a-card)', border: t.urgent && !t.done ? `1px solid ${k.tc}44` : '1px solid var(--a-line)', borderRadius: 10, marginBottom: 6, opacity: t.done ? 0.5 : 1, cursor: 'pointer' }}>
                 <div style={{ width: 26, height: 26, borderRadius: 8, background: t.done ? 'var(--a-paper)' : k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.done ? 'var(--a-ink3)' : k.tc, flexShrink: 0, marginTop: 1 }}>
-                  {t.done ? <IconCheck size={14} sw={2.2} color="var(--a-ink3)" /> : <Ico size={14} sw={1.8} />}
+                  {t.done ? <IconCheck size={14} sw={2.2} color="var(--a-sage)" /> : <Ico size={14} sw={1.8} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: t.done ? 'var(--a-ink3)' : 'var(--a-ink)', textDecoration: t.done ? 'line-through' : 'none', lineHeight: 1.35 }}>{t.text}</div>
@@ -82,7 +85,7 @@ function ScreenA_MyDay() {
           })}
         </div>
       </div>
-      <TabBar active="houses" />
+      <TabBar active="home" />
     </div>
   );
 }
@@ -91,15 +94,20 @@ function ScreenA_MyDay() {
 function ScreenA_MySchedule() {
   const house = HOUSES[0];
   const c = house.color;
+  const week = buildWeek(new Date());
+  const mon = week[0].date;
+  const sun = week[6].date;
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const weekLabel = `${MONTHS[mon.getMonth()]} ${mon.getDate()} – ${MONTHS[sun.getMonth()]} ${sun.getDate()}`;
 
   const upcomingShifts = [
-    { day: 'Today',  date: 'Tue May 27', time: '7:00 AM – 3:00 PM', status: 'active', note: '2h 48m remaining' },
-    { day: 'Tomorrow', date: 'Wed May 28', time: '7:00 AM – 3:00 PM', status: 'scheduled' },
-    { day: 'Thursday', date: 'Thu May 29', time: 'OFF',              status: 'off' },
-    { day: 'Friday',   date: 'Fri May 30', time: '7:00 AM – 3:00 PM', status: 'scheduled' },
-    { day: 'Saturday', date: 'Sat May 31', time: '3:00 PM – 11:00 PM', status: 'swap', note: 'Swap with Carmen V.' },
-    { day: 'Sunday',   date: 'Sun Jun 1',  time: 'OFF',              status: 'off' },
-    { day: 'Monday',   date: 'Mon Jun 2',  time: '7:00 AM – 3:00 PM', status: 'scheduled' },
+    { day: 'Today',     date: fmtDayLabel(new Date()),       time: '7:00 AM – 3:00 PM',  status: 'active',    note: 'On shift now' },
+    { day: 'Tomorrow',  date: 'Next day',                    time: '7:00 AM – 3:00 PM',  status: 'scheduled' },
+    { day: 'Thursday',  date: '',                            time: 'OFF',                 status: 'off' },
+    { day: 'Friday',    date: '',                            time: '7:00 AM – 3:00 PM',  status: 'scheduled' },
+    { day: 'Saturday',  date: '',                            time: '3:00 PM – 11:00 PM', status: 'swap',      note: 'Swap with Carmen V.' },
+    { day: 'Sunday',    date: '',                            time: 'OFF',                 status: 'off' },
+    { day: 'Monday',    date: '',                            time: '7:00 AM – 3:00 PM',  status: 'scheduled' },
   ];
 
   const statusMap = {
@@ -115,16 +123,15 @@ function ScreenA_MySchedule() {
         <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>My Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>May 26 – Jun 1 · {house.name}</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{weekLabel} · {house.name}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 11.5, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Geist' }}>
+            <button style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 11.5, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Geist', cursor: 'pointer' }}>
               <IconKey size={12} sw={2} color="var(--a-sage)" /> My shifts
             </button>
           </div>
         </div>
 
-        {/* Pay period summary */}
         <div style={{ margin: '4px 22px 14px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '12px 16px', display: 'flex', gap: 20 }}>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>This period</div>
@@ -152,7 +159,7 @@ function ScreenA_MySchedule() {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: s.status === 'active' ? 'var(--a-sage)' : 'var(--a-ink)' }}>{s.day}</span>
-                    <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{s.date}</span>
+                    {s.date && <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{s.date}</span>}
                   </div>
                   <div style={{ fontSize: 13, color: isOff ? 'var(--a-ink3)' : 'var(--a-ink)', fontWeight: isOff ? 400 : 500, marginTop: 2 }}>{s.time}</div>
                   {s.note && <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 2 }}>{s.note}</div>}
@@ -169,7 +176,7 @@ function ScreenA_MySchedule() {
 }
 
 // ── Me (staff / manager profile screen) ───────────────────────────────
-function ScreenA_Me() {
+function ScreenA_Me({ onLogout }) {
   const house = HOUSES[0];
 
   return (
@@ -177,13 +184,12 @@ function ScreenA_Me() {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Me</div>
-          <button style={{ background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink2)', borderRadius: 999, padding: '7px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist' }}>
+          <button style={{ background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink2)', borderRadius: 999, padding: '7px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
             <IconDots size={13} /> Settings
           </button>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '4px 22px 24px' }}>
-          {/* Profile card */}
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 18, padding: '20px 18px', marginBottom: 14, textAlign: 'center' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: house.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 22, margin: '0 auto 12px', border: '3px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>AM</div>
             <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Aisha Mendez</div>
@@ -195,7 +201,6 @@ function ScreenA_Me() {
             </div>
           </div>
 
-          {/* Quality score */}
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 16, padding: '16px 18px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Quality of care · May</div>
@@ -216,7 +221,6 @@ function ScreenA_Me() {
             </div>
           </div>
 
-          {/* Promotion track */}
           <div style={{ background: '#dee6df', border: '1px solid #9fc4a8', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <IconUp size={14} color="#3f7050" sw={2.4} />
@@ -231,7 +235,6 @@ function ScreenA_Me() {
             </div>
           </div>
 
-          {/* Pay & hours */}
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 18px', marginBottom: 14 }}>
             <div className="serif" style={{ fontSize: 18, marginBottom: 10 }}>Pay period</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -245,6 +248,12 @@ function ScreenA_Me() {
               </div>
             </div>
           </div>
+
+          {onLogout && (
+            <button onClick={onLogout} style={{ width: '100%', padding: '12px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, fontSize: 13, color: 'var(--a-ink3)', fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              Sign out
+            </button>
+          )}
         </div>
       </div>
       <TabBar active="me" />

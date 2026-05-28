@@ -177,9 +177,9 @@ function DStat({ label, value, sub, tone, big }) {
   );
 }
 
-function DHouseCard({ house, urgent, staff, present, drives, needs, clear }) {
+function DHouseCard({ house, urgent, staff, present, drives, needs, clear, onClick }) {
   return (
-    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+    <div onClick={onClick} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ height: 4, background: house.color }} />
       <div style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -211,7 +211,7 @@ function DHouseCard({ house, urgent, staff, present, drives, needs, clear }) {
   );
 }
 
-function DDecision({ tag, tone, who, why, cta, last }) {
+function DDecision({ tag, tone, who, why, cta, onCta, last }) {
   const toneMap = {
     good: { c: '#3f7050', bg: '#dee6df' },
     warn: { c: '#a47012', bg: '#f5e9d6' },
@@ -224,7 +224,7 @@ function DDecision({ tag, tone, who, why, cta, last }) {
         <div style={{ fontSize: 13, fontWeight: 600 }}>{who}</div>
         <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1 }}>{why}</div>
       </div>
-      <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 500, fontFamily: 'Geist', flexShrink: 0 }}>{cta}</button>
+      <button onClick={onCta} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 500, fontFamily: 'Geist', flexShrink: 0, cursor: 'pointer' }}>{cta}</button>
     </div>
   );
 }

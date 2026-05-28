@@ -219,6 +219,98 @@ function IconHeart({ size = 20, sw = 1.5, color = 'currentColor', style }) {
   );
 }
 
+// ── Tend logo ──────────────────────────────────────────────────────────
+function TendLogo({ size = 14, color = 'var(--a-sage)' }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Newsreader', fontWeight: 600, fontStyle: 'italic', fontSize: size + 6, color, letterSpacing: '-0.02em' }}>
+      <svg width={size + 4} height={size + 4} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+        <path d="M4 19c4-2 7-7 7-13"/>
+        <path d="M4 19c4 0 8-1 12-5"/>
+        <path d="M11 6c4 1 7 4 9 8"/>
+      </svg>
+      tend
+    </span>
+  );
+}
+
+// ── Roles ──────────────────────────────────────────────────────────────
+const ROLES = [
+  { id: 'supervisor', name: 'Lina R.',  initial: 'L', color: 'var(--a-clay)',               role: 'Supervisor' },
+  { id: 'manager',   name: 'Devon P.', initial: 'D', color: 'var(--house-willow, #2f9489)', role: 'House Mgr · Willow' },
+  { id: 'staff',     name: 'Aisha M.', initial: 'A', color: 'var(--a-sage)',                role: 'DSP Lead · Oak' },
+];
+
+// ── Date & time helpers ────────────────────────────────────────────────
+function buildWeek(today) {
+  const dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  const NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return { dow: NAMES[d.getDay()], num: d.getDate(), date: d, today: d.toDateString() === today.toDateString() };
+  });
+}
+
+function fmtDayLabel(date) {
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${DAYS[date.getDay()]} · ${MONTHS[date.getMonth()]} ${date.getDate()}`;
+}
+
+function fmtNow(frac) {
+  const h = Math.floor(frac), m = Math.round((frac - h) * 60);
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m < 10 ? '0' + m : m} ${period}`;
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+function useNowMinute() {
+  const [now, setNow] = useState(() => {
+    const d = new Date();
+    return d.getHours() + d.getMinutes() / 60;
+  });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date();
+      setNow(d.getHours() + d.getMinutes() / 60);
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+// ── Toast notification ─────────────────────────────────────────────────
+function useToast() {
+  const [toast, setToast] = useState(null);
+  const show = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  };
+  return [toast, show];
+}
+
+function Toast({ msg }) {
+  if (!msg) return null;
+  return (
+    <div style={{
+      position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+      background: 'var(--a-ink)', color: 'var(--a-card)',
+      padding: '9px 18px', borderRadius: 999, fontSize: 12.5, fontWeight: 500,
+      boxShadow: '0 4px 16px rgba(0,0,0,0.18)', zIndex: 9999,
+      whiteSpace: 'nowrap', pointerEvents: 'none',
+    }}>
+      {msg}
+    </div>
+  );
+}
+
 // ── TabBar ─────────────────────────────────────────────────────────────
 function TabBar({ active }) {
   const tabs = [
@@ -256,10 +348,13 @@ function Pill({ color = 'var(--a-sage)', children }) {
 }
 
 Object.assign(window, {
-  HOUSES, useState, useEffect, useRef,
+  HOUSES, ROLES, useState, useEffect, useRef,
+  TendLogo,
   IconHome, IconCal, IconChat, IconCar, IconCart, IconPeople,
   IconPlus, IconSearch, IconFilter, IconChev, IconDots,
   IconBox, IconBook, IconEye, IconArrow, IconKey, IconCheck,
   IconFlag, IconUp, IconDown, IconPlay, IconLeaf, IconHeart,
   TabBar, Pill,
+  buildWeek, fmtDayLabel, fmtNow, getGreeting, useNowMinute,
+  useToast, Toast,
 });

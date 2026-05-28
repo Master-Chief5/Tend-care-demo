@@ -14,21 +14,15 @@ function useIsMobile(bp = 820) {
   return mobile;
 }
 
-// ── Roles ─────────────────────────────────────────────────────────────
-const ROLES = [
-  { id: 'supervisor', name: 'Lina R.', initial: 'L', color: 'var(--a-clay)', role: 'Supervisor' },
-  { id: 'manager',    name: 'Devon P.', initial: 'D', color: 'var(--house-willow, #2f9489)', role: 'House Mgr · Willow' },
-  { id: 'staff',      name: 'Aisha M.', initial: 'A', color: 'var(--a-sage)', role: 'DSP Lead · Oak' },
-];
-
 // ── Mobile shell ──────────────────────────────────────────────────────
-function MobileShell() {
-  const [role, setRole] = useState('supervisor');
+function MobileShell({ user, onLogout }) {
+  const [role, setRole] = useState(user.id);
   const [tab, setTab] = useState('home');
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [houseDetail, setHouseDetail] = useState(null);
 
-  const isSupervisor = role === 'supervisor';
-  const isManager = role === 'manager';
+  const switchTab = (t) => { setTab(t); setHouseDetail(null); };
+  const handleRoleChange = (newRole) => { setRole(newRole); setHouseDetail(null); setTab('home'); };
   const isStaff = role === 'staff';
 
   const tabs = isStaff ? [
@@ -45,17 +39,19 @@ function MobileShell() {
     { id: 'me', label: 'Me', icon: IconPeople },
   ];
 
-  const screen = pickScreen(role, tab);
+  const screen = houseDetail
+    ? <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+    : pickScreen(role, tab, setHouseDetail, switchTab, onLogout);
 
   return (
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
-        <RoleSwitcher role={role} setRole={setRole} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />
+        <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />
       </div>
       <div className="web-tab-bar">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={tab === t.id ? 'active' : ''}>
+          <button key={t.id} onClick={() => switchTab(t.id)} className={tab === t.id && !houseDetail ? 'active' : ''}>
             <t.icon size={22} sw={1.7} />
             <span>{t.label}</span>
           </button>
@@ -65,28 +61,28 @@ function MobileShell() {
   );
 }
 
-function pickScreen(role, tab) {
+function pickScreen(role, tab, onHouseClick, switchTab, onLogout) {
   if (role === 'staff') {
     switch (tab) {
       case 'home':  return <ScreenA_MyDay />;
       case 'sched': return <ScreenA_MySchedule />;
       case 'team':  return <ScreenA_Chat />;
       case 'drive': return <ScreenA_Driving />;
-      case 'me':    return <ScreenA_Me />;
+      case 'me':    return <ScreenA_Me onLogout={onLogout} />;
     }
   }
-  // supervisor + manager share these
   switch (tab) {
-    case 'home':  return <ScreenA_Houses />;
+    case 'home':  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />;
     case 'sched': return <ScreenA_ScheduleDay />;
     case 'team':  return <ScreenA_Chat />;
     case 'drive': return <ScreenA_Driving />;
-    case 'me':    return role === 'supervisor' ? <ScreenA_Staff /> : <ScreenA_Me />;
+    case 'me':    return role === 'supervisor'
+      ? <ScreenA_Staff onLogout={onLogout} />
+      : <ScreenA_Me onLogout={onLogout} />;
   }
-  return <ScreenA_Houses />;
+  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />;
 }
 
-// Floating role-switcher pill in the top-right of the mobile screen
 function RoleSwitcher({ role, setRole, open, setOpen }) {
   const current = ROLES.find(r => r.id === role);
   return (
@@ -132,19 +128,37 @@ function RoleSwitcher({ role, setRole, open, setOpen }) {
 }
 
 // ── Desktop shell ─────────────────────────────────────────────────────
-function DesktopShell() {
+function DesktopShell({ user, onLogout }) {
   const [tab, setTab] = useState('today');
+  const [houseDetail, setHouseDetail] = useState(null);
+  const switchTab = (t) => { setTab(t); setHouseDetail(null); };
   return (
-    <div className="web-app web-desktop" style={{ display: 'flex' }}>
-      <DesktopRail tab={tab} setTab={setTab} />
+    <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} />
       </div>
+      {houseDetail && (
+        <div
+          style={{
+            position: 'absolute', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            paddingTop: 40, overflow: 'auto',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null); }}
+        >
+          <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
+            <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function DesktopRail({ tab, setTab }) {
+function DesktopRail({ tab, setTab, user, onLogout }) {
+  const u = ROLES.find(r => r.id === user.id) || ROLES[0];
   const railTabs = [
     { id: 'today', label: 'Today', icon: IconHome },
     { id: 'houses', label: 'Houses', icon: IconBox, count: 4 },
@@ -176,45 +190,39 @@ function DesktopRail({ tab, setTab }) {
           );
         })}
       </div>
-
       <div style={{ flex: 1 }} />
-
       <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8, paddingLeft: 10 }}>Branches</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
-        {[
-          { name: 'North · Oak + Willow', n: 2 },
-          { name: 'South · Maple + Cedar', n: 2 },
-        ].map(b => (
+        {[{ name: 'North · Oak + Willow' }, { name: 'South · Maple + Cedar' }].map(b => (
           <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', fontSize: 11.5, color: 'var(--a-ink2)', borderRadius: 6 }}>
             <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--a-sage)' }} />
             {b.name}
           </div>
         ))}
       </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)' }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--a-clay)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>L</div>
+      <div onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer' }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{u.initial}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>Lina R.</div>
-          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Supervisor</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Sign out</div>
         </div>
-        <IconDots size={14} color="var(--a-ink3)" />
+        <IconArrow size={13} color="var(--a-ink3)" />
       </div>
     </div>
   );
 }
 
 // ── Desktop page router ───────────────────────────────────────────────
-function DesktopPage({ tab }) {
-  if (tab === 'today') return <PageTodayDesktop />;
-  if (tab === 'houses') return <PageHousesDesktop />;
-  if (tab === 'schedule') return <PageScheduleDesktopExpanded />;
-  if (tab === 'team') return <PageTeamDesktop />;
-  if (tab === 'driving') return <PageDrivingDesktop />;
-  if (tab === 'resources') return <PageResourcesDesktop />;
-  if (tab === 'staff') return <PageStaffDesktop />;
+function DesktopPage({ tab, onHouseClick }) {
+  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />;
+  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />;
+  if (tab === 'schedule')    return <PageScheduleDesktopExpanded />;
+  if (tab === 'team')        return <PageTeamDesktop />;
+  if (tab === 'driving')     return <PageDrivingDesktop />;
+  if (tab === 'resources')   return <PageResourcesDesktop />;
+  if (tab === 'staff')       return <PageStaffDesktop />;
   if (tab === 'orientation') return <PageOrientationDesktop />;
-  return null;
+  return <PageTodayDesktop onHouseClick={onHouseClick} />;
 }
 
-Object.assign(window, { useIsMobile, MobileShell, DesktopShell, DesktopRail, DesktopPage, pickScreen, RoleSwitcher, ROLES });
+Object.assign(window, { useIsMobile, MobileShell, DesktopShell, DesktopRail, DesktopPage, pickScreen, RoleSwitcher });

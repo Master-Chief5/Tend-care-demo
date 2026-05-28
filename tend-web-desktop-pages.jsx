@@ -1,6 +1,5 @@
 // tend-web-desktop-pages.jsx — desktop page bodies for each tab
 
-// shared header for desktop pages
 function DTopBar({ title, sub, actions, search = true }) {
   return (
     <div style={{ padding: '18px 28px 14px', borderBottom: '1px solid var(--a-line)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -21,17 +20,30 @@ function DTopBar({ title, sub, actions, search = true }) {
   );
 }
 
-// ── Today (supervisor dashboard, sans its own rail) ───────────────────
-function PageTodayDesktop() {
+// ── Today (supervisor dashboard) ─────────────────────────────────────
+function PageTodayDesktop({ onHouseClick }) {
+  const [toast, showToast] = useToast();
+  const [branchFilter, setBranchFilter] = useState('All');
+  const greeting = getGreeting();
+  const dateLabel = fmtDayLabel(new Date());
+
+  const allHouseCards = [
+    { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: ['Out: oat milk, bananas', 'R. Johnson MAR 2pm', '1:30p drive to dentist'] },
+    { house: HOUSES[1], urgent: 1, staff: 1, present: 3, drives: 0, needs: ['Low: paper towels, chicken', 'Devon shift note (8:14a)'] },
+    { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: ['Refill: K. Diaz', 'Dryer service', 'Shop run 4p'] },
+    { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: ['All clear · 2 incident-free wks'] },
+  ];
+  const visibleCards = allHouseCards.filter(d => branchFilter === 'All' || d.house.branch === branchFilter);
+
   return (
     <>
+      <Toast msg={toast} />
       <DTopBar
-        title={<>Good morning, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>Lina</em></>}
-        sub={<>Tuesday · May 27 · 4 houses · 22 staff · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
+        title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>Lina</em></>}
+        sub={<>{dateLabel} · 4 houses · 22 staff · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}
+        actions={<button onClick={() => showToast('Opening new item…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        {/* Stat row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           <DStat label="Quality of care" value="92" sub="↑ 4 pts · May" tone="good" big />
           <DStat label="Weekly spend" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
@@ -42,26 +54,22 @@ function PageTodayDesktop() {
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Houses today</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {['All', 'North', 'South'].map((b, i) => (
-              <button key={b} style={{
-                border: i === 0 ? '0' : '1px solid var(--a-line)',
-                background: i === 0 ? 'var(--a-ink)' : 'transparent',
-                color: i === 0 ? 'var(--a-card)' : 'var(--a-ink2)',
-                padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist',
+            {['All', 'North', 'South'].map(b => (
+              <button key={b} onClick={() => setBranchFilter(b)} style={{
+                border: b === branchFilter ? '0' : '1px solid var(--a-line)',
+                background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
+                color: b === branchFilter ? 'var(--a-card)' : 'var(--a-ink2)',
+                padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer',
               }}>{b}</button>
             ))}
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 24 }}>
-          <DHouseCard house={HOUSES[0]} urgent={3} staff={2} present={3} drives={2}
-            needs={['Out: oat milk, bananas', 'R. Johnson MAR 2pm', '1:30p drive to dentist']} />
-          <DHouseCard house={HOUSES[1]} urgent={1} staff={1} present={3} drives={0}
-            needs={['Low: paper towels, chicken', 'Devon shift note (8:14a)']} />
-          <DHouseCard house={HOUSES[2]} urgent={4} staff={2} present={4} drives={3}
-            needs={['Refill: K. Diaz', 'Dryer service', 'Shop run 4p']} />
-          <DHouseCard house={HOUSES[3]} urgent={0} staff={2} present={4} drives={1}
-            needs={['All clear · 2 incident-free wks']} clear />
+          {visibleCards.map(({ house, urgent, staff, present, drives, needs }) => (
+            <DHouseCard key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
+              onClick={() => onHouseClick && onHouseClick(house.id)} />
+          ))}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 16 }}>
@@ -71,14 +79,10 @@ function PageTodayDesktop() {
               <span className="serif" style={{ fontSize: 18 }}>Decisions for you</span>
               <span style={{ fontSize: 10, color: 'var(--a-ink3)', background: 'var(--a-paper)', padding: '1px 7px', borderRadius: 999, marginLeft: 'auto' }}>5 open</span>
             </div>
-            <DDecision tag="Promote" tone="good" who="Aisha Mendez"
-              why="2.1 yrs · 96 quality · 100% MAR · Lead-ready" cta="Approve" />
-            <DDecision tag="Coach" tone="warn" who="Marcus Lewis"
-              why="4 lates in 2 wks · 64 quality · 6mo · last note: tardy w/o notice" cta="Open scorecard" />
-            <DDecision tag="Hire" tone="info" who="3 candidates · DSP, Willow"
-              why="Devon flagged 2 strong · open 3-11 shift unfilled Wed" cta="Review" />
-            <DDecision tag="Schedule conflict" tone="warn" who="Sat 5/31"
-              why="Maple short 2 DSPs · Priya offered to swap from Cedar" cta="Approve swap" last />
+            <DDecision tag="Promote" tone="good" who="Aisha Mendez" why="2.1 yrs · 96 quality · 100% MAR · Lead-ready" cta="Approve" onCta={() => showToast('Approved — Aisha promoted to Lead')} />
+            <DDecision tag="Coach" tone="warn" who="Marcus Lewis" why="4 lates in 2 wks · 64 quality · 6mo" cta="Open scorecard" onCta={() => showToast('Opening scorecard…')} />
+            <DDecision tag="Hire" tone="info" who="3 candidates · DSP, Willow" why="Devon flagged 2 strong · open 3-11 shift Wed" cta="Review" onCta={() => showToast('Opening candidate review…')} />
+            <DDecision tag="Schedule conflict" tone="warn" who="Sat 5/31" why="Maple short 2 DSPs · Priya offered to swap" cta="Approve swap" last onCta={() => showToast('Swap approved')} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={dCard}>
@@ -111,7 +115,7 @@ function PageTodayDesktop() {
 }
 
 // ── Houses page ───────────────────────────────────────────────────────
-function PageHousesDesktop() {
+function PageHousesDesktop({ onHouseClick }) {
   const houseData = [
     { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: [
       { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
@@ -138,7 +142,8 @@ function PageHousesDesktop() {
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
           {houseData.map(({ house, urgent, staff, present, drives, needs }) => (
-            <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs} />
+            <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
+              onOpen={() => onHouseClick && onHouseClick(house.id)} />
           ))}
         </div>
       </div>
@@ -146,7 +151,7 @@ function PageHousesDesktop() {
   );
 }
 
-function HouseCardWide({ house, urgent, staff, present, drives, needs }) {
+function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen }) {
   const c = house.color;
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
@@ -185,7 +190,7 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs }) {
           <IconChat size={14} sw={1.7} /> Message
         </button>
         <div style={{ width: 1, background: 'var(--a-line)' }} />
-        <button style={{ flex: 1, padding: '11px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 600, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
+        <button onClick={onOpen} style={{ flex: 1, padding: '11px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 600, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
           Open house <IconArrow size={14} sw={2} />
         </button>
       </div>
@@ -193,12 +198,14 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs }) {
   );
 }
 
-// ── Schedule page (desktop = full grid) ───────────────────────────────
+// ── Schedule page (week grid fallback) ────────────────────────────────
 function PageScheduleDesktop() {
-  const days = ['Mon 26', 'Tue 27', 'Wed 28', 'Thu 29', 'Fri 30', 'Sat 31', 'Sun 1'];
+  const week = buildWeek(new Date());
+  const days = week.map(d => `${d.dow} ${d.num}`);
   return (
     <>
-      <DTopBar title="Schedule" sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconKey size={12} sw={2} color="var(--a-sage)" /> You see all 4 houses · Staff only see their own shifts.</span>}
+      <DTopBar title="Schedule"
+        sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconKey size={12} sw={2} color="var(--a-sage)" /> You see all 4 houses · Staff only see their own shifts.</span>}
         actions={<>
           <button style={dBtnGhost}><IconEye size={13} sw={1.7} /> All branches</button>
           <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
@@ -206,31 +213,22 @@ function PageScheduleDesktop() {
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
-          <span className="serif" style={{ fontSize: 20, letterSpacing: '-0.01em' }}>May 26 – Jun 1</span>
+          <span className="serif" style={{ fontSize: 20, letterSpacing: '-0.01em' }}>{fmtDayLabel(week[0].date).split(' · ')[1]} – {fmtDayLabel(week[6].date).split(' · ')[1]}</span>
           <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>3</strong></span>
         </div>
-
-        {/* week grid */}
         <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
-          {/* Header row */}
           <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
             <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>House</div>
-            {days.map((d, i) => {
-              const [day, num] = d.split(' ');
-              return (
-                <div key={d} style={{ padding: '10px 0', textAlign: 'center', borderLeft: '1px solid var(--a-line)' }}>
-                  <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{day}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: i === 1 ? 'var(--a-clay)' : 'var(--a-ink)' }}>{num}</div>
-                </div>
-              );
-            })}
+            {week.map((d, i) => (
+              <div key={i} style={{ padding: '10px 0', textAlign: 'center', borderLeft: '1px solid var(--a-line)' }}>
+                <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{d.dow}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: d.today ? 'var(--a-clay)' : 'var(--a-ink)' }}>{d.num}</div>
+              </div>
+            ))}
           </div>
-          {/* House rows */}
-          {HOUSES.map(h => (
-            <ScheduleRow key={h.id} house={h} />
-          ))}
+          {HOUSES.map(h => <ScheduleRow key={h.id} house={h} />)}
         </div>
       </div>
     </>
@@ -238,7 +236,6 @@ function PageScheduleDesktop() {
 }
 
 function ScheduleRow({ house }) {
-  // For each day, give a couple of shift bars. Mock data.
   const dayShifts = [
     [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
     [['7a–3p', 'Aisha M.'], ['7a–3p', 'Jay B.'], ['3p–11p', 'Carmen V.']],
@@ -262,12 +259,7 @@ function ScheduleRow({ house }) {
           {shifts.map((s, j) => {
             const open = s[1] === 'OPEN';
             return (
-              <div key={j} style={{
-                background: open ? 'transparent' : house.color,
-                border: open ? `1.5px dashed ${house.color}` : 'none',
-                color: open ? house.color : '#fff',
-                borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500,
-              }}>
+              <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
                 <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{s[0]}</div>
                 <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s[1]}</div>
               </div>
@@ -279,9 +271,7 @@ function ScheduleRow({ house }) {
   );
 }
 
-// ── Driving / Resources / Staff / Orientation / Team — desktop versions
-// Use a centered "phone-style" content column + a side panel where useful.
-
+// ── Driving page ──────────────────────────────────────────────────────
 function CenteredColumn({ children, width = 760, side }) {
   return (
     <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -293,20 +283,20 @@ function CenteredColumn({ children, width = 760, side }) {
 }
 
 function PageDrivingDesktop() {
+  const [toast, showToast] = useToast();
   return (
     <>
+      <Toast msg={toast} />
       <DTopBar title="Driving" sub="Logs · mileage · vehicles"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Start trip</button>} />
+        actions={<button onClick={() => showToast('Opening trip form…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Start trip</button>} />
       <CenteredColumn width={780} side>
-        {/* main column */}
         <div>
-          {/* Active trip */}
           <div style={{ background: 'var(--a-ink)', color: '#fbf6ec', borderRadius: 16, padding: '20px 22px', marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: '#7dd28a', boxShadow: '0 0 0 4px rgba(125,210,138,0.2)' }} />
               <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em', color: '#7dd28a', textTransform: 'uppercase' }}>Trip in progress</span>
             </div>
-            <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em' }}>M. Lee → Dr. Patel's office</div>
+            <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em' }}>M. Lee to Dr. Patel's office</div>
             <div style={{ fontSize: 13, opacity: 0.65, marginTop: 4 }}>Driver: Aisha M. · Van #2 · Oak House</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(251,246,236,0.12)' }}>
               <Mini label="Time" value="0:18" />
@@ -316,7 +306,6 @@ function PageDrivingDesktop() {
             </div>
           </div>
 
-          {/* Recent trips wide */}
           <div style={{ ...dCard, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span className="serif" style={{ fontSize: 18 }}>Recent trips</span>
@@ -335,7 +324,7 @@ function PageDrivingDesktop() {
             ].map((row, i) => {
               const h = HOUSES.find(x => x.id === row[1]);
               return (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center' }}>
+                <div key={i} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
                   <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{row[0]}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 3, height: 16, background: h.color, borderRadius: 2 }} />
@@ -350,13 +339,12 @@ function PageDrivingDesktop() {
           </div>
         </div>
 
-        {/* side panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={dCard}>
             <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>This pay period</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
               <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>248.4</span>
-              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi · ${'\u200a'}<span className="tnum" style={{ fontWeight: 600, color: 'var(--a-ink)' }}>166.43</span></span>
+              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi · $<span className="tnum" style={{ fontWeight: 600, color: 'var(--a-ink)' }}>166.43</span></span>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--a-ink3)' }}>
               <span>34 trips</span><span>·</span><span>6 days remaining</span>
@@ -370,9 +358,9 @@ function PageDrivingDesktop() {
           <div style={dCard}>
             <span className="serif" style={{ fontSize: 18 }}>Vehicles</span>
             <div style={{ marginTop: 8 }}>
-              <VehicleRow name="Van #1 · Sienna '22" sub="Oak / Willow · 38,402 mi" status="ok" />
-              <VehicleRow name="Van #2 · Sienna '21" sub="Aisha out · 51,108 mi" status="active" />
-              <VehicleRow name="Van #3 · Odyssey '23" sub="Oil due 4/8" status="due" last />
+              <VehicleRow name="Van #1 · Sienna '22" sub="Oak / Willow · 38,402 mi" status="ok" onClick={() => showToast('Van #1 — available')} />
+              <VehicleRow name="Van #2 · Sienna '21" sub="Aisha out · 51,108 mi" status="active" onClick={() => showToast('Van #2 — in use by Aisha')} />
+              <VehicleRow name="Van #3 · Odyssey '23" sub="Oil due 4/8" status="due" last onClick={() => showToast('Van #3 — service overdue')} />
             </div>
           </div>
         </div>
@@ -381,11 +369,15 @@ function PageDrivingDesktop() {
   );
 }
 
+// ── Resources page ────────────────────────────────────────────────────
 function PageResourcesDesktop() {
+  const [dismissed, setDismissed] = useState(false);
+  const [toast, showToast] = useToast();
   return (
     <>
+      <Toast msg={toast} />
       <DTopBar title="Resources" sub="Spend insights · grocery · cross-house"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Generate list</button>} />
+        actions={<button onClick={() => showToast('Generating list…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Generate list</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           <DStat label="Weekly avg" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
@@ -399,38 +391,44 @@ function PageResourcesDesktop() {
             <span className="serif" style={{ fontSize: 20 }}>Spend by house · May</span>
             <div style={{ marginTop: 14 }}>
               <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-              <HouseBar house={HOUSES[1]} value="$840" pct={0.66} />
-              <HouseBar house={HOUSES[2]} value="$1,250" pct={1} />
-              <HouseBar house={HOUSES[3]} value="$910" pct={0.72} last />
+              <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
+              <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
+              <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
               <span>0</span><span>$1,250</span>
             </div>
           </div>
-          <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <IconFlag size={14} color="#a47012" sw={2} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
+          {!dismissed ? (
+            <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <IconFlag size={14} color="#a47012" sw={2} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
+                <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda.
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button onClick={() => { showToast('Message sent to Saira K.'); }} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>Send to Saira</button>
+                <button onClick={() => setDismissed(true)} style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist', cursor: 'pointer' }}>Dismiss</button>
+              </div>
             </div>
-            <div style={{ fontSize: 14, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
-              <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda.
+          ) : (
+            <div style={{ ...dCard, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--a-ink3)', fontSize: 13 }}>
+              Coach card dismissed
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist' }}>Send to Saira</button>
-              <button style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist' }}>Dismiss</button>
-            </div>
-          </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div style={dCard}>
             <span className="serif" style={{ fontSize: 20 }}>What you buy most</span>
             <div style={{ marginTop: 8 }}>
-              <TopItem rank={1} name="Milk (gallon)" qty="84 ct" trend="steady" />
-              <TopItem rank={2} name="Bread" qty="62 loaves" trend="up" />
-              <TopItem rank={3} name="Eggs (dozen)" qty="48 ct" trend="steady" />
-              <TopItem rank={4} name="Chicken breast" qty="44 lb" trend="up" />
-              <TopItem rank={5} name="Paper towels" qty="38 pk" trend="down" last />
+              <TopItem rank={1} name="Milk (gallon)"  qty="84 ct"     trend="steady" />
+              <TopItem rank={2} name="Bread"          qty="62 loaves" trend="up" />
+              <TopItem rank={3} name="Eggs (dozen)"   qty="48 ct"     trend="steady" />
+              <TopItem rank={4} name="Chicken breast" qty="44 lb"     trend="up" />
+              <TopItem rank={5} name="Paper towels"   qty="38 pk"     trend="down" last />
             </div>
           </div>
           <div style={dCard}>
@@ -452,62 +450,100 @@ function PageResourcesDesktop() {
   );
 }
 
+// ── Staff page ────────────────────────────────────────────────────────
 function PageStaffDesktop() {
+  const [query, setQuery] = useState('');
+  const [houseFilter, setHouseFilter] = useState('All');
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [toast, showToast] = useToast();
+
+  const filtered = STAFF_LIST.filter(s => {
+    const matchHouse = houseFilter === 'All' || s.house === houseFilter.toLowerCase();
+    const matchQuery = s.name.toLowerCase().includes(query.toLowerCase()) || s.role.toLowerCase().includes(query.toLowerCase());
+    return matchHouse && matchQuery;
+  });
+
   return (
     <>
-      <DTopBar title="Staff" sub="22 staff · 4 in onboarding"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Hire</button>} />
+      <Toast msg={toast} />
+      <DTopBar
+        title="Staff" sub="22 staff · 4 in onboarding"
+        actions={<button onClick={() => showToast('Opening hiring flow…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Hire</button>}
+        search={false}
+      />
       <CenteredColumn width={820} side>
         <div>
-          {/* Filters */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+            <div style={{ flex: 1, background: 'var(--a-paper)', borderRadius: 999, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--a-line)' }}>
+              <IconSearch size={13} color="var(--a-ink3)" />
+              <input placeholder="Search staff…" value={query} onChange={e => setQuery(e.target.value)}
+                style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 12.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {['All', 'Oak', 'Willow', 'Maple', 'Cedar'].map((b, i) => (
-              <button key={b} style={{
-                border: i === 0 ? '0' : '1px solid var(--a-line)',
-                background: i === 0 ? 'var(--a-ink)' : 'transparent',
-                color: i === 0 ? 'var(--a-card)' : 'var(--a-ink2)',
-                padding: '6px 14px', borderRadius: 999, fontSize: 12, fontFamily: 'Geist', fontWeight: 500,
+            {['All', 'Oak', 'Willow', 'Maple', 'Cedar'].map(b => (
+              <button key={b} onClick={() => setHouseFilter(b)} style={{
+                border: b === houseFilter ? '0' : '1px solid var(--a-line)',
+                background: b === houseFilter ? 'var(--a-ink)' : 'transparent',
+                color: b === houseFilter ? 'var(--a-card)' : 'var(--a-ink2)',
+                padding: '6px 14px', borderRadius: 999, fontSize: 12, fontFamily: 'Geist', fontWeight: 500, cursor: 'pointer',
               }}>{b}</button>
             ))}
           </div>
-
-          <StaffCard name="Aisha Mendez" role="DSP · Lead" house="oak" score={96} sub="2.1 yrs · On track for promo" highlight="promo" />
-          <StaffCard name="Jay Brooks" role="DSP" house="oak" score={88} sub="2.0 yrs · MAR perfect 90d" />
-          <StaffCard name="Devon Park" role="House mgr" house="willow" score={94} sub="3.4 yrs · Family ★ 5.0" />
-          <StaffCard name="Saira Khan" role="House mgr" house="maple" score={89} sub="1.2 yrs" />
-          <StaffCard name="Marcus Lewis" role="DSP" house="maple" score={64} sub="0.5 yrs · 4 late in 2wk" highlight="concern" />
-          <StaffCard name="Carmen Vela" role="DSP" house="oak" score={82} sub="6 mo · Orientation 80%" highlight="orient" />
-          <StaffCard name="Priya Nair" role="DSP" house="cedar" score={91} sub="1.8 yrs" />
-          <StaffCard name="Reni Tate" role="DSP" house="maple" score={87} sub="1.5 yrs" />
-          <StaffCard name="Tomas Reed" role="House mgr" house="cedar" score={93} sub="4.0 yrs" />
+          {filtered.map((s, i) => (
+            <StaffCard key={i} {...s} onClick={() => setSelectedStaff(s)} />
+          ))}
+          {filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={dCard}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="serif" style={{ fontSize: 18 }}>Quality of care</span>
-              <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>↑ 4 pts</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-              <RingChart pct={0.92} color="var(--a-sage)" size={60} />
-              <div>
-                <div className="serif tnum" style={{ fontSize: 36, fontWeight: 500, lineHeight: 1, letterSpacing: '-0.02em' }}>92</div>
-                <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 2 }}>out of 100 · May</div>
+          {selectedStaff ? (
+            <div style={dCard}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <button onClick={() => setSelectedStaff(null)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', padding: 0 }}>
+                  <IconChev size={16} sw={2} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+                <span className="serif" style={{ fontSize: 18 }}>{selectedStaff.name}</span>
               </div>
+              <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: HOUSES.find(h => h.id === selectedStaff.house).color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedStaff.role}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{HOUSES.find(h => h.id === selectedStaff.house).name} · {selectedStaff.tenure}</div>
+              </div>
+              <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
+                <div style={{ width: `${selectedStaff.score}%`, height: '100%', background: selectedStaff.score >= 90 ? '#3f7050' : selectedStaff.score >= 80 ? '#a47012' : '#a93a25', borderRadius: 999 }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 12 }}>Quality score: <strong style={{ color: selectedStaff.score >= 90 ? '#3f7050' : '#a47012' }}>{selectedStaff.score}</strong></div>
+              <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5 }}>{selectedStaff.notes}</div>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-              <Pill color="var(--a-sage)">MAR · 100%</Pill>
-              <Pill color="var(--a-sage)">Notes · 96%</Pill>
-              <Pill color="var(--a-clay)">Late · 8%</Pill>
-              <Pill color="var(--a-sage)">Family ★ 4.7</Pill>
+          ) : (
+            <div style={dCard}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="serif" style={{ fontSize: 18 }}>Quality of care</span>
+                <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>↑ 4 pts</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                <RingChart pct={0.92} color="var(--a-sage)" size={60} />
+                <div>
+                  <div className="serif tnum" style={{ fontSize: 36, fontWeight: 500, lineHeight: 1, letterSpacing: '-0.02em' }}>92</div>
+                  <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 2 }}>out of 100 · May</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+                <Pill color="var(--a-sage)">MAR · 100%</Pill>
+                <Pill color="var(--a-sage)">Notes · 96%</Pill>
+                <Pill color="var(--a-clay)">Late · 8%</Pill>
+                <Pill color="var(--a-sage)">Family ★ 4.7</Pill>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 12 }}>Click a staff card to view their profile.</div>
             </div>
-          </div>
+          )}
 
           <div style={dCard}>
             <span className="serif" style={{ fontSize: 18 }}>Decisions for you</span>
             <div style={{ marginTop: 8 }}>
-              <DDecision tag="Promote" tone="good" who="Aisha Mendez" why="Lead-ready" cta="Open" />
-              <DDecision tag="Coach" tone="warn" who="Marcus Lewis" why="4 lates in 2 wks" cta="Open" last />
+              <DDecision tag="Promote" tone="good" who="Aisha Mendez" why="Lead-ready" cta="Open" onCta={() => showToast('Opening review…')} />
+              <DDecision tag="Coach" tone="warn" who="Marcus Lewis" why="4 lates in 2 wks" cta="Open" last onCta={() => showToast('Opening scorecard…')} />
             </div>
           </div>
         </div>
@@ -516,6 +552,7 @@ function PageStaffDesktop() {
   );
 }
 
+// ── Orientation page ──────────────────────────────────────────────────
 function PageOrientationDesktop() {
   return (
     <>
@@ -523,12 +560,11 @@ function PageOrientationDesktop() {
         actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
-          <NewHireCard name="Carmen Vela" house="oak" mentor="Lina R." day={6} pct={0.20} next="Read: Resident profiles" />
-          <NewHireCard name="Theo Walker" house="willow" mentor="Devon P." day={12} pct={0.42} next="Shadow shift #2" />
-          <NewHireCard name="Iris Halloway" house="maple" mentor="Saira K." day={3} pct={0.10} next="House walkthrough" />
-          <NewHireCard name="Mateo Ruiz" house="cedar" mentor="Tomas R." day={22} pct={0.78} next="Solo shift signoff" />
+          <NewHireCard name="Carmen Vela"   house="oak"    mentor="Lina R."   day={6}  pct={0.20} next="Read: Resident profiles" />
+          <NewHireCard name="Theo Walker"   house="willow" mentor="Devon P."  day={12} pct={0.42} next="Shadow shift #2" />
+          <NewHireCard name="Iris Halloway" house="maple"  mentor="Saira K."  day={3}  pct={0.10} next="House walkthrough" />
+          <NewHireCard name="Mateo Ruiz"    house="cedar"  mentor="Tomas R."  day={22} pct={0.78} next="Solo shift signoff" />
         </div>
-
         <div style={{ marginTop: 24 }}>
           <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>The Roots plan</span>
           <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 4, marginBottom: 14 }}>30 days, four weeks, mentor-led. Self-paced w/ Friday check-ins.</div>
@@ -593,8 +629,20 @@ function RootWeek({ num, title, items }) {
   );
 }
 
+// ── Team chat page (two-pane) ─────────────────────────────────────────
 function PageTeamDesktop() {
-  // Two-pane: channel list + open conversation
+  const [selectedChannel, setSelectedChannel] = useState('oak');
+  const ch = CHAT_DATA[selectedChannel];
+
+  const channelList = [
+    { key: 'oak',    house: 'oak',    lastFrom: 'Aisha', preview: 'Got the oat milk + bananas, heading back', time: '3m',  unread: 2 },
+    { key: 'willow', house: 'willow', lastFrom: 'Devon', preview: 'Need a fill-in for Wed 3-11',              time: '22m', unread: 1 },
+    { key: 'maple',  house: 'maple',  lastFrom: 'Saira', preview: 'Dryer guy coming Thu morning',             time: '1h' },
+    { key: 'cedar',  house: 'cedar',  lastFrom: 'Tomas', preview: 'All set for the week',                    time: '3h' },
+    { key: 'carmen', dm: true, name: 'Carmen Vela',  preview: 'Hey Lina, where do I park?',  time: 'Sun', unread: 1 },
+    { key: 'marcus', dm: true, name: 'Marcus Lewis', preview: 'Sorry about being late again', time: 'Sat' },
+  ];
+
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <div style={{ width: 320, borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', background: 'var(--a-card)', flexShrink: 0 }}>
@@ -607,39 +655,38 @@ function PageTeamDesktop() {
         </div>
         <div style={{ flex: 1, overflow: 'auto', paddingBottom: 16 }}>
           <SectionLabel>House channels</SectionLabel>
-          <ChatRow house="oak" lastFrom="Aisha" preview="Got the oat milk + bananas, heading back" time="3m" unread={2} />
-          <ChatRow house="willow" lastFrom="Devon" preview="Need a fill-in for Wed 3-11" time="22m" unread={1} />
-          <ChatRow house="maple" lastFrom="Saira" preview="Dryer guy coming Thu morning" time="1h" />
-          <ChatRow house="cedar" lastFrom="Tomas" preview="All set for the week" time="3h" />
+          {channelList.filter(c => !c.dm).map(c => (
+            <div key={c.key} onClick={() => setSelectedChannel(c.key)} style={{ background: selectedChannel === c.key ? 'var(--a-paper)' : 'transparent' }}>
+              <ChatRow house={c.house} lastFrom={c.lastFrom} preview={c.preview} time={c.time} unread={c.unread} />
+            </div>
+          ))}
           <SectionLabel>Direct messages</SectionLabel>
-          <ChatRow dm name="Carmen Vela" preview="Hey Lina, where do I park on Mon?" time="Sun" unread={1} />
-          <ChatRow dm name="Marcus Lewis" preview="Sorry about being late again" time="Sat" />
+          {channelList.filter(c => c.dm).map(c => (
+            <div key={c.key} onClick={() => setSelectedChannel(c.key)} style={{ background: selectedChannel === c.key ? 'var(--a-paper)' : 'transparent' }}>
+              <ChatRow dm name={c.name} preview={c.preview} time={c.time} unread={c.unread} />
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* conversation */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--a-bg)' }}>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--a-line)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ width: 26, height: 26, borderRadius: 6, background: HOUSES[0].color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{HOUSES[0].short}</span>
+          <div style={{ width: 26, height: 26, borderRadius: 6, background: ch.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{ch.short}</div>
           <div>
-            <div className="serif" style={{ fontSize: 18, letterSpacing: '-0.01em' }}># Oak House</div>
-            <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>4 members · Aisha, Jay, Carmen, Lina</div>
+            <div className="serif" style={{ fontSize: 18, letterSpacing: '-0.01em' }}>{ch.name}</div>
+            <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{ch.members}</div>
           </div>
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
           <DayDivider label="Today" />
-          <Msg who="Aisha M." color={HOUSES[0].color} time="8:12 AM" text="Morning all — R. Johnson had a rough night, going to call mom around 9." />
-          <Msg who="Lina (you)" color="var(--a-clay)" time="8:15 AM" me text="Thx Aisha. Note in the chart? I'll loop in Dr. Patel if needed." />
-          <Msg who="Aisha M." color={HOUSES[0].color} time="8:16 AM" text="Note's in. Will keep you posted." />
-          <Msg who="Aisha M." color={HOUSES[0].color} time="9:08 AM" text="Mom called back — she's coming for lunch. Also we're out of oat milk + bananas, adding to grocery." attachment="grocery" />
-          <Msg who="Lina (you)" color="var(--a-clay)" time="9:11 AM" me text="🙏" />
+          {ch.messages.map((m, i) => <Msg key={i} who={m.who} color={m.me ? 'var(--a-clay)' : ch.color} time={m.time} text={m.text} me={m.me} />)}
         </div>
 
         <div style={{ padding: '14px 24px', borderTop: '1px solid var(--a-line)' }}>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input placeholder="Message #Oak House…" style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 13.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
-            <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist' }}>Send</button>
+            <input placeholder={`Message ${ch.name}…`} style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 13.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
+            <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Send</button>
           </div>
         </div>
       </div>
@@ -657,7 +704,7 @@ function DayDivider({ label }) {
   );
 }
 
-function Msg({ who, color, time, text, me, attachment }) {
+function Msg({ who, color, time, text, me }) {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexDirection: me ? 'row-reverse' : 'row' }}>
       <div style={{ width: 32, height: 32, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12, flexShrink: 0 }}>{who[0]}</div>
@@ -666,30 +713,13 @@ function Msg({ who, color, time, text, me, attachment }) {
           <span style={{ fontSize: 12, fontWeight: 600 }}>{who}</span>
           <span style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{time}</span>
         </div>
-        <div style={{
-          background: me ? 'var(--a-ink)' : 'var(--a-card)',
-          color: me ? 'var(--a-card)' : 'var(--a-ink)',
-          padding: '10px 14px', borderRadius: 12,
-          border: me ? '0' : '1px solid var(--a-line)',
-          fontSize: 13.5, lineHeight: 1.45,
-        }}>{text}</div>
-        {attachment === 'grocery' && (
-          <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f5e9d6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a47012' }}>
-              <IconCart size={16} />
-            </div>
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>Oak grocery list updated</div>
-              <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>+2 items · oat milk, bananas</div>
-            </div>
-          </div>
-        )}
+        <div style={{ background: me ? 'var(--a-ink)' : 'var(--a-card)', color: me ? 'var(--a-card)' : 'var(--a-ink)', padding: '10px 14px', borderRadius: 12, border: me ? '0' : '1px solid var(--a-line)', fontSize: 13.5, lineHeight: 1.45 }}>{text}</div>
       </div>
     </div>
   );
 }
 
-// ── shared inline styles ──────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────
 const dCard = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '16px 18px' };
 const dBtnSolid = { background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 16px', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' };
 const dBtnGhost = { background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 14px', fontSize: 12, color: 'var(--a-ink2)', fontFamily: 'Geist', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' };

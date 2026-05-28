@@ -1,27 +1,15 @@
-// screens-a-houses.jsx — Direction A · Houses overview + House detail
-
-// ── Tend logo ─────────────────────────────────────────────────────────
-function TendLogo({ size = 14, color = 'var(--a-sage)' }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Newsreader', fontWeight: 600, fontStyle: 'italic', fontSize: size + 6, color, letterSpacing: '-0.02em' }}>
-      <svg width={size + 4} height={size + 4} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-        <path d="M4 19c4-2 7-7 7-13"/>
-        <path d="M4 19c4 0 8-1 12-5"/>
-        <path d="M11 6c4 1 7 4 9 8"/>
-      </svg>
-      tend
-    </span>
-  );
-}
+// screens-a-houses.jsx — Direction A · Houses overview
 
 // ── Big greeting block ─────────────────────────────────────────────────
 function GreetingHeader({ name = 'Lina', role = 'Supervisor · North + South' }) {
+  const dateLabel = fmtDayLabel(new Date());
+  const greeting = getGreeting();
   return (
     <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
       <div>
-        <div style={{ fontSize: 12, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 500 }}>Tuesday · May 27</div>
+        <div style={{ fontSize: 12, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 500 }}>{dateLabel}</div>
         <div className="serif" style={{ fontSize: 32, lineHeight: 1.05, marginTop: 4, color: 'var(--a-ink)', letterSpacing: '-0.02em' }}>
-          Good morning, <em style={{ fontStyle: 'italic', color: 'var(--a-sage)' }}>{name}</em>
+          {greeting}, <em style={{ fontStyle: 'italic', color: 'var(--a-sage)' }}>{name}</em>
         </div>
         <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 6 }}>{role}</div>
       </div>
@@ -34,12 +22,12 @@ function GreetingHeader({ name = 'Lina', role = 'Supervisor · North + South' })
 }
 
 // ── Branch selector ────────────────────────────────────────────────────
-function BranchTabs({ active = 'All' }) {
+function BranchTabs({ active = 'All', setActive = () => {} }) {
   return (
     <div style={{ padding: '0 22px 14px', display: 'flex', gap: 6, alignItems: 'center' }}>
       <div style={{ display: 'flex', background: 'var(--a-paper)', borderRadius: 999, padding: 3, border: '1px solid var(--a-line)' }}>
         {['All', 'North', 'South'].map(b => (
-          <button key={b} style={{
+          <button key={b} onClick={() => setActive(b)} style={{
             border: 0,
             background: b === active ? 'var(--a-ink)' : 'transparent',
             color: b === active ? '#fbf6ec' : 'var(--a-ink2)',
@@ -49,7 +37,7 @@ function BranchTabs({ active = 'All' }) {
         ))}
       </div>
       <div style={{ flex: 1 }} />
-      <button style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--a-ink2)', fontFamily: 'Geist' }}>
+      <button style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>
         <IconFilter size={14} sw={1.7} />
         Filter
       </button>
@@ -57,21 +45,17 @@ function BranchTabs({ active = 'All' }) {
   );
 }
 
-// ── House card (the divided per-house unit) ────────────────────────────
-function HouseCard({ house, urgent = 0, sub = [], staff, present, transports }) {
+// ── House card ─────────────────────────────────────────────────────────
+function HouseCard({ house, urgent = 0, sub = [], staff, present, transports, onHouseClick, onTeamChat }) {
+  const [toast, showToast] = useToast();
   const c = house.color;
   return (
     <div style={{
-      background: 'var(--a-card)',
-      borderRadius: 18,
-      border: '1px solid var(--a-line)',
-      padding: 0,
-      overflow: 'hidden',
-      marginBottom: 14,
+      background: 'var(--a-card)', borderRadius: 18, border: '1px solid var(--a-line)',
+      padding: 0, overflow: 'hidden', marginBottom: 14,
     }}>
-      {/* Top color stripe */}
+      <Toast msg={toast} />
       <div style={{ height: 4, background: c }} />
-      {/* Header row */}
       <div style={{ padding: '14px 16px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -88,20 +72,18 @@ function HouseCard({ house, urgent = 0, sub = [], staff, present, transports }) 
           {urgent > 0 && (
             <div style={{ background: '#d44e3a', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999 }}>{urgent}</div>
           )}
-          <button style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink3)' }}>
+          <button onClick={() => showToast('Opening options…')} style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink3)', cursor: 'pointer' }}>
             <IconDots size={18} />
           </button>
         </div>
       </div>
 
-      {/* Stat strip */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0, padding: '8px 16px 14px', borderBottom: '1px dashed var(--a-line)' }}>
         <Stat label="On shift" big={staff} sub="of 2" />
         <Stat label="Residents in" big={present} sub={`of ${house.residents}`} />
         <Stat label="Today's drives" big={transports} sub="planned" />
       </div>
 
-      {/* Today's needs (these are the urgent items) */}
       <div style={{ padding: '10px 16px 14px' }}>
         <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Needs attention</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -109,13 +91,16 @@ function HouseCard({ house, urgent = 0, sub = [], staff, present, transports }) 
         </div>
       </div>
 
-      {/* Bottom action row */}
       <div style={{ display: 'flex', borderTop: '1px solid var(--a-line)' }}>
-        <button style={{ flex: 1, padding: '12px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist' }}>
+        <button
+          onClick={() => onTeamChat ? onTeamChat() : showToast('Opening team chat…')}
+          style={{ flex: 1, padding: '12px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
           <IconChat size={15} sw={1.7} /> Message
         </button>
         <div style={{ width: 1, background: 'var(--a-line)' }} />
-        <button style={{ flex: 1, padding: '12px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 600, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist' }}>
+        <button
+          onClick={() => onHouseClick ? onHouseClick(house.id) : showToast('Opening house…')}
+          style={{ flex: 1, padding: '12px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 600, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
           Open house <IconArrow size={14} sw={2} />
         </button>
       </div>
@@ -154,43 +139,49 @@ function NeedRow({ icon: Ico = IconCart, kind, text, color }) {
   );
 }
 
-// ── Direction A · Houses overview screen ────────────────────────────────
-function ScreenA_Houses() {
+// ── Direction A · Houses overview screen ───────────────────────────────
+function ScreenA_Houses({ onHouseClick, onTeamChat }) {
+  const [branch, setBranch] = useState('All');
+
+  const allHouseData = [
+    { idx: 0, urgent: 3, staff: 2, present: 3, transports: 2, sub: [
+      { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
+      { kind: 'med', text: 'R. Johnson — 2pm meds need second signoff' },
+      { kind: 'drive', text: '1:30pm — M. Lee to dentist (Aisha)' },
+    ]},
+    { idx: 1, urgent: 1, staff: 1, present: 3, transports: 0, sub: [
+      { kind: 'grocery', text: 'Running low: paper towels, chicken' },
+      { kind: 'note', text: 'D. Park left a shift note (8:14am)' },
+    ]},
+    { idx: 2, urgent: 4, staff: 2, present: 4, transports: 3, sub: [
+      { kind: 'med', text: 'Refill needed: K. Diaz, levetiracetam' },
+      { kind: 'maint', text: 'Dryer making a noise — vendor TBD' },
+      { kind: 'grocery', text: 'Shopping run scheduled — Aisha, 4pm' },
+    ]},
+    { idx: 3, urgent: 0, staff: 2, present: 4, transports: 1, sub: [
+      { kind: 'note', text: 'All clear · 2 incident-free weeks' },
+    ]},
+  ];
+
+  const visibleData = allHouseData.filter(d =>
+    branch === 'All' || HOUSES[d.idx].branch === branch
+  );
+
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <GreetingHeader />
-        <BranchTabs active="All" />
+        <BranchTabs active={branch} setActive={setBranch} />
         <div style={{ padding: '0 16px', overflowY: 'auto', height: 'calc(100% - 168px)' }}>
-          <HouseCard
-            house={HOUSES[0]} urgent={3} staff={2} present={3} transports={2}
-            sub={[
-              { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
-              { kind: 'med', text: 'R. Johnson — 2pm meds need second signoff' },
-              { kind: 'drive', text: '1:30pm — M. Lee to dentist (Aisha)' },
-            ]}
-          />
-          <HouseCard
-            house={HOUSES[1]} urgent={1} staff={1} present={3} transports={0}
-            sub={[
-              { kind: 'grocery', text: 'Running low: paper towels, chicken' },
-              { kind: 'note', text: 'D. Park left a shift note (8:14am)' },
-            ]}
-          />
-          <HouseCard
-            house={HOUSES[2]} urgent={4} staff={2} present={4} transports={3}
-            sub={[
-              { kind: 'med', text: 'Refill needed: K. Diaz, levetiracetam' },
-              { kind: 'maint', text: 'Dryer making a noise — vendor TBD' },
-              { kind: 'grocery', text: 'Shopping run scheduled — Aisha, 4pm' },
-            ]}
-          />
-          <HouseCard
-            house={HOUSES[3]} urgent={0} staff={2} present={4} transports={1}
-            sub={[
-              { kind: 'note', text: 'All clear · 2 incident-free weeks' },
-            ]}
-          />
+          {visibleData.map(({ idx, urgent, staff, present, transports, sub }) => (
+            <HouseCard
+              key={HOUSES[idx].id}
+              house={HOUSES[idx]} urgent={urgent} staff={staff}
+              present={present} transports={transports} sub={sub}
+              onHouseClick={onHouseClick}
+              onTeamChat={onTeamChat}
+            />
+          ))}
           <div style={{ height: 14 }} />
         </div>
       </div>
@@ -199,4 +190,4 @@ function ScreenA_Houses() {
   );
 }
 
-Object.assign(window, { TendLogo, GreetingHeader, BranchTabs, HouseCard, Stat, NeedRow, ScreenA_Houses });
+Object.assign(window, { GreetingHeader, BranchTabs, HouseCard, Stat, NeedRow, ScreenA_Houses });
