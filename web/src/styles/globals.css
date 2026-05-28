@@ -1,0 +1,104 @@
+/* Tend — care ops app */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+  --a-bg: #f3ecdd;
+  --a-paper: #ebe2cf;
+  --a-card: #fbf6ec;
+  --a-ink: #1d1a14;
+  --a-ink2: #4a4438;
+  --a-ink3: #807766;
+  --a-line: #d8ccb1;
+  --a-sage: #4a6b56;
+  --a-sage-dim: #6f8a78;
+  --a-clay: #b8552f;
+  --a-clay-dim: #d97a55;
+  --a-honey: #d49a3a;
+  --a-plum: #6c3a55;
+  --a-leaf: #8aa66c;
+  --a-rose: #d8a8a0;
+
+  --house-oak: #d4a64a;
+  --house-willow: #2f9489;
+  --house-maple: #cf4f3b;
+  --house-cedar: #6e4d8f;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0; padding: 0;
+  height: 100%; width: 100%;
+  font-family: 'Geist', system-ui, sans-serif;
+  color: var(--a-ink);
+  background: var(--a-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root { display: flex; flex-direction: column; }
+
+.serif { font-family: 'Newsreader', Georgia, serif; font-feature-settings: 'ss01'; }
+.mono  { font-family: 'Geist Mono', ui-monospace, monospace; }
+.tnum  { font-variant-numeric: tabular-nums; }
+
+.phone-screen {
+  background: var(--a-bg);
+  color: var(--a-ink);
+  font-family: 'Geist', system-ui, sans-serif;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.web-app { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+.web-desktop .tab-bar { display: none; }
+.web-mobile  .tab-bar { display: none; }
+
+.web-tab-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+  background: var(--a-card);
+  border-top: 1px solid var(--a-line);
+  flex-shrink: 0;
+}
+.web-tab-bar > button {
+  background: none; border: 0; padding: 8px 4px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font: 500 10.5px 'Geist', sans-serif; color: var(--a-ink3); cursor: pointer;
+}
+.web-tab-bar > button.active { color: var(--a-sage); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500; letter-spacing: 0.01em;
+}
+
+.tab-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 6px 8px 24px;
+  background: var(--a-bg);
+  border-top: 1px solid var(--a-line);
+  flex-shrink: 0;
+}
+.tab-bar > button {
+  background: none; border: 0; padding: 8px 4px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font: 500 10px 'Geist', sans-serif; color: var(--a-ink3); cursor: pointer;
+}
+.tab-bar > button.active { color: var(--a-sage); }
+
+.desktop {
+  background: var(--a-bg);
+  width: 100%; height: 100%;
+  display: flex;
+  font-family: 'Geist', sans-serif;
+  color: var(--a-ink);
+  overflow: hidden;
+}

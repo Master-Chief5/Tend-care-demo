@@ -1,0 +1,56 @@
+// Date / time utilities
+
+export function buildWeek(today) {
+  const dow = today.getDay()
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
+  const NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return { dow: NAMES[d.getDay()], num: d.getDate(), date: d, today: d.toDateString() === today.toDateString() }
+  })
+}
+
+export function fmtDayLabel(date) {
+  const DAYS   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${DAYS[date.getDay()]} · ${MONTHS[date.getMonth()]} ${date.getDate()}`
+}
+
+export function fmtNow(frac) {
+  const h = Math.floor(frac)
+  const m = Math.round((frac - h) * 60)
+  const period = h < 12 ? 'AM' : 'PM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${h12}:${m < 10 ? '0' + m : m} ${period}`
+}
+
+export function getGreeting() {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+}
+
+export function fmtHour(h) {
+  const w = ((h % 24) + 24) % 24
+  if (w === 0) return '12a'
+  if (w === 12) return '12p'
+  return w < 12 ? `${w}a` : `${w - 12}p`
+}
+
+export function fmtHourLong(h) {
+  const w = ((h % 24) + 24) % 24
+  if (w === 0) return '12 AM'
+  if (w === 12) return '12 PM'
+  return w < 12 ? `${w} AM` : `${w - 12} PM`
+}
+
+export function fmtTime(h) {
+  const w = ((h % 24) + 24) % 24
+  const hr = Math.floor(w)
+  const min = Math.round((w - hr) * 60)
+  const m = min < 10 ? `0${min}` : `${min}`
+  if (hr === 0) return `12:${m}a`
+  if (hr === 12) return `12:${m}p`
+  return hr < 12 ? `${hr}:${m}a` : `${hr - 12}:${m}p`
+}
