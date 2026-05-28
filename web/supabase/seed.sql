@@ -83,22 +83,32 @@ ALTER TABLE staff         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shifts        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks         ENABLE ROW LEVEL SECURITY;
 
--- Returns org_id for the currently authenticated user
+-- Returns org_id for the currently authenticated user.
+-- Falls back to email so the lookup works before auth_user_id is linked on first login.
 CREATE OR REPLACE FUNCTION auth_org_id()
 RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
-  SELECT org_id FROM staff WHERE auth_user_id = auth.uid() LIMIT 1
+  SELECT org_id FROM staff
+  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  ORDER BY (auth_user_id = auth.uid()) DESC
+  LIMIT 1
 $$;
 
--- Returns staff id for the currently authenticated user
+-- Returns staff id for the currently authenticated user.
 CREATE OR REPLACE FUNCTION auth_staff_id()
 RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
-  SELECT id FROM staff WHERE auth_user_id = auth.uid() LIMIT 1
+  SELECT id FROM staff
+  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  ORDER BY (auth_user_id = auth.uid()) DESC
+  LIMIT 1
 $$;
 
--- Returns role for the currently authenticated user
+-- Returns role for the currently authenticated user.
 CREATE OR REPLACE FUNCTION auth_staff_role()
 RETURNS TEXT LANGUAGE SQL SECURITY DEFINER STABLE AS $$
-  SELECT role FROM staff WHERE auth_user_id = auth.uid() LIMIT 1
+  SELECT role FROM staff
+  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  ORDER BY (auth_user_id = auth.uid()) DESC
+  LIMIT 1
 $$;
 
 -- organizations: only see your own org
