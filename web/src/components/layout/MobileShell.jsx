@@ -1,0 +1,122 @@
+import { useState } from 'react'
+import { ROLES } from '../../data/constants'
+import { ScreenA_Houses } from '../../screens/Houses'
+import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
+import { ScreenA_ScheduleDay } from '../../screens/ScheduleDay'
+import { ScreenA_Chat } from '../../screens/OnboardChat'
+import { ScreenA_Driving } from '../../screens/Driving'
+import { ScreenA_Staff } from '../../screens/People'
+import { ScreenA_MyDay, ScreenA_MySchedule, ScreenA_Me } from '../../screens/Employee'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck } from '../icons'
+
+function pickScreen(role, tab, onHouseClick, switchTab, onLogout) {
+  if (role === 'staff') {
+    switch (tab) {
+      case 'home':  return <ScreenA_MyDay />
+      case 'sched': return <ScreenA_MySchedule />
+      case 'team':  return <ScreenA_Chat />
+      case 'drive': return <ScreenA_Driving />
+      case 'me':    return <ScreenA_Me onLogout={onLogout} />
+    }
+  }
+  switch (tab) {
+    case 'home':  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />
+    case 'sched': return <ScreenA_ScheduleDay />
+    case 'team':  return <ScreenA_Chat />
+    case 'drive': return <ScreenA_Driving />
+    case 'me':    return role === 'supervisor'
+      ? <ScreenA_Staff onLogout={onLogout} />
+      : <ScreenA_Me onLogout={onLogout} />
+  }
+  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />
+}
+
+function RoleSwitcher({ role, setRole, open, setOpen }) {
+  const current = ROLES.find(r => r.id === role) || ROLES[0]
+  return (
+    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 50 }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: 'rgba(251, 246, 236, 0.92)',
+        border: '1px solid var(--a-line)',
+        borderRadius: 999, padding: '4px 4px 4px 10px',
+        fontSize: 10.5, fontWeight: 600, color: 'var(--a-ink2)', fontFamily: 'Geist',
+        backdropFilter: 'blur(8px)', cursor: 'pointer',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+      }}>
+        <span style={{ fontSize: 9, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700 }}>Preview as</span>
+        <div style={{ width: 22, height: 22, borderRadius: '50%', background: current.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{current.initial}</div>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 36, right: 0, background: 'var(--a-card)',
+          border: '1px solid var(--a-line)', borderRadius: 12, padding: 6, minWidth: 200,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+        }}>
+          <div style={{ fontSize: 9, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, padding: '6px 10px 4px' }}>Switch view</div>
+          {ROLES.map(r => (
+            <button key={r.id} onClick={() => { setRole(r.id); setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+              border: 0, background: r.id === role ? 'var(--a-paper)' : 'transparent',
+              borderRadius: 8, width: '100%', textAlign: 'left', cursor: 'pointer',
+              fontFamily: 'Geist', marginBottom: 2,
+            }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: r.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{r.initial}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--a-ink)' }}>{r.name}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{r.role}</div>
+              </div>
+              {r.id === role && <IconCheck size={14} color="var(--a-sage)" sw={2.4} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function MobileShell({ user, onLogout }) {
+  const [role, setRole] = useState(user.id)
+  const [tab, setTab] = useState('home')
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false)
+  const [houseDetail, setHouseDetail] = useState(null)
+
+  const switchTab = (t) => { setTab(t); setHouseDetail(null) }
+  const handleRoleChange = (newRole) => { setRole(newRole); setHouseDetail(null); setTab('home') }
+  const isStaff = role === 'staff'
+
+  const tabs = isStaff ? [
+    { id: 'home', label: 'My Day', icon: IconHome },
+    { id: 'sched', label: 'Schedule', icon: IconCal },
+    { id: 'team', label: 'Team', icon: IconChat },
+    { id: 'drive', label: 'Driving', icon: IconCar },
+    { id: 'me', label: 'Me', icon: IconPeople },
+  ] : [
+    { id: 'home', label: 'Houses', icon: IconHome },
+    { id: 'sched', label: 'Schedule', icon: IconCal },
+    { id: 'team', label: 'Team', icon: IconChat },
+    { id: 'drive', label: 'Driving', icon: IconCar },
+    { id: 'me', label: 'Me', icon: IconPeople },
+  ]
+
+  const screen = houseDetail
+    ? <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+    : pickScreen(role, tab, setHouseDetail, switchTab, onLogout)
+
+  return (
+    <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+        {screen}
+        <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />
+      </div>
+      <div className="web-tab-bar">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => switchTab(t.id)} className={tab === t.id && !houseDetail ? 'active' : ''}>
+            <t.icon size={22} sw={1.7} />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}

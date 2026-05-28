@@ -1,0 +1,104 @@
+import { useState } from 'react'
+import { ROLES } from '../../data/constants'
+import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
+import { TendLogo } from '../ui/TendLogo'
+import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
+import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow } from '../icons'
+
+function DesktopPage({ tab, onHouseClick }) {
+  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
+  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
+  if (tab === 'schedule')    return <PageScheduleDesktopExpanded />
+  if (tab === 'team')        return <PageTeamDesktop />
+  if (tab === 'driving')     return <PageDrivingDesktop />
+  if (tab === 'resources')   return <PageResourcesDesktop />
+  if (tab === 'staff')       return <PageStaffDesktop />
+  if (tab === 'orientation') return <PageOrientationDesktop />
+  return <PageTodayDesktop onHouseClick={onHouseClick} />
+}
+
+function DesktopRail({ tab, setTab, user, onLogout }) {
+  const u = ROLES.find(r => r.id === user.id) || ROLES[0]
+  const railTabs = [
+    { id: 'today',       label: 'Today',       icon: IconHome },
+    { id: 'houses',      label: 'Houses',      icon: IconBox,     count: 4 },
+    { id: 'schedule',    label: 'Schedule',    icon: IconCal },
+    { id: 'team',        label: 'Team chat',   icon: IconChat },
+    { id: 'driving',     label: 'Driving',     icon: IconCar },
+    { id: 'resources',   label: 'Resources',   icon: IconCart },
+    { id: 'staff',       label: 'Staff',       icon: IconPeople,  count: 22 },
+    { id: 'orientation', label: 'Orientation', icon: IconBook,    count: 4 },
+  ]
+  return (
+    <div style={{ width: 240, background: 'var(--a-paper)', borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', padding: '20px 16px', flexShrink: 0, height: '100dvh', overflow: 'auto' }}>
+      <TendLogo size={16} />
+      <div style={{ marginTop: 22 }}>
+        {railTabs.map(({ id, icon: Ico, label, count }) => {
+          const active = tab === id
+          return (
+            <div key={id} onClick={() => setTab(id)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8,
+              background: active ? 'var(--a-card)' : 'transparent',
+              color: active ? 'var(--a-ink)' : 'var(--a-ink2)',
+              border: active ? '1px solid var(--a-line)' : '1px solid transparent',
+              cursor: 'pointer', marginBottom: 2,
+            }}>
+              <Ico size={16} sw={1.7} />
+              <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, flex: 1 }}>{label}</span>
+              {count != null && <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', background: 'var(--a-paper)', border: '1px solid var(--a-line)', padding: '0 6px', borderRadius: 999, fontWeight: 500 }}>{count}</span>}
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ flex: 1 }} />
+      <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8, paddingLeft: 10 }}>Branches</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
+        {[{ name: 'North · Oak + Willow' }, { name: 'South · Maple + Cedar' }].map(b => (
+          <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', fontSize: 11.5, color: 'var(--a-ink2)', borderRadius: 6 }}>
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--a-sage)' }} />
+            {b.name}
+          </div>
+        ))}
+      </div>
+      <div onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer' }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{u.initial}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Sign out</div>
+        </div>
+        <IconArrow size={13} color="var(--a-ink3)" />
+      </div>
+    </div>
+  )
+}
+
+export function DesktopShell({ user, onLogout }) {
+  const [tab, setTab] = useState('today')
+  const [houseDetail, setHouseDetail] = useState(null)
+  const switchTab = (t) => { setTab(t); setHouseDetail(null) }
+
+  return (
+    <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} />
+      </div>
+      {houseDetail && (
+        <div
+          style={{
+            position: 'absolute', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            paddingTop: 40, overflow: 'auto',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
+        >
+          <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
+            <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
