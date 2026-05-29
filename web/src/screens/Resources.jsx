@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
+import { fetchResources, addResource, deleteResource } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
-import { IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
+import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
 
 function BigStat({ label, value, sub, tone }) {
   return (
@@ -65,28 +66,140 @@ export function SwapRow({ from, to, item, note }) {
   )
 }
 
-export function ScreenA_Resources() {
-  const [dismissed, setDismissed] = useState(false)
+function AddItemModal({ user, houses, onClose, onAdded }) {
+  const [name, setName] = useState('')
+  const [qty, setQty] = useState('1')
+  const [unit, setUnit] = useState('units')
+  const [cost, setCost] = useState('')
+  const [houseId, setHouseId] = useState(user?.houseId || '')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!name.trim() || !user?.orgId) return
+    setSaving(true)
+    const item = await addResource(user.orgId, houseId || null, {
+      name: name.trim(),
+      qty: parseFloat(qty) || 1,
+      unit: unit || 'units',
+      cost: cost ? parseFloat(cost) : null,
+    })
+    setSaving(false)
+    if (item) onAdded(item)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add item</div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            autoFocus placeholder="Item name" value={name} onChange={e => setName(e.target.value)}
+            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <input placeholder="Qty (e.g. 2)" value={qty} onChange={e => setQty(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+            <input placeholder="Unit (e.g. boxes)" value={unit} onChange={e => setUnit(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          </div>
+          <input placeholder="Cost (optional, e.g. 12.99)" value={cost} onChange={e => setCost(e.target.value)}
+            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          {houses.length > 0 && (
+            <select value={houseId} onChange={e => setHouseId(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+              <option value="">All houses</option>
+              {houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          )}
+          <button type="submit" disabled={!name.trim() || saving}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>
+            {saving ? 'Saving…' : 'Add item'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export function ScreenA_Resources({ user }) {
+  const [items, setItems] = useState([])
+  const [showAdd, setShowAdd] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [toast, showToast] = useToast()
+
+  const houses = user?.orgId
+    ? (user.role === 'supervisor' ? [] : [])  // populated from HOUSES fallback
+    : []
+
+  useEffect(() => {
+    if (!user?.orgId) return
+    setLoading(true)
+    fetchResources(user.orgId, user.houseId || null).then(data => {
+      setItems(data)
+      setLoading(false)
+    })
+  }, [user?.orgId, user?.houseId])
+
+  const handleAdded = (item) => {
+    setItems(prev => [item, ...prev])
+    setShowAdd(false)
+    showToast('Item added')
+  }
+
+  const handleDelete = async (id) => {
+    await deleteResource(id)
+    setItems(prev => prev.filter(x => x.id !== id))
+    showToast('Item removed')
+  }
 
   return (
     <div className="phone-screen">
       <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px 22px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink2)', cursor: 'pointer' }}><IconChev size={20} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
-          <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>Resources</span>
-        </div>
-        <div style={{ padding: '4px 22px 14px' }}>
-          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Spend insights</div>
-          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 4 }}>Last 12 weeks · all houses</div>
+        <div style={{ padding: '14px 22px 4px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <div>
+            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Resources</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>Supplies & spend</div>
+          </div>
+          <button onClick={() => setShowAdd(true)}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '8px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <IconPlus size={14} sw={2.4} /> Add item
+          </button>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            <BigStat label="Weekly avg" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
-            <BigStat label="Per resident" value="$64" sub="↓ $4 vs Apr" tone="good" />
-          </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
+          {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
+
+          {!loading && items.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No items yet</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add item" to log a supply or resource needed.</div>
+            </div>
+          )}
+
+          {!loading && items.length > 0 && (
+            <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+              {items.map((item, i) => {
+                const h = item.houses
+                const hConst = h ? HOUSES.find(x => x.id === h.slug) : null
+                return (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < items.length - 1 ? '1px solid var(--a-line)' : '' }}>
+                    {hConst && <div style={{ width: 3, height: 28, background: hConst.color, borderRadius: 4 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 500 }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>
+                        {item.qty} {item.unit}{item.cost ? ` · $${Number(item.cost).toFixed(2)}` : ''}{h ? ` · ${h.name}` : ''}
+                      </div>
+                    </div>
+                    <button onClick={() => handleDelete(item.id)}
+                      style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 18, cursor: 'pointer', padding: '4px', lineHeight: 1 }}>×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           <SectionHeader title="Spend by house · this month" />
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
@@ -98,44 +211,17 @@ export function ScreenA_Resources() {
               <span>0</span><span>$1,250</span>
             </div>
           </div>
-
-          <SectionHeader title="What you buy most" sub="across all houses" />
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '6px 14px', marginBottom: 14 }}>
-            <TopItem rank={1} name="Milk (gallon)"  qty="84 ct"      trend="steady" />
-            <TopItem rank={2} name="Bread"          qty="62 loaves"  trend="up" />
-            <TopItem rank={3} name="Eggs (dozen)"   qty="48 ct"      trend="steady" />
-            <TopItem rank={4} name="Chicken breast" qty="44 lb"      trend="up" />
-            <TopItem rank={5} name="Paper towels"   qty="38 pk"      trend="down" last />
-          </div>
-
-          <SectionHeader title="Cross-house swaps" sub="save a shopping run" />
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
-            <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow has 24 surplus; Oak is out" />
-            <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
-            <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar overbought last week" />
-          </div>
-
-          {!dismissed && (
-            <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <IconFlag size={14} color="#a47012" sw={2} />
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
-              </div>
-              <div style={{ fontSize: 13.5, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
-                <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda. Want to flag to Saira?
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={() => showToast('Message sent to Saira K.')} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>
-                  Send to Saira
-                </button>
-                <button onClick={() => setDismissed(true)} style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist', cursor: 'pointer' }}>
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {showAdd && (
+        <AddItemModal
+          user={user}
+          houses={[]}
+          onClose={() => setShowAdd(false)}
+          onAdded={handleAdded}
+        />
+      )}
     </div>
   )
 }

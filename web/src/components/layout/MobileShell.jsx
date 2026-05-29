@@ -6,6 +6,7 @@ import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
 import { ScreenA_ScheduleDay } from '../../screens/ScheduleDay'
 import { ScreenA_Chat } from '../../screens/OnboardChat'
 import { ScreenA_Driving } from '../../screens/Driving'
+import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_MySchedule, ScreenA_Me } from '../../screens/Employee'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck } from '../icons'
@@ -16,7 +17,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
       case 'home':  return <ScreenA_MyDay user={user} />
       case 'sched': return <ScreenA_MySchedule />
       case 'team':  return <ScreenA_Chat />
-      case 'drive': return <ScreenA_Driving />
+      case 'drive': return <ScreenA_Driving user={user} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} />
     }
   }
@@ -24,7 +25,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
     case 'home':  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} />
     case 'sched': return <ScreenA_ScheduleDay user={user} />
     case 'team':  return <ScreenA_Chat />
-    case 'drive': return <ScreenA_Driving />
+    case 'drive': return <ScreenA_Driving user={user} />
     case 'me':    return role === 'supervisor'
       ? <ScreenA_Staff user={user} onLogout={onLogout} />
       : <ScreenA_Me user={user} onLogout={onLogout} />

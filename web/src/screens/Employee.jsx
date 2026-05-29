@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { buildWeek, fmtDayLabel, getGreeting } from '../lib/utils'
-import { fetchTasks, toggleTask } from '../lib/db'
+import { fetchTasks, toggleTask, addTask } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconCheck, IconCal, IconCar, IconChat, IconBook } from '../components/icons'
+import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus } from '../components/icons'
 
 const FALLBACK_TASKS = [
   { kind: 'med',   text: 'Morning meds — Ruth J., Marcus L., Tom R., Donna P.',   done: true,  urgent: false },
@@ -23,9 +23,57 @@ const kindMap = {
   shop:  { label: 'Shop',  bg: '#f5e9d6', tc: '#a47012' },
 }
 
+function AddTaskModal({ user, onClose, onAdded }) {
+  const [text, setText] = useState('')
+  const [kind, setKind] = useState('note')
+  const [urgent, setUrgent] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!text.trim() || !user?.staffId || !user?.orgId) return
+    setSaving(true)
+    const task = await addTask(user.orgId, user.staffId, { kind, text: text.trim(), urgent })
+    setSaving(false)
+    if (task) onAdded(task)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add task</div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input autoFocus placeholder="What needs to be done?" value={text} onChange={e => setText(e.target.value)}
+            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            {Object.entries(kindMap).map(([k, v]) => (
+              <button key={k} type="button" onClick={() => setKind(k)} style={{
+                padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
+                background: kind === k ? v.bg : 'var(--a-card)', color: kind === k ? v.tc : 'var(--a-ink3)',
+                border: `1px solid ${kind === k ? v.tc + '55' : 'var(--a-line)'}`, cursor: 'pointer', fontFamily: 'Geist',
+              }}>{v.label}</button>
+            ))}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--a-ink2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={urgent} onChange={e => setUrgent(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer' }} />
+            Mark as urgent
+          </label>
+          <button type="submit" disabled={!text.trim() || saving}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: text.trim() ? 'pointer' : 'default', opacity: text.trim() ? 1 : 0.5 }}>
+            {saving ? 'Saving…' : 'Add task'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function ScreenA_MyDay({ user }) {
   const [tasks, setTasks] = useState(FALLBACK_TASKS)
   const [loading, setLoading] = useState(!!user?.staffId)
+  const [showAdd, setShowAdd] = useState(false)
   const today = new Date()
   const firstName = user?.name?.split(' ')[0] || 'Aisha'
 
@@ -42,6 +90,11 @@ export function ScreenA_MyDay({ user }) {
     const newDone = !task.done
     setTasks(prev => prev.map((t, i) => i === idx ? { ...t, done: newDone } : t))
     if (task.id) await toggleTask(task.id, newDone)
+  }
+
+  const handleAdded = (task) => {
+    setTasks(prev => [...prev, task])
+    setShowAdd(false)
   }
 
   const done = tasks.filter(t => t.done).length
@@ -111,9 +164,19 @@ export function ScreenA_MyDay({ user }) {
               No tasks for today.
             </div>
           )}
+          {!loading && (
+            <button onClick={() => setShowAdd(true)}
+              style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed var(--a-line)', borderRadius: 12, fontSize: 13, color: 'var(--a-ink3)', fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
+              <IconPlus size={14} sw={2} /> Add task
+            </button>
+          )}
         </div>
       </div>
       <TabBar active="home" />
+
+      {showAdd && user?.staffId && (
+        <AddTaskModal user={user} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
+      )}
     </div>
   )
 }
@@ -125,7 +188,7 @@ export function ScreenA_MySchedule() {
 
   const upcomingShifts = [
     { day: fmtDayLabel(new Date()), time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'today' },
-    { day: fmtDayLabel(new Date(week[1 < week.findIndex(d=>d.today)+1 ? week.findIndex(d=>d.today)+1 : 0].date)), time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'upcoming' },
+    { day: 'Tomorrow', time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'upcoming' },
     { day: 'Saturday', time: '3:00 PM – 11:00 PM', house: 'Willow Run', role: 'DSP (coverage)', status: 'swap' },
   ]
 
@@ -180,7 +243,7 @@ export function ScreenA_Me({ user, onLogout }) {
             <div className="serif" style={{ fontSize: 22 }}>{name}</div>
             <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>{sub}</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-              <Pill color="var(--a-sage)">Score: 96</Pill>
+              {user?.score && <Pill color="var(--a-sage)">Score: {user.score}</Pill>}
             </div>
           </div>
 

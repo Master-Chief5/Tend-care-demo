@@ -2,31 +2,36 @@ import { useState } from 'react'
 import { ROLES } from '../../data/constants'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
 import { ScreenA_MyDay } from '../../screens/Employee'
+import { ScreenA_Resources } from '../../screens/Resources'
+import { ScreenA_Driving } from '../../screens/Driving'
+import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
-import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow } from '../icons'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
 
 const ALL_TABS = [
   { id: 'today',       label: 'Today',       icon: IconHome,    roles: ['supervisor', 'manager'] },
   { id: 'myday',       label: 'My Day',      icon: IconHome,    roles: ['staff'] },
-  { id: 'houses',      label: 'Houses',      icon: IconBox,     roles: ['supervisor', 'manager'], count: 4 },
+  { id: 'houses',      label: 'Houses',      icon: IconBox,     roles: ['supervisor', 'manager'] },
+  { id: 'setup',       label: 'House setup', icon: IconPlus,    roles: ['supervisor'] },
   { id: 'schedule',    label: 'Schedule',    icon: IconCal,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'team',        label: 'Team chat',   icon: IconChat,    roles: ['supervisor', 'manager', 'staff'] },
   { id: 'driving',     label: 'Driving',     icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager'] },
-  { id: 'staff',       label: 'Staff',       icon: IconPeople,  roles: ['supervisor'], count: 22 },
-  { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'], count: 4 },
+  { id: 'staff',       label: 'Staff',       icon: IconPeople,  roles: ['supervisor'] },
+  { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'] },
 ]
 
 function DesktopPage({ tab, onHouseClick, user }) {
   if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
   if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
+  if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} />
   if (tab === 'team')        return <PageTeamDesktop />
-  if (tab === 'driving')     return <PageDrivingDesktop />
-  if (tab === 'resources')   return <PageResourcesDesktop />
+  if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
+  if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
   if (tab === 'staff')       return <PageStaffDesktop user={user} />
   if (tab === 'orientation') return <PageOrientationDesktop />
   return <PageTodayDesktop onHouseClick={onHouseClick} />
