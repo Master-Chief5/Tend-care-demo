@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts, addShift } from '../lib/db'
+import { fetchShifts, addShift, fetchStaff } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
 
@@ -192,7 +192,7 @@ function ScreenA_ScheduleWeek({ setView, houses }) {
   )
 }
 
-function AddShiftModal({ user, houses, onClose, onAdded }) {
+function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
   const [personName, setPersonName] = useState('')
   const [role, setRole] = useState('DSP')
   const [startHour, setStartHour] = useState('7')
@@ -220,7 +220,9 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add shift</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <datalist id="dl-shift-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
           <input autoFocus placeholder="Staff name" value={personName} onChange={e => setPersonName(e.target.value)}
+            list="dl-shift-staff"
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <input placeholder="Start (e.g. 7)" value={startHour} onChange={e => setStartHour(e.target.value)}
@@ -253,6 +255,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [houseFilter, setHouseFilter] = useState('all')
   const [shifts, setShifts] = useState([])
   const [dbHouses, setDbHouses] = useState(null)
+  const [staffNames, setStaffNames] = useState([])
   const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
@@ -266,6 +269,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
     fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
+    fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
   }, [user?.orgId, user?.houseId, user?.role])
 
   const handleShiftAdded = (shift, houseId) => {
@@ -344,6 +348,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
         <AddShiftModal
           user={user}
           houses={displayHouses.filter(h => !user?.houseId || h.id === user.houseId)}
+          staffNames={staffNames}
           onClose={() => setShowAddShift(false)}
           onAdded={handleShiftAdded}
         />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { buildWeek, fmtDayLabel, getGreeting } from '../lib/utils'
-import { fetchTasks, toggleTask, addTask } from '../lib/db'
+import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
@@ -24,29 +24,49 @@ const kindMap = {
 }
 
 function AddTaskModal({ user, onClose, onAdded }) {
-  const [text, setText] = useState('')
-  const [kind, setKind] = useState('note')
-  const [urgent, setUrgent] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [text, setText]         = useState('')
+  const [kind, setKind]         = useState('note')
+  const [urgent, setUrgent]     = useState(false)
+  const [staffList, setStaffList] = useState([])
+  const [assignedId, setAssignedId] = useState(user?.staffId || '')
+  const [saving, setSaving]     = useState(false)
+
+  const isSupervisorOrMgr = user?.role === 'supervisor' || user?.role === 'manager'
+
+  useEffect(() => {
+    if (!isSupervisorOrMgr || !user?.orgId) return
+    fetchStaff(user.orgId, user.role === 'manager' ? user.houseId : null).then(setStaffList)
+  }, [user?.orgId])
 
   const submit = async (e) => {
     e.preventDefault()
     if (!text.trim() || !user?.orgId) return
+    const targetStaffId = isSupervisorOrMgr ? (assignedId || null) : (user?.staffId || null)
+    if (!targetStaffId) return
     setSaving(true)
-    const task = await addTask(user.orgId, user.staffId || null, { kind, text: text.trim(), urgent })
+    const task = await addTask(user.orgId, targetStaffId, { kind, text: text.trim(), urgent })
     setSaving(false)
     if (task) onAdded(task)
   }
 
+  const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
+  const canSubmit = text.trim() && (isSupervisorOrMgr ? !!assignedId : !!user?.staffId)
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add task</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {isSupervisorOrMgr && (
+            <select value={assignedId} onChange={e => setAssignedId(e.target.value)} style={inputStyle}>
+              <option value="">— Assign to staff member —</option>
+              {staffList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+            </select>
+          )}
           <input autoFocus placeholder="What needs to be done?" value={text} onChange={e => setText(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <div style={{ display: 'flex', gap: 8 }}>
+            style={inputStyle} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {Object.entries(kindMap).map(([k, v]) => (
               <button key={k} type="button" onClick={() => setKind(k)} style={{
                 padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
@@ -60,8 +80,8 @@ function AddTaskModal({ user, onClose, onAdded }) {
               style={{ width: 16, height: 16, cursor: 'pointer' }} />
             Mark as urgent
           </label>
-          <button type="submit" disabled={!text.trim() || saving}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: text.trim() ? 'pointer' : 'default', opacity: text.trim() ? 1 : 0.5 }}>
+          <button type="submit" disabled={!canSubmit || saving}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: canSubmit ? 'pointer' : 'default', opacity: canSubmit ? 1 : 0.5 }}>
             {saving ? 'Saving…' : 'Add task'}
           </button>
         </form>

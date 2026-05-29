@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
-import { fetchTrips, addTrip, deleteTrip } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
@@ -35,68 +35,84 @@ function SectionHeader({ title }) {
   )
 }
 
-function LogTripModal({ user, onClose, onAdded }) {
-  const [driverName, setDriverName] = useState(user?.name || '')
-  const [residentName, setResidentName] = useState('')
-  const [destination, setDestination] = useState('')
-  const [miles, setMiles] = useState('')
-  const [purpose, setPurpose] = useState('other')
-  const [houseId, setHouseId] = useState(user?.houseId || '')
-  const [saving, setSaving] = useState(false)
+const inputStyle = {
+  background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10,
+  padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box',
+}
 
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!residentName.trim() || !destination.trim() || !user?.orgId) return
-    setSaving(true)
-    const trip = await addTrip(user.orgId, {
-      houseId: houseId || null,
-      driverName: driverName.trim() || 'Unknown',
-      residentName: residentName.trim(),
-      destination: destination.trim(),
-      miles: parseFloat(miles) || 0,
-      purpose,
-    })
-    setSaving(false)
-    if (trip) onAdded(trip)
-  }
+function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving, title }) {
+  const [driverName, setDriverName]     = useState(initial?.driver_name || '')
+  const [residentName, setResidentName] = useState(initial?.resident_name || '')
+  const [destination, setDestination]   = useState(initial?.destination || '')
+  const [miles, setMiles]               = useState(initial?.miles != null ? String(initial.miles) : '')
+  const [purpose, setPurpose]           = useState(initial?.purpose || 'other')
 
   const purposeOpts = ['medical', 'grocery', 'activity', 'other']
 
+  const submit = (e) => {
+    e.preventDefault()
+    if (!residentName.trim() || !destination.trim()) return
+    onSave({ driverName: driverName.trim() || 'Unknown', residentName: residentName.trim(), destination: destination.trim(), miles: parseFloat(miles) || 0, purpose })
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <datalist id="dl-residents">{residentNames.map(n => <option key={n} value={n} />)}</datalist>
+      <datalist id="dl-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+
+      <input placeholder="Resident name" value={residentName} onChange={e => setResidentName(e.target.value)}
+        list="dl-residents" autoFocus style={inputStyle} />
+      <input placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={e => setDestination(e.target.value)}
+        style={inputStyle} />
+      <input placeholder="Driver name" value={driverName} onChange={e => setDriverName(e.target.value)}
+        list="dl-staff" style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />
+        <select value={purpose} onChange={e => setPurpose(e.target.value)} style={inputStyle}>
+          {purposeOpts.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={onCancel}
+          style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 10, fontSize: 13, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>
+          Cancel
+        </button>
+        <button type="submit" disabled={!residentName.trim() || !destination.trim() || saving}
+          style={{ flex: 2, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (residentName.trim() && destination.trim()) ? 'pointer' : 'default', opacity: (residentName.trim() && destination.trim()) ? 1 : 0.5 }}>
+          {saving ? 'Saving…' : title}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function TripModal({ title, initial, staffNames, residentNames, onClose, onSave }) {
+  const [saving, setSaving] = useState(false)
+  const handleSave = async (data) => {
+    setSaving(true)
+    await onSave(data)
+    setSaving(false)
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Log trip</div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input placeholder="Resident name" value={residentName} onChange={e => setResidentName(e.target.value)} autoFocus
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <input placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={e => setDestination(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <input placeholder="Driver name" value={driverName} onChange={e => setDriverName(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-            <select value={purpose} onChange={e => setPurpose(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
-              {purposeOpts.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-            </select>
-          </div>
-          <button type="submit" disabled={!residentName.trim() || !destination.trim() || saving}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (residentName.trim() && destination.trim()) ? 'pointer' : 'default', opacity: (residentName.trim() && destination.trim()) ? 1 : 0.5 }}>
-            {saving ? 'Saving…' : 'Log trip'}
-          </button>
-        </form>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>{title}</div>
+        <TripForm initial={initial} staffNames={staffNames} residentNames={residentNames}
+          onSave={handleSave} onCancel={onClose} saving={saving} title={title} />
       </div>
     </div>
   )
 }
 
 export function ScreenA_Driving({ user }) {
-  const [trips, setTrips] = useState([])
-  const [showLog, setShowLog] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [toast, showToast] = useToast()
+  const [trips, setTrips]         = useState([])
+  const [staffNames, setStaffNames]     = useState([])
+  const [residentNames, setResidentNames] = useState([])
+  const [showLog, setShowLog]     = useState(false)
+  const [editTrip, setEditTrip]   = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [toast, showToast]        = useToast()
 
   useEffect(() => {
     if (!user?.orgId) return
@@ -105,12 +121,30 @@ export function ScreenA_Driving({ user }) {
       setTrips(data)
       setLoading(false)
     })
+    fetchStaff(user.orgId, user.houseId || null).then(data => {
+      setStaffNames(data.map(s => s.name))
+    })
+    fetchResidents(user.orgId, user.houseId || null).then(data => {
+      setResidentNames(data.map(r => r.name))
+    })
   }, [user?.orgId, user?.houseId])
 
-  const handleAdded = (trip) => {
-    setTrips(prev => [trip, ...prev])
-    setShowLog(false)
-    showToast('Trip logged')
+  const handleAdd = async (data) => {
+    const trip = await addTrip(user.orgId, { ...data, houseId: user.houseId || null })
+    if (trip) {
+      setTrips(prev => [trip, ...prev])
+      setShowLog(false)
+      showToast('Trip logged')
+    }
+  }
+
+  const handleEdit = async (data) => {
+    const trip = await updateTrip(editTrip.id, data)
+    if (trip) {
+      setTrips(prev => prev.map(t => t.id === editTrip.id ? trip : t))
+      setEditTrip(null)
+      showToast('Trip updated')
+    }
   }
 
   const handleDelete = async (id) => {
@@ -170,10 +204,12 @@ export function ScreenA_Driving({ user }) {
                           {t.driver_name} · {fmtDate(t.trip_date)} · {t.purpose}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, color: 'var(--a-ink2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="tnum" style={{ fontSize: 12, fontWeight: 500, color: 'var(--a-ink2)' }}>
                           {t.miles}<span style={{ fontSize: 9, color: 'var(--a-ink3)', marginLeft: 2 }}>mi</span>
-                        </div>
+                        </span>
+                        <button onClick={() => setEditTrip(t)}
+                          style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, cursor: 'pointer', padding: '4px', fontFamily: 'Geist' }}>Edit</button>
                         <button onClick={() => handleDelete(t.id)}
                           style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 18, cursor: 'pointer', padding: '4px', lineHeight: 1 }}>×</button>
                       </div>
@@ -196,11 +232,12 @@ export function ScreenA_Driving({ user }) {
       <TabBar active="drive" />
 
       {showLog && (
-        <LogTripModal
-          user={user}
-          onClose={() => setShowLog(false)}
-          onAdded={handleAdded}
-        />
+        <TripModal title="Log trip" staffNames={staffNames} residentNames={residentNames}
+          onClose={() => setShowLog(false)} onSave={handleAdd} />
+      )}
+      {editTrip && (
+        <TripModal title="Edit trip" initial={editTrip} staffNames={staffNames} residentNames={residentNames}
+          onClose={() => setEditTrip(null)} onSave={handleEdit} />
       )}
     </div>
   )

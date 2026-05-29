@@ -42,8 +42,14 @@ export function StaffCard({ name, role, house, houseId, houseName, score, sub, h
         <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>{role} · {hName.split(' ')[0]} · {sub}</div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div className="serif tnum" style={{ fontSize: 18, fontWeight: 500, color: scoreColor, lineHeight: 1 }}>{score}</div>
-        <div style={{ fontSize: 9, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>Quality</div>
+        {sub === 'New' || !score ? (
+          <div style={{ fontSize: 12, color: 'var(--a-ink3)', fontWeight: 500, lineHeight: 1.4 }}>New<br /><span style={{ fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>No score</span></div>
+        ) : (
+          <>
+            <div className="serif tnum" style={{ fontSize: 18, fontWeight: 500, color: scoreColor, lineHeight: 1 }}>{score}</div>
+            <div style={{ fontSize: 9, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>Quality</div>
+          </>
+        )}
       </div>
     </div>
   )

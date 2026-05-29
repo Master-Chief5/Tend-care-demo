@@ -281,6 +281,25 @@ export async function addTrip(orgId, trip) {
   return data
 }
 
+// Update a trip.
+export async function updateTrip(id, updates) {
+  if (!supabase || !id) return null
+  const { data, error } = await supabase
+    .from('trips')
+    .update({
+      driver_name:   updates.driverName,
+      resident_name: updates.residentName,
+      destination:   updates.destination,
+      miles:         updates.miles || 0,
+      purpose:       updates.purpose || 'other',
+    })
+    .eq('id', id)
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('updateTrip:', error.message); return null }
+  return data
+}
+
 // Fetch all houses in an org.
 export async function fetchHouses(orgId) {
   if (!supabase || !orgId) return []
