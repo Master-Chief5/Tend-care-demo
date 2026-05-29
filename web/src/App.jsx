@@ -6,35 +6,26 @@ import { useIsMobile } from './hooks/useIsMobile'
 import { supabase, isDemoMode } from './lib/supabase'
 import { fetchStaffProfile } from './lib/db'
 
-async function buildUser(session) {
+// Build a minimal user from the JWT immediately — no DB call, no delay.
+function quickUser(session) {
   const meta = session?.user?.user_metadata ?? {}
   const role = meta.role ?? 'staff'
   const name = meta.name ?? session?.user?.email ?? ''
-  const base = { id: role, name, role }
+  return { id: role, name, role }
+}
 
-  if (!supabase || !session?.user) return base
-
+// Enrich the user with orgId/staffId/houseId from the database in the background.
+async function enrichUser(session, setUser) {
+  if (!supabase || !session?.user) return
   try {
     const profile = await fetchStaffProfile(session.user.id, session.user.email)
     if (profile) {
-      const r = profile.role || role
-      return { ...base, ...profile, id: r, role: r, name: profile.name || name }
+      const r = profile.role || quickUser(session).role
+      setUser(prev => prev ? { ...prev, ...profile, id: r, role: r, name: profile.name || prev.name } : null)
     }
   } catch (e) {
-    console.error('profile lookup failed:', e)
+    console.error('enrichUser failed:', e)
   }
-
-  return base
-}
-
-// Wraps buildUser with a hard 8s deadline so the loading screen never hangs forever.
-async function safeUser(session) {
-  const fallback = new Promise(resolve => setTimeout(() => {
-    const meta = session?.user?.user_metadata ?? {}
-    const role = meta.role ?? 'staff'
-    resolve({ id: role, name: meta.name ?? session?.user?.email ?? '', role })
-  }, 8000))
-  return Promise.race([buildUser(session), fallback])
 }
 
 export default function App() {
@@ -46,15 +37,16 @@ export default function App() {
   useEffect(() => {
     if (isDemoMode) return
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         lastUid.current = session.user.id
-        setUser(await safeUser(session))
+        setUser(quickUser(session))
+        enrichUser(session, setUser)
       }
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         lastUid.current = null
         setUser(null)
@@ -63,8 +55,9 @@ export default function App() {
       }
       if (session.user.id === lastUid.current) return
       lastUid.current = session.user.id
-      setUser(await safeUser(session))
+      setUser(quickUser(session))
       setLoading(false)
+      enrichUser(session, setUser)
     })
 
     return () => subscription.unsubscribe()
