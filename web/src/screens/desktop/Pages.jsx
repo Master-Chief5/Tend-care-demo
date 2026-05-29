@@ -306,6 +306,21 @@ function Msg({ who, color, time, text, me }) {
 }
 
 export function PageTeamDesktop() {
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 40, textAlign: 'center' }}>
+      <div style={{ fontSize: 40 }}>💬</div>
+      <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--a-ink)' }}>Team Chat</div>
+      <div style={{ fontSize: 14, color: 'var(--a-ink3)', lineHeight: 1.6, maxWidth: 340 }}>
+        End-to-end encrypted messaging is coming soon. Messages will be live and never stored on any server.
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--a-ink3)', background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '5px 16px', marginTop: 8 }}>
+        Coming soon
+      </div>
+    </div>
+  )
+}
+
+function PageTeamDesktop_OLD() {
   const [selectedKey, setSelectedKey] = useState('oak')
   const channelKeys = ['oak', 'willow', 'maple', 'cedar', 'carmen', 'marcus']
   const channels = channelKeys.map(k => ({ key: k, ...CHAT_DATA[k] }))
