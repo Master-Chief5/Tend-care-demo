@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
+import { fetchHouses, fetchStaff, fetchResidents, fetchShifts, fetchTrips } from '../lib/db'
 import { IconChev, IconDots, IconChat, IconPlus } from '../components/icons'
 import { TabBar } from '../components/ui/TabBar'
 
@@ -27,28 +29,51 @@ function NeedRow({ kind, text, color }) {
   )
 }
 
-export function ScreenA_HouseDetail({ houseId = 'oak', onBack }) {
+// Demo fallbacks — shown only when there's no live DB data (e.g. demo mode).
+const FALLBACK_STAFF = [
+  { name: 'Aisha Mendez', role: 'Lead · 7a–3p', status: 'here' },
+  { name: 'Jay Brooks',   role: 'DSP · 7a–3p',  status: 'here' },
+  { name: 'Carmen Vela',  role: 'DSP · 3p–11p', status: 'sched' },
+]
+const FALLBACK_RESIDENTS = [
+  { name: 'Ruth Johnson', room: '1', status: 'home' },
+  { name: 'Marcus Lee',   room: '2', status: 'appt',    note: 'Dentist 1:30p' },
+  { name: 'Tom Reyes',    room: '3', status: 'home' },
+  { name: 'Donna Park',   room: '4', status: 'program', note: 'Day program' },
+]
+
+export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
   const house = HOUSES.find(h => h.id === houseId) || HOUSES[0]
   const c = house.color
 
-  const staffToday = [
-    { name: 'Aisha Mendez', role: 'Lead · 7a–3p', status: 'here' },
-    { name: 'Jay Brooks',   role: 'DSP · 7a–3p',  status: 'here' },
-    { name: 'Carmen Vela',  role: 'DSP · 3p–11p', status: 'sched' },
-  ]
+  const [staffToday, setStaffToday] = useState(FALLBACK_STAFF)
+  const [residents, setResidents]   = useState(FALLBACK_RESIDENTS)
+  const [drives, setDrives]         = useState(2)
 
-  const residents = [
-    { name: 'Ruth Johnson', room: '1', status: 'home' },
-    { name: 'Marcus Lee',   room: '2', status: 'appt',    note: 'Dentist 1:30p' },
-    { name: 'Tom Reyes',    room: '3', status: 'home' },
-    { name: 'Donna Park',   room: '4', status: 'program', note: 'Day program' },
-  ]
+  useEffect(() => {
+    if (!user?.orgId) return
+    let cancelled = false
+    // Resolve this house's real UUID from its slug, then load its data.
+    fetchHouses(user.orgId).then(houses => {
+      const match = houses.find(h => h.slug === house.id)
+      if (!match) return
+      fetchStaff(user.orgId, match.id).then(rows => {
+        if (cancelled || !rows.length) return
+        setStaffToday(rows.map(s => ({ name: s.name, role: s.role, status: 'sched' })))
+      })
+      fetchResidents(user.orgId, match.id).then(rows => {
+        if (cancelled || !rows.length) return
+        setResidents(rows.map((r, i) => ({ name: r.name, room: r.room || String(i + 1), status: r.status === 'active' ? 'home' : r.status })))
+      })
+      fetchTrips(user.orgId, match.id, new Date()).then(rows => {
+        if (!cancelled) setDrives(rows.length)
+      })
+    })
+    return () => { cancelled = true }
+  }, [user?.orgId, house.id])
 
-  const needs = [
-    { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
-    { kind: 'med',     text: 'R. Johnson — 2pm meds need second signoff' },
-    { kind: 'drive',   text: '1:30pm — M. Lee to dentist (Aisha)' },
-  ]
+  const onShift = staffToday.filter(s => s.status === 'here').length || staffToday.length
+  const residentsIn = residents.filter(r => r.status === 'home' || r.status === 'appt' || r.status === 'program').length
 
   return (
     <div className="phone-screen">
@@ -72,17 +97,12 @@ export function ScreenA_HouseDetail({ houseId = 'oak', onBack }) {
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
-            <Stat label="On shift" big={2} sub="of 2" />
-            <Stat label="Residents in" big={3} sub={`of ${house.residents}`} />
-            <Stat label="Today's drives" big={2} sub="planned" />
+            <Stat label="Staff" big={onShift} sub={`${staffToday.length} total`} />
+            <Stat label="Residents" big={residentsIn} sub={`of ${residents.length}`} />
+            <Stat label="Today's drives" big={drives} sub="logged" />
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Needs attention</div>
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '10px 14px', marginBottom: 14 }}>
-            {needs.map((n, i) => <NeedRow key={i} {...n} color={c} />)}
-          </div>
-
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Staff today</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Staff</div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '0 14px', marginBottom: 14 }}>
             {staffToday.map((s, i) => {
               const st = s.status === 'here'

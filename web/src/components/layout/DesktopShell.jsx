@@ -107,7 +107,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+            <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} />
           </div>
         </div>
       )}
