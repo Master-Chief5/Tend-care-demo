@@ -6,7 +6,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Driving } from '../../screens/Driving'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { TendLogo } from '../ui/TendLogo'
-import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
+import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
 

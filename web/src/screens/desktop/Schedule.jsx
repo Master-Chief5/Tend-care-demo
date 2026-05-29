@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, TODAY_SHIFTS } from '../../data/constants'
+import { HOUSES } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
 import { useNowMinute } from '../../hooks/useNowMinute'
 import { fetchShifts } from '../../lib/db'
@@ -188,10 +188,10 @@ function ScheduleRow({ house }) {
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts }) {
+function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = HOUSES, isManager = false }) {
   const week = buildWeek(new Date())
   const nowFrac = useNowMinute()
-  const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter)
+  const visibleHouses = houseFilter === 'all' ? houses : houses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
 
   return (
@@ -220,8 +220,10 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
-        <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub={`${shifts.length} shifts`} />
-        {HOUSES.map(h => {
+        {!isManager && (
+          <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub={`${shifts.length} shifts`} />
+        )}
+        {houses.map(h => {
           const count = shifts.filter(s => s.house === h.id).length
           return (
             <DskHouseTab key={h.id} active={houseFilter === h.id} onClick={() => setHouseFilter(h.id)}
@@ -247,7 +249,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
   )
 }
 
-function WeekScheduleView() {
+function WeekScheduleView({ houses = HOUSES }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
@@ -270,35 +272,40 @@ function WeekScheduleView() {
             </div>
           ))}
         </div>
-        {HOUSES.map(h => <ScheduleRow key={h.id} house={h} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} />)}
       </div>
     </>
   )
 }
 
 export function PageScheduleDesktopExpanded({ user }) {
+  const isManager = user?.role === 'manager'
+  const houses = isManager ? HOUSES.filter(h => h.id === user.houseSlug) : HOUSES
+
   const [view, setView] = useState('day')
   const [dayIdx, setDayIdx] = useState(() => {
     const w = buildWeek(new Date())
     const i = w.findIndex(d => d.today)
     return i >= 0 ? i : 0
   })
-  const [houseFilter, setHouseFilter] = useState('all')
-  const [shifts, setShifts] = useState(TODAY_SHIFTS)
+  const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
+  const [shifts, setShifts] = useState([])
 
   useEffect(() => {
     if (!user?.orgId) return
-    fetchShifts(user.orgId, null, new Date()).then(data => {
+    const houseId = isManager ? (user.houseId || null) : null
+    fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
-  }, [user?.orgId])
+  }, [user?.orgId, user?.houseId, isManager])
 
   return (
     <>
       <DTopBar
         title="Schedule"
         sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <IconKey size={12} sw={2} color="var(--a-sage)" /> You see all 4 houses · staff see only their own
+          <IconKey size={12} sw={2} color="var(--a-sage)" />
+          {isManager ? 'Your house schedule' : 'You see all houses · staff see only their own'}
         </span>}
         actions={<>
           <ViewToggleDesktop view={view} setView={setView} />
@@ -308,8 +315,8 @@ export function PageScheduleDesktopExpanded({ user }) {
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {view === 'day'
-          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} />
-          : <WeekScheduleView />}
+          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} houses={houses} isManager={isManager} />
+          : <WeekScheduleView houses={houses} />}
       </div>
     </>
   )

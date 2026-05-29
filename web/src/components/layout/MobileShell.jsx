@@ -8,21 +8,21 @@ import { ScreenA_Chat } from '../../screens/OnboardChat'
 import { ScreenA_Driving } from '../../screens/Driving'
 import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
-import { ScreenA_MyDay, ScreenA_MySchedule, ScreenA_Me } from '../../screens/Employee'
+import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { IconHome, IconCal, IconCart, IconCar, IconPeople, IconCheck } from '../icons'
 
 function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
   if (role === 'staff') {
     switch (tab) {
       case 'home':  return <ScreenA_MyDay user={user} />
-      case 'sched': return <ScreenA_MySchedule />
+      case 'sched': return <ScreenA_ScheduleDay user={user} employee />
       case 'drive': return <ScreenA_Driving user={user} />
       case 'resources': return <ScreenA_Resources user={user} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} />
     }
   }
   switch (tab) {
-    case 'home':      return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
+    case 'home':      return <ScreenA_Houses user={user} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
     case 'sched':     return <ScreenA_ScheduleDay user={user} />
     case 'drive':     return <ScreenA_Driving user={user} />
     case 'resources': return <ScreenA_Resources user={user} />
@@ -30,7 +30,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
       ? <ScreenA_Staff user={user} onLogout={onLogout} />
       : <ScreenA_Me user={user} onLogout={onLogout} />
   }
-  return <ScreenA_Houses onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
+  return <ScreenA_Houses user={user} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
 }
 
 function RoleSwitcher({ role, setRole, open, setOpen }) {
@@ -102,7 +102,7 @@ export function MobileShell({ user, onLogout }) {
   ]
 
   const screen = houseDetail
-    ? <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+    ? <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} />
     : pickScreen(role, tab, user, setHouseDetail, switchTab, onLogout)
 
   return (

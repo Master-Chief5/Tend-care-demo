@@ -561,10 +561,11 @@ export function PageStaffDesktop({ user }) {
 
   useEffect(() => {
     if (!user?.orgId) return
-    fetchStaff(user.orgId, null).then(data => {
+    const houseId = user.role === 'manager' ? user.houseId : null
+    fetchStaff(user.orgId, houseId).then(data => {
       if (data.length > 0) setStaffList(data)
     })
-  }, [user?.orgId])
+  }, [user?.orgId, user?.houseId, user?.role])
 
   const filtered = staffList.filter(s => {
     const matchHouse = houseFilter === 'All' || s.house === houseFilter.toLowerCase()
@@ -575,7 +576,7 @@ export function PageStaffDesktop({ user }) {
   return (
     <>
       <Toast msg={toast} />
-      <DTopBar title="Staff" sub="22 staff · 4 in onboarding"
+      <DTopBar title="Staff" sub={`${staffList.length} staff member${staffList.length === 1 ? '' : 's'}`}
         actions={<button onClick={() => showToast('Opening hiring flow…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Hire</button>}
         search={false} />
       <CenteredColumn width={820} side>

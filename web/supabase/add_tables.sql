@@ -67,6 +67,8 @@ DROP POLICY IF EXISTS "resources_insert" ON resources;
 DROP POLICY IF EXISTS "resources_delete" ON resources;
 DROP POLICY IF EXISTS "trips_select"     ON trips;
 DROP POLICY IF EXISTS "trips_insert"     ON trips;
+DROP POLICY IF EXISTS "trips_update"     ON trips;
+DROP POLICY IF EXISTS "trips_delete"     ON trips;
 DROP POLICY IF EXISTS "vehicles_select"  ON vehicles;
 DROP POLICY IF EXISTS "vehicles_insert"  ON vehicles;
 DROP POLICY IF EXISTS "residents_select" ON residents;
@@ -78,6 +80,10 @@ CREATE POLICY "resources_delete" ON resources FOR DELETE USING (org_id = auth_or
 
 CREATE POLICY "trips_select" ON trips FOR SELECT USING (org_id = auth_org_id());
 CREATE POLICY "trips_insert" ON trips FOR INSERT WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "trips_update" ON trips FOR UPDATE
+  USING (org_id = auth_org_id())
+  WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "trips_delete" ON trips FOR DELETE USING (org_id = auth_org_id());
 
 CREATE POLICY "vehicles_select" ON vehicles FOR SELECT USING (org_id = auth_org_id());
 CREATE POLICY "vehicles_insert" ON vehicles FOR INSERT WITH CHECK (org_id = auth_org_id());
@@ -89,6 +95,7 @@ CREATE POLICY "residents_insert" ON residents FOR INSERT WITH CHECK (org_id = au
 
 DROP POLICY IF EXISTS "shifts_insert"        ON shifts;
 DROP POLICY IF EXISTS "tasks_insert"         ON tasks;
+DROP POLICY IF EXISTS "tasks_update"         ON tasks;
 DROP POLICY IF EXISTS "houses_insert"        ON houses;
 DROP POLICY IF EXISTS "houses_update"        ON houses;
 DROP POLICY IF EXISTS "houses_delete"        ON houses;
@@ -98,6 +105,14 @@ DROP POLICY IF EXISTS "staff_delete"         ON staff;
 
 CREATE POLICY "shifts_insert" ON shifts FOR INSERT WITH CHECK (org_id = auth_org_id());
 CREATE POLICY "tasks_insert"  ON tasks  FOR INSERT WITH CHECK (org_id = auth_org_id());
+
+-- Staff can toggle their own tasks; supervisors/managers can toggle any task in their org.
+CREATE POLICY "tasks_update"  ON tasks  FOR UPDATE
+  USING (
+    org_id = auth_org_id()
+    AND (staff_id = auth_staff_id() OR auth_staff_role() IN ('supervisor', 'manager'))
+  )
+  WITH CHECK (org_id = auth_org_id());
 
 CREATE POLICY "houses_insert" ON houses FOR INSERT
   WITH CHECK (org_id = auth_org_id());

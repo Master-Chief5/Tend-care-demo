@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { buildWeek, fmtDayLabel, getGreeting } from '../lib/utils'
+import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -197,49 +197,6 @@ export function ScreenA_MyDay({ user }) {
       {showAdd && (
         <AddTaskModal user={user} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
       )}
-    </div>
-  )
-}
-
-export function ScreenA_MySchedule() {
-  const week = buildWeek(new Date())
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
-
-  const upcomingShifts = [
-    { day: fmtDayLabel(new Date()), time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'today' },
-    { day: 'Tomorrow', time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'upcoming' },
-    { day: 'Saturday', time: '3:00 PM – 11:00 PM', house: 'Willow Run', role: 'DSP (coverage)', status: 'swap' },
-  ]
-
-  return (
-    <div className="phone-screen">
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 8px' }}>
-          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>My Schedule</div>
-          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{weekLabel}</div>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
-          {upcomingShifts.map((s, i) => {
-            const sc = s.status === 'today' ? { bg: 'var(--a-sage)', tc: '#fff' }
-              : s.status === 'swap' ? { bg: '#e7dfe9', tc: '#5a3a6b' }
-              : { bg: 'var(--a-paper)', tc: 'var(--a-ink3)' }
-            return (
-              <div key={i} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-ink2)' }}>{s.day}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: sc.tc, background: sc.bg, padding: '2px 8px', borderRadius: 999 }}>
-                    {s.status === 'today' ? 'Today' : s.status === 'swap' ? 'Swap' : 'Scheduled'}
-                  </span>
-                </div>
-                <div className="tnum" style={{ fontSize: 16, fontWeight: 600 }}>{s.time}</div>
-                <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 4 }}>{s.house} · {s.role}</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <TabBar active="sched" />
     </div>
   )
 }

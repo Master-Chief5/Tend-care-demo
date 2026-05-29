@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts, addShift, fetchStaff } from '../lib/db'
+import { fetchShifts, addShift, fetchStaff, fetchHouses } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
 
@@ -261,29 +261,38 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
   const [shifts, setShifts] = useState([])
-  const [dbHouses, setDbHouses] = useState(null)
+  const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
   const [staffNames, setStaffNames] = useState([])
   const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
   const nowFrac = useNowMinute()
 
-  const displayHouses = dbHouses ?? HOUSES
+  const isSupervisor = user?.role === 'supervisor'
+
+  // The grid keys houses by slug (matching the HOUSES constant + fetchShifts output).
+  // Non-supervisors are scoped to their own house.
+  const displayHouses = isSupervisor ? HOUSES : HOUSES.filter(h => h.id === user?.houseSlug)
+
+  // Picker options use real DB houses (UUID ids) so addShift inserts a valid house_id.
+  const pickerHouses = isSupervisor ? houseList : houseList.filter(h => h.slug === user?.houseSlug)
 
   useEffect(() => {
     if (!user?.orgId) return
-    const houseId = user.role === 'supervisor' ? null : (user.houseId || null)
+    const houseId = isSupervisor ? null : (user.houseId || null)
     fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
     fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
+    fetchHouses(user.orgId).then(setHouseList)
   }, [user?.orgId, user?.houseId, user?.role])
 
   const handleShiftAdded = (shift, houseId) => {
-    const hConst = displayHouses.find(h => h.id === houseId || (dbHouses ? h.id === houseId : false))
+    // houseId is a real UUID; map it back to the slug the grid uses to render.
+    const slug = houseList.find(h => h.id === houseId)?.slug ?? houseId
     setShifts(prev => [...prev, {
       id: shift.id,
-      house: hConst?.id ?? houseId,
+      house: slug,
       start: Number(shift.start_hour),
       end: Number(shift.end_hour),
       person: shift.person_name,
@@ -354,7 +363,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
       {showAddShift && (
         <AddShiftModal
           user={user}
-          houses={displayHouses.filter(h => !user?.houseId || h.id === user.houseId)}
+          houses={pickerHouses}
           staffNames={staffNames}
           onClose={() => setShowAddShift(false)}
           onAdded={handleShiftAdded}

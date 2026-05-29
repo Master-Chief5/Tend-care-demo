@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
-import { fetchResources, addResource, deleteResource } from '../lib/db'
+import { fetchResources, addResource, deleteResource, fetchHouses } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
@@ -124,13 +124,12 @@ function AddItemModal({ user, houses, onClose, onAdded }) {
 
 export function ScreenA_Resources({ user }) {
   const [items, setItems] = useState([])
+  const [houses, setHouses] = useState([])
   const [showAdd, setShowAdd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, showToast] = useToast()
 
-  const houses = user?.orgId
-    ? (user.role === 'supervisor' ? [] : [])  // populated from HOUSES fallback
-    : []
+  const isSupervisor = user?.role === 'supervisor'
 
   useEffect(() => {
     if (!user?.orgId) return
@@ -139,7 +138,14 @@ export function ScreenA_Resources({ user }) {
       setItems(data)
       setLoading(false)
     })
-  }, [user?.orgId, user?.houseId])
+    // Only supervisors choose which house an item belongs to; managers/staff are
+    // locked to their own house (no picker).
+    if (isSupervisor) {
+      fetchHouses(user.orgId).then(setHouses)
+    } else {
+      setHouses([])
+    }
+  }, [user?.orgId, user?.houseId, isSupervisor])
 
   const handleAdded = (item) => {
     setItems(prev => [item, ...prev])
@@ -201,23 +207,27 @@ export function ScreenA_Resources({ user }) {
             </div>
           )}
 
-          <SectionHeader title="Spend by house · this month" />
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
-            <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-            <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
-            <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
-            <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
-              <span>0</span><span>$1,250</span>
-            </div>
-          </div>
+          {isSupervisor && (
+            <>
+              <SectionHeader title="Spend by house · this month" />
+              <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
+                <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
+                <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
+                <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
+                  <span>0</span><span>$1,250</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {showAdd && (
         <AddItemModal
           user={user}
-          houses={[]}
+          houses={houses}
           onClose={() => setShowAdd(false)}
           onAdded={handleAdded}
         />

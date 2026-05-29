@@ -28,14 +28,15 @@ const allHouseData = [
   ]},
 ]
 
-function GreetingHeader() {
+function GreetingHeader({ name }) {
   const today = new Date()
+  const firstName = name?.split(' ')[0] || 'there'
   return (
     <div style={{ padding: '10px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
       <div>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 2 }}>{fmtDayLabel(today)}</div>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>
-          {getGreeting()},<br /><em style={{ color: 'var(--a-sage)' }}>Lina</em>
+          {getGreeting()},<br /><em style={{ color: 'var(--a-sage)' }}>{firstName}</em>
         </div>
       </div>
       <TendLogo size={14} />
@@ -128,16 +129,23 @@ function HouseCard({ data, house, onHouseClick, onTeamChat }) {
   )
 }
 
-export function ScreenA_Houses({ onHouseClick, onTeamChat }) {
+export function ScreenA_Houses({ user, onHouseClick, onTeamChat }) {
   const [branch, setBranch] = useState('All')
-  const visibleData = allHouseData.filter(d =>
-    branch === 'All' || HOUSES[d.idx].branch === branch
-  )
+  const isManager = user?.role === 'manager'
+
+  // Managers see only their own house; supervisors see all (filterable by branch).
+  const scopedData = isManager
+    ? allHouseData.filter(d => HOUSES[d.idx].id === user.houseSlug)
+    : allHouseData
+  const visibleData = isManager
+    ? scopedData
+    : scopedData.filter(d => branch === 'All' || HOUSES[d.idx].branch === branch)
+
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <GreetingHeader />
-        <BranchTabs active={branch} setActive={setBranch} />
+        <GreetingHeader name={user?.name} />
+        {!isManager && <BranchTabs active={branch} setActive={setBranch} />}
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px 24px' }}>
           {visibleData.map(d => (
             <HouseCard key={d.idx} data={d} house={HOUSES[d.idx]} onHouseClick={onHouseClick} onTeamChat={onTeamChat} />
