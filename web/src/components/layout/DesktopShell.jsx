@@ -1,35 +1,41 @@
 import { useState } from 'react'
 import { ROLES } from '../../data/constants'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
+import { ScreenA_MyDay } from '../../screens/Employee'
 import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow } from '../icons'
 
-function DesktopPage({ tab, onHouseClick }) {
+const ALL_TABS = [
+  { id: 'today',       label: 'Today',       icon: IconHome,    roles: ['supervisor', 'manager'] },
+  { id: 'myday',       label: 'My Day',      icon: IconHome,    roles: ['staff'] },
+  { id: 'houses',      label: 'Houses',      icon: IconBox,     roles: ['supervisor', 'manager'], count: 4 },
+  { id: 'schedule',    label: 'Schedule',    icon: IconCal,     roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'team',        label: 'Team chat',   icon: IconChat,    roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'driving',     label: 'Driving',     icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager'] },
+  { id: 'staff',       label: 'Staff',       icon: IconPeople,  roles: ['supervisor'], count: 22 },
+  { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'], count: 4 },
+]
+
+function DesktopPage({ tab, onHouseClick, user }) {
   if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
+  if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
-  if (tab === 'schedule')    return <PageScheduleDesktopExpanded />
+  if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} />
   if (tab === 'team')        return <PageTeamDesktop />
   if (tab === 'driving')     return <PageDrivingDesktop />
   if (tab === 'resources')   return <PageResourcesDesktop />
-  if (tab === 'staff')       return <PageStaffDesktop />
+  if (tab === 'staff')       return <PageStaffDesktop user={user} />
   if (tab === 'orientation') return <PageOrientationDesktop />
   return <PageTodayDesktop onHouseClick={onHouseClick} />
 }
 
 function DesktopRail({ tab, setTab, user, onLogout }) {
-  const u = ROLES.find(r => r.id === user.id) || ROLES[0]
-  const railTabs = [
-    { id: 'today',       label: 'Today',       icon: IconHome },
-    { id: 'houses',      label: 'Houses',      icon: IconBox,     count: 4 },
-    { id: 'schedule',    label: 'Schedule',    icon: IconCal },
-    { id: 'team',        label: 'Team chat',   icon: IconChat },
-    { id: 'driving',     label: 'Driving',     icon: IconCar },
-    { id: 'resources',   label: 'Resources',   icon: IconCart },
-    { id: 'staff',       label: 'Staff',       icon: IconPeople,  count: 22 },
-    { id: 'orientation', label: 'Orientation', icon: IconBook,    count: 4 },
-  ]
+  const u = ROLES.find(r => r.id === user.role) || ROLES.find(r => r.id === user.id) || ROLES[0]
+  const role = user.role ?? user.id
+  const railTabs = ALL_TABS.filter(t => t.roles.includes(role))
   return (
     <div style={{ width: 240, background: 'var(--a-paper)', borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', padding: '20px 16px', flexShrink: 0, height: '100dvh', overflow: 'auto' }}>
       <TendLogo size={16} />
@@ -74,7 +80,8 @@ function DesktopRail({ tab, setTab, user, onLogout }) {
 }
 
 export function DesktopShell({ user, onLogout }) {
-  const [tab, setTab] = useState('today')
+  const defaultTab = (user.role ?? user.id) === 'staff' ? 'myday' : 'today'
+  const [tab, setTab] = useState(defaultTab)
   const [houseDetail, setHouseDetail] = useState(null)
   const switchTab = (t) => { setTab(t); setHouseDetail(null) }
 
@@ -82,7 +89,7 @@ export function DesktopShell({ user, onLogout }) {
     <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} />
       </div>
       {houseDetail && (
         <div

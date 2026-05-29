@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HOUSES, TODAY_SHIFTS } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
+import { fetchShifts } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey, IconEye, IconChev } from '../components/icons'
 
@@ -191,17 +192,25 @@ function ScreenA_ScheduleWeek({ setView }) {
   )
 }
 
-export function ScreenA_ScheduleDay({ employee = false }) {
+export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
+  const [shifts, setShifts] = useState(TODAY_SHIFTS)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
   const nowFrac = useNowMinute()
 
+  useEffect(() => {
+    if (!user?.orgId) return
+    fetchShifts(user.orgId, null, new Date()).then(data => {
+      if (data.length > 0) setShifts(data)
+    })
+  }, [user?.orgId])
+
   if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} />
 
   const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter)
-  const filteredShifts = houseFilter === 'all' ? TODAY_SHIFTS : TODAY_SHIFTS.filter(s => s.house === houseFilter)
+  const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
 
   return (
     <div className="phone-screen">

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HOUSES, STAFF_LIST, CHAT_DATA } from '../../data/constants'
+import { fetchStaff } from '../../lib/db'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
@@ -523,13 +524,21 @@ export function PageResourcesDesktop() {
 
 // ── Staff ─────────────────────────────────────────────────────────────
 
-export function PageStaffDesktop() {
+export function PageStaffDesktop({ user }) {
   const [query, setQuery] = useState('')
   const [houseFilter, setHouseFilter] = useState('All')
+  const [staffList, setStaffList] = useState(STAFF_LIST)
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [toast, showToast] = useToast()
 
-  const filtered = STAFF_LIST.filter(s => {
+  useEffect(() => {
+    if (!user?.orgId) return
+    fetchStaff(user.orgId, null).then(data => {
+      if (data.length > 0) setStaffList(data)
+    })
+  }, [user?.orgId])
+
+  const filtered = staffList.filter(s => {
     const matchHouse = houseFilter === 'All' || s.house === houseFilter.toLowerCase()
     const matchQuery = s.name.toLowerCase().includes(query.toLowerCase()) || s.role.toLowerCase().includes(query.toLowerCase())
     return matchHouse && matchQuery
@@ -574,9 +583,9 @@ export function PageStaffDesktop() {
                 <span className="serif" style={{ fontSize: 18 }}>{selectedStaff.name}</span>
               </div>
               <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: HOUSES.find(h => h.id === selectedStaff.house)?.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: HOUSES.find(h => h.id === selectedStaff.house)?.color ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedStaff.role}</div>
-                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{HOUSES.find(h => h.id === selectedStaff.house)?.name} · {selectedStaff.tenure}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{HOUSES.find(h => h.id === selectedStaff.house)?.name ?? 'All houses'} · {selectedStaff.tenure}</div>
               </div>
               <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
                 <div style={{ width: `${selectedStaff.score}%`, height: '100%', background: selectedStaff.score >= 90 ? '#3f7050' : selectedStaff.score >= 80 ? '#a47012' : '#a93a25', borderRadius: 999 }} />
