@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, TODAY_SHIFTS } from '../data/constants'
+import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts } from '../lib/db'
+import { fetchShifts, addShift, fetchStaff } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
-import { IconPlus, IconKey, IconEye, IconChev } from '../components/icons'
+import { IconPlus, IconKey } from '../components/icons'
 
 const HOUR_PX = 56
-const DAY_START = 6
+const DAY_START = 0
 const DAY_END = 24
 
 function ViewToggle({ view, setView }) {
@@ -47,11 +47,11 @@ function DayStrip({ week, dayIdx, setDayIdx }) {
   )
 }
 
-function HouseFilterChips({ active, setActive }) {
+function HouseFilterChips({ houses, active, setActive }) {
   return (
     <div style={{ padding: '0 14px 10px', display: 'flex', gap: 5, overflowX: 'auto' }}>
-      <FilterChip active={active === 'all'} onClick={() => setActive('all')} label="All" sub="4" />
-      {HOUSES.map(h => (
+      <FilterChip active={active === 'all'} onClick={() => setActive('all')} label="All" sub={houses.length} />
+      {houses.map(h => (
         <FilterChip key={h.id} active={active === h.id} onClick={() => setActive(h.id)} color={h.color} label={h.name.split(' ')[0]} short={h.short} />
       ))}
     </div>
@@ -71,7 +71,7 @@ function FilterChip({ active, onClick, label, sub, short, color }) {
     }}>
       {short && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', opacity: active ? 0.85 : 0.7 }}>{short}</span>}
       <span style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
-      {sub && <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>}
+      {sub != null && <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>}
     </button>
   )
 }
@@ -89,7 +89,7 @@ function ShiftBlock({ shift, houseColor, expanded }) {
   const txt = open ? houseColor : '#fff'
   return (
     <div style={{
-      position: 'absolute', top: top + 2, left: 2, right: 2, height: height - 4,
+      position: 'absolute', top: top + 2, left: 2, right: 2, height: Math.max(height - 4, 20),
       background: bg, border, borderRadius: 6,
       padding: expanded ? '8px 12px' : '4px 6px', color: txt, overflow: 'hidden',
       display: 'flex', flexDirection: 'column', gap: 2, opacity: dim ? 0.78 : 1,
@@ -107,7 +107,7 @@ function ShiftBlock({ shift, houseColor, expanded }) {
   )
 }
 
-function TimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
+function TimeGrid({ shifts, houses, nowFrac = 9.8 }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * HOUR_PX
@@ -161,7 +161,7 @@ function WeekHouseRow({ house }) {
   )
 }
 
-function ScreenA_ScheduleWeek({ setView }) {
+function ScreenA_ScheduleWeek({ setView, houses }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
@@ -176,7 +176,7 @@ function ScreenA_ScheduleWeek({ setView }) {
           <ViewToggle view="week" setView={setView} />
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 14px 24px' }}>
-          {HOUSES.map(h => (
+          {houses.map(h => (
             <div key={h.id} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingLeft: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: h.color }} />
@@ -192,25 +192,113 @@ function ScreenA_ScheduleWeek({ setView }) {
   )
 }
 
+function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
+  const [personName, setPersonName] = useState('')
+  const [role, setRole] = useState('DSP')
+  const [startTime, setStartTime] = useState('07:00')
+  const [endTime, setEndTime] = useState('15:00')
+  const [houseId, setHouseId] = useState(user?.houseId || (houses[0]?.id ?? ''))
+  const [saving, setSaving] = useState(false)
+
+  const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!personName.trim() || !houseId || !user?.orgId) return
+    setSaving(true)
+    const shift = await addShift(user.orgId, houseId, {
+      personName: personName.trim(),
+      role,
+      startHour: timeToHour(startTime),
+      endHour: timeToHour(endTime),
+    })
+    setSaving(false)
+    if (shift) onAdded(shift, houseId)
+  }
+
+  const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add shift</div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <datalist id="dl-shift-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+          <input autoFocus placeholder="Staff name" value={personName} onChange={e => setPersonName(e.target.value)}
+            list="dl-shift-staff" style={inputStyle} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Start time</div>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>End time</div>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+          <select value={role} onChange={e => setRole(e.target.value)}
+            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+            {['DSP', 'Lead', 'Mgr', 'PT', 'Awake OT'].map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          {houses.length > 1 && (
+            <select value={houseId} onChange={e => setHouseId(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+              {houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          )}
+          <button type="submit" disabled={!personName.trim() || saving}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: personName.trim() ? 'pointer' : 'default', opacity: personName.trim() ? 1 : 0.5 }}>
+            {saving ? 'Saving…' : 'Add shift'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
-  const [shifts, setShifts] = useState(TODAY_SHIFTS)
+  const [shifts, setShifts] = useState([])
+  const [dbHouses, setDbHouses] = useState(null)
+  const [staffNames, setStaffNames] = useState([])
+  const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
   const nowFrac = useNowMinute()
 
+  const displayHouses = dbHouses ?? HOUSES
+
   useEffect(() => {
     if (!user?.orgId) return
-    fetchShifts(user.orgId, null, new Date()).then(data => {
+    const houseId = user.role === 'supervisor' ? null : (user.houseId || null)
+    fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
-  }, [user?.orgId])
+    fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
+  }, [user?.orgId, user?.houseId, user?.role])
 
-  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} />
+  const handleShiftAdded = (shift, houseId) => {
+    const hConst = displayHouses.find(h => h.id === houseId || (dbHouses ? h.id === houseId : false))
+    setShifts(prev => [...prev, {
+      id: shift.id,
+      house: hConst?.id ?? houseId,
+      start: Number(shift.start_hour),
+      end: Number(shift.end_hour),
+      person: shift.person_name,
+      role: shift.role,
+      status: 'scheduled',
+    }])
+    setShowAddShift(false)
+  }
 
-  const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter)
+  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} />
+
+  const visibleHouses = houseFilter === 'all' ? displayHouses : displayHouses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
+
+  const canAddShift = user?.role === 'supervisor' || user?.role === 'manager'
 
   return (
     <div className="phone-screen">
@@ -218,32 +306,36 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
         <div style={{ padding: '14px 22px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{fmtDayLabel(week[dayIdx].date)} · 14 shifts</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{fmtDayLabel(week[dayIdx].date)} · {shifts.length} shifts</div>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <ViewToggle view={view} setView={setView} />
-            <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <IconPlus size={16} sw={2.2} />
-            </button>
+            {canAddShift && (
+              <button onClick={() => setShowAddShift(true)} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <IconPlus size={16} sw={2.2} />
+              </button>
+            )}
           </div>
         </div>
 
-        <div style={{ padding: '4px 22px 10px' }}>
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <IconKey size={13} color="var(--a-sage)" sw={1.8} />
-            <span style={{ fontSize: 11, color: 'var(--a-ink2)', flex: 1 }}>You see <strong>all 4 houses</strong>. Staff only see their own shifts.</span>
+        {user?.role === 'supervisor' && (
+          <div style={{ padding: '4px 22px 10px' }}>
+            <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconKey size={13} color="var(--a-sage)" sw={1.8} />
+              <span style={{ fontSize: 11, color: 'var(--a-ink2)', flex: 1 }}>You see <strong>all houses</strong>. Staff only see their own shifts.</span>
+            </div>
           </div>
-        </div>
+        )}
 
         <DayStrip week={week} dayIdx={dayIdx} setDayIdx={setDayIdx} />
-        <HouseFilterChips active={houseFilter} setActive={setHouseFilter} />
+        <HouseFilterChips houses={displayHouses} active={houseFilter} setActive={setHouseFilter} />
 
         <div style={{ padding: '4px 22px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--a-clay)' }} />
           <span style={{ fontSize: 11, color: 'var(--a-clay)', fontWeight: 600 }}>Now · {fmtNow(nowFrac)}</span>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', gap: 4 }}>
-            {HOUSES.map((h, i) => (
+            {visibleHouses.slice(0, 4).map((h, i) => (
               <span key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 {i > 0 && <span style={{ color: 'var(--a-ink3)', fontSize: 10 }}>·</span>}
                 <span style={{ width: 7, height: 7, borderRadius: 2, background: h.color }} />
@@ -258,6 +350,16 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
         </div>
       </div>
       <TabBar active="sched" />
+
+      {showAddShift && (
+        <AddShiftModal
+          user={user}
+          houses={displayHouses.filter(h => !user?.houseId || h.id === user.houseId)}
+          staffNames={staffNames}
+          onClose={() => setShowAddShift(false)}
+          onAdded={handleShiftAdded}
+        />
+      )}
     </div>
   )
 }

@@ -76,11 +76,13 @@ function CenteredColumn({ children, width = 760, side }) {
 
 // ── Today ─────────────────────────────────────────────────────────────
 
-export function PageTodayDesktop({ onHouseClick }) {
+export function PageTodayDesktop({ onHouseClick, user }) {
   const [toast, showToast] = useToast()
   const [branchFilter, setBranchFilter] = useState('All')
   const greeting = getGreeting()
   const dateLabel = fmtDayLabel(new Date())
+  const firstName = user?.name?.split(' ')[0] || 'there'
+  const isManager = user?.role === 'manager'
 
   const allHouseCards = [
     { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: ['Out: oat milk, bananas', 'R. Johnson MAR 2pm', '1:30p drive to dentist'] },
@@ -88,14 +90,16 @@ export function PageTodayDesktop({ onHouseClick }) {
     { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: ['Refill: K. Diaz', 'Dryer service', 'Shop run 4p'] },
     { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: ['All clear · 2 incident-free wks'] },
   ]
-  const visibleCards = allHouseCards.filter(d => branchFilter === 'All' || d.house.branch === branchFilter)
+  const visibleCards = isManager
+    ? allHouseCards.filter(d => d.house.id === user.houseSlug)
+    : allHouseCards.filter(d => branchFilter === 'All' || d.house.branch === branchFilter)
 
   return (
     <>
       <Toast msg={toast} />
       <DTopBar
-        title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>Lina</em></>}
-        sub={<>{dateLabel} · 4 houses · 22 staff · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}
+        title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>{firstName}</em></>}
+        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'} · {isManager ? 'manager view' : <><span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}</>}
         actions={<button onClick={() => showToast('Opening new item…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -108,16 +112,18 @@ export function PageTodayDesktop({ onHouseClick }) {
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Houses today</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {['All', 'North', 'South'].map(b => (
-              <button key={b} onClick={() => setBranchFilter(b)} style={{
-                border: b === branchFilter ? '0' : '1px solid var(--a-line)',
-                background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
-                color: b === branchFilter ? 'var(--a-card)' : 'var(--a-ink2)',
-                padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer',
-              }}>{b}</button>
-            ))}
-          </div>
+          {!isManager && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['All', 'North', 'South'].map(b => (
+                <button key={b} onClick={() => setBranchFilter(b)} style={{
+                  border: b === branchFilter ? '0' : '1px solid var(--a-line)',
+                  background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
+                  color: b === branchFilter ? 'var(--a-card)' : 'var(--a-ink2)',
+                  padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer',
+                }}>{b}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -218,8 +224,8 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
   )
 }
 
-export function PageHousesDesktop({ onHouseClick }) {
-  const houseData = [
+export function PageHousesDesktop({ onHouseClick, user }) {
+  const allHouseData = [
     { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: [
       { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
       { kind: 'med', text: 'R. Johnson — 2pm MAR signoff' },
@@ -238,10 +244,17 @@ export function PageHousesDesktop({ onHouseClick }) {
       { kind: 'note', text: 'All clear · 2 incident-free weeks' },
     ]},
   ]
+  const isManager = user?.role === 'manager'
+  const houseData = isManager
+    ? allHouseData.filter(d => d.house.id === user.houseSlug)
+    : allHouseData
+  const subText = isManager
+    ? `${houseData.length} house · manager view`
+    : `${houseData.length} houses · North + South branches`
   return (
     <>
-      <DTopBar title="Houses" sub="4 houses · North + South branches"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
+      <DTopBar title="Houses" sub={subText}
+        actions={!isManager && <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
           {houseData.map(({ house, urgent, staff, present, drives, needs }) => (
