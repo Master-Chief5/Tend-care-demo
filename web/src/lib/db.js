@@ -5,18 +5,26 @@ import { supabase } from './supabase'
 export async function fetchStaffProfile(authUserId, _email) {
   if (!supabase || !authUserId) return null
 
-  const { data, error } = await supabase.rpc('get_my_staff_profile')
-  if (error) { console.error('fetchStaffProfile:', error.message); return null }
-  if (!data || data.length === 0) return null
-
-  const row = data[0]
-  return {
-    staffId:   row.staff_id,
-    orgId:     row.org_id,
-    houseId:   row.house_id,
-    houseSlug: row.house_slug ?? null,
-    role:      row.role,
-    name:      row.staff_name,
+  try {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('profile timeout')), 6000)
+    )
+    const result = await Promise.race([supabase.rpc('get_my_staff_profile'), timeout])
+    const { data, error } = result
+    if (error) { console.error('fetchStaffProfile:', error.message); return null }
+    if (!data || data.length === 0) return null
+    const row = data[0]
+    return {
+      staffId:   row.staff_id,
+      orgId:     row.org_id,
+      houseId:   row.house_id,
+      houseSlug: row.house_slug ?? null,
+      role:      row.role,
+      name:      row.staff_name,
+    }
+  } catch (e) {
+    console.error('fetchStaffProfile failed:', e.message)
+    return null
   }
 }
 
