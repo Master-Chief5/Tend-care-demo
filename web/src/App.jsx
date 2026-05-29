@@ -27,6 +27,16 @@ async function buildUser(session) {
   return base
 }
 
+// Wraps buildUser with a hard 8s deadline so the loading screen never hangs forever.
+async function safeUser(session) {
+  const fallback = new Promise(resolve => setTimeout(() => {
+    const meta = session?.user?.user_metadata ?? {}
+    const role = meta.role ?? 'staff'
+    resolve({ id: role, name: meta.name ?? session?.user?.email ?? '', role })
+  }, 8000))
+  return Promise.race([buildUser(session), fallback])
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(!isDemoMode)
@@ -39,7 +49,7 @@ export default function App() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         lastUid.current = session.user.id
-        setUser(await buildUser(session))
+        setUser(await safeUser(session))
       }
       setLoading(false)
     })
@@ -53,7 +63,7 @@ export default function App() {
       }
       if (session.user.id === lastUid.current) return
       lastUid.current = session.user.id
-      setUser(await buildUser(session))
+      setUser(await safeUser(session))
       setLoading(false)
     })
 
