@@ -88,7 +88,8 @@ ALTER TABLE tasks         ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION auth_org_id()
 RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT org_id FROM staff
-  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  WHERE auth_user_id = auth.uid()
+     OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
   ORDER BY (auth_user_id = auth.uid()) DESC
   LIMIT 1
 $$;
@@ -97,7 +98,8 @@ $$;
 CREATE OR REPLACE FUNCTION auth_staff_id()
 RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT id FROM staff
-  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  WHERE auth_user_id = auth.uid()
+     OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
   ORDER BY (auth_user_id = auth.uid()) DESC
   LIMIT 1
 $$;
@@ -106,8 +108,35 @@ $$;
 CREATE OR REPLACE FUNCTION auth_staff_role()
 RETURNS TEXT LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT role FROM staff
-  WHERE auth_user_id = auth.uid() OR email = auth.email()
+  WHERE auth_user_id = auth.uid()
+     OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
   ORDER BY (auth_user_id = auth.uid()) DESC
+  LIMIT 1
+$$;
+
+-- Direct profile lookup — bypasses RLS entirely, used by the app on login.
+CREATE OR REPLACE FUNCTION get_my_staff_profile()
+RETURNS TABLE(
+  staff_id   uuid,
+  org_id     uuid,
+  house_id   uuid,
+  house_slug text,
+  role       text,
+  staff_name text
+)
+LANGUAGE SQL SECURITY DEFINER STABLE AS $$
+  SELECT
+    s.id,
+    s.org_id,
+    s.house_id,
+    h.slug,
+    s.role,
+    s.name
+  FROM staff s
+  LEFT JOIN houses h ON h.id = s.house_id
+  WHERE s.auth_user_id = auth.uid()
+     OR s.email = (SELECT email FROM auth.users WHERE id = auth.uid())
+  ORDER BY (s.auth_user_id = auth.uid()) DESC
   LIMIT 1
 $$;
 

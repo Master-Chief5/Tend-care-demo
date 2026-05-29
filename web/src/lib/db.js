@@ -1,32 +1,23 @@
 import { supabase } from './supabase'
 
 // Returns the staff profile for the authenticated user.
-// First tries auth_user_id, then falls back to email (self-heals the link).
-export async function fetchStaffProfile(authUserId, email) {
+// Uses a SECURITY DEFINER RPC that bypasses RLS — safe for initial login bootstrap.
+export async function fetchStaffProfile(authUserId, _email) {
   if (!supabase || !authUserId) return null
 
-  const { data } = await supabase
-    .from('staff')
-    .select('id, org_id, house_id, houses(slug), role, name')
-    .eq('auth_user_id', authUserId)
-    .maybeSingle()
+  const { data, error } = await supabase.rpc('get_my_staff_profile')
+  if (error) { console.error('fetchStaffProfile:', error.message); return null }
+  if (!data || data.length === 0) return null
 
-  if (data) return toProfile(data)
-
-  if (!email) return null
-
-  const { data: byEmail } = await supabase
-    .from('staff')
-    .select('id, org_id, house_id, houses(slug), role, name')
-    .eq('email', email)
-    .maybeSingle()
-
-  if (!byEmail) return null
-
-  // Link auth_user_id so subsequent logins skip this lookup
-  await supabase.from('staff').update({ auth_user_id: authUserId }).eq('id', byEmail.id)
-
-  return toProfile(byEmail)
+  const row = data[0]
+  return {
+    staffId:   row.staff_id,
+    orgId:     row.org_id,
+    houseId:   row.house_id,
+    houseSlug: row.house_slug ?? null,
+    role:      row.role,
+    name:      row.staff_name,
+  }
 }
 
 function toProfile(row) {
