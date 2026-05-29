@@ -31,9 +31,9 @@ function AddTaskModal({ user, onClose, onAdded }) {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!text.trim() || !user?.staffId || !user?.orgId) return
+    if (!text.trim() || !user?.orgId) return
     setSaving(true)
-    const task = await addTask(user.orgId, user.staffId, { kind, text: text.trim(), urgent })
+    const task = await addTask(user.orgId, user.staffId || null, { kind, text: text.trim(), urgent })
     setSaving(false)
     if (task) onAdded(task)
   }
@@ -174,7 +174,7 @@ export function ScreenA_MyDay({ user }) {
       </div>
       <TabBar active="home" />
 
-      {showAdd && user?.staffId && (
+      {showAdd && (
         <AddTaskModal user={user} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
-import { fetchTrips, addTrip } from '../lib/db'
+import { fetchTrips, addTrip, deleteTrip } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
@@ -113,6 +113,12 @@ export function ScreenA_Driving({ user }) {
     showToast('Trip logged')
   }
 
+  const handleDelete = async (id) => {
+    await deleteTrip(id)
+    setTrips(prev => prev.filter(t => t.id !== id))
+    showToast('Trip removed')
+  }
+
   const fmtDate = (dateStr) => {
     if (!dateStr) return ''
     const d = new Date(dateStr)
@@ -164,8 +170,12 @@ export function ScreenA_Driving({ user }) {
                           {t.driver_name} · {fmtDate(t.trip_date)} · {t.purpose}
                         </div>
                       </div>
-                      <div className="tnum" style={{ fontSize: 13, fontWeight: 500, color: 'var(--a-ink2)' }}>
-                        {t.miles}<span style={{ fontSize: 9, color: 'var(--a-ink3)', marginLeft: 2 }}>mi</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="tnum" style={{ fontSize: 13, fontWeight: 500, color: 'var(--a-ink2)' }}>
+                          {t.miles}<span style={{ fontSize: 9, color: 'var(--a-ink3)', marginLeft: 2 }}>mi</span>
+                        </div>
+                        <button onClick={() => handleDelete(t.id)}
+                          style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 18, cursor: 'pointer', padding: '4px', lineHeight: 1 }}>×</button>
                       </div>
                     </div>
                   )

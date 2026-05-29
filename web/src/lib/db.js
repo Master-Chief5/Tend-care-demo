@@ -235,6 +235,13 @@ export async function deleteResource(id) {
   if (error) console.error('deleteResource:', error.message)
 }
 
+// Delete a trip by id.
+export async function deleteTrip(id) {
+  if (!supabase || !id) return
+  const { error } = await supabase.from('trips').delete().eq('id', id)
+  if (error) console.error('deleteTrip:', error.message)
+}
+
 // Fetch trips for a given date (or null for all). houseId=null means all houses.
 export async function fetchTrips(orgId, houseId, date) {
   if (!supabase || !orgId) return []

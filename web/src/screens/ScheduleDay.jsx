@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, TODAY_SHIFTS } from '../data/constants'
+import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
 import { fetchShifts, addShift } from '../lib/db'
@@ -251,7 +251,7 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
 export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
-  const [shifts, setShifts] = useState(TODAY_SHIFTS)
+  const [shifts, setShifts] = useState([])
   const [dbHouses, setDbHouses] = useState(null)
   const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
