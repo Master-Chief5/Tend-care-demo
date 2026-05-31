@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
-import { buildWeek, fmtDayLabel, getGreeting } from '../lib/utils'
+import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
-import { useToast } from '../hooks/useToast'
-import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
@@ -201,55 +199,19 @@ export function ScreenA_MyDay({ user }) {
   )
 }
 
-export function ScreenA_MySchedule() {
-  const week = buildWeek(new Date())
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
-
-  const upcomingShifts = [
-    { day: fmtDayLabel(new Date()), time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'today' },
-    { day: 'Tomorrow', time: '7:00 AM – 3:00 PM', house: 'Oak House', role: 'DSP Lead', status: 'upcoming' },
-    { day: 'Saturday', time: '3:00 PM – 11:00 PM', house: 'Willow Run', role: 'DSP (coverage)', status: 'swap' },
-  ]
-
-  return (
-    <div className="phone-screen">
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 8px' }}>
-          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>My Schedule</div>
-          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{weekLabel}</div>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
-          {upcomingShifts.map((s, i) => {
-            const sc = s.status === 'today' ? { bg: 'var(--a-sage)', tc: '#fff' }
-              : s.status === 'swap' ? { bg: '#e7dfe9', tc: '#5a3a6b' }
-              : { bg: 'var(--a-paper)', tc: 'var(--a-ink3)' }
-            return (
-              <div key={i} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-ink2)' }}>{s.day}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: sc.tc, background: sc.bg, padding: '2px 8px', borderRadius: 999 }}>
-                    {s.status === 'today' ? 'Today' : s.status === 'swap' ? 'Swap' : 'Scheduled'}
-                  </span>
-                </div>
-                <div className="tnum" style={{ fontSize: 16, fontWeight: 600 }}>{s.time}</div>
-                <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 4 }}>{s.house} · {s.role}</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <TabBar active="sched" />
-    </div>
-  )
-}
-
-export function ScreenA_Me({ user, onLogout }) {
+export function ScreenA_Me({ user, onLogout, onNavigate }) {
   const name = user?.name || 'Aisha Mendez'
   const initial = name[0] || 'A'
   const sub = user?.role === 'supervisor' ? 'Supervisor'
     : user?.role === 'manager' ? `House Mgr · ${user.houseSlug || 'House'}`
     : `DSP Lead · ${user?.houseSlug || 'Oak House'}`
+
+  const navRows = [
+    { Icon: IconCal,  label: 'My schedule', tab: 'sched' },
+    { Icon: IconCar,  label: 'My trips',    tab: 'drive' },
+    { Icon: IconChat, label: 'Messages',    tab: null },
+    { Icon: IconBook, label: 'Training',    tab: null },
+  ]
 
   return (
     <div className="phone-screen">
@@ -268,17 +230,17 @@ export function ScreenA_Me({ user, onLogout }) {
           </div>
 
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '4px 0', marginBottom: 14 }}>
-            {[
-              { Icon: IconCal,  label: 'My schedule' },
-              { Icon: IconCar,  label: 'My trips' },
-              { Icon: IconChat, label: 'Messages' },
-              { Icon: IconBook, label: 'Training' },
-            ].map(({ Icon, label }, i, arr) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--a-line)' : '', cursor: 'pointer' }}>
-                <Icon size={18} sw={1.7} color="var(--a-ink2)" />
-                <span style={{ fontSize: 14, color: 'var(--a-ink)' }}>{label}</span>
-              </div>
-            ))}
+            {navRows.map(({ Icon, label, tab }, i, arr) => {
+              const active = !!tab && !!onNavigate
+              return (
+                <div key={label} onClick={() => active && onNavigate(tab)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--a-line)' : '', cursor: active ? 'pointer' : 'default', opacity: active ? 1 : 0.45 }}>
+                  <Icon size={18} sw={1.7} color="var(--a-ink2)" />
+                  <span style={{ fontSize: 14, color: 'var(--a-ink)', flex: 1 }}>{label}</span>
+                  {!active && <span style={{ fontSize: 10, color: 'var(--a-ink3)', fontWeight: 600, letterSpacing: '0.04em' }}>SOON</span>}
+                </div>
+              )
+            })}
           </div>
 
           {onLogout && (

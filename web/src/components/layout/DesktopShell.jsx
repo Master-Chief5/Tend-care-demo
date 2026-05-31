@@ -6,7 +6,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Driving } from '../../screens/Driving'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { TendLogo } from '../ui/TendLogo'
-import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
+import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
 
@@ -24,9 +24,9 @@ const ALL_TABS = [
 ]
 
 function DesktopPage({ tab, onHouseClick, user }) {
-  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
+  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} />
   if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
-  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
+  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} />
   if (tab === 'team')        return <PageTeamDesktop />
@@ -34,7 +34,7 @@ function DesktopPage({ tab, onHouseClick, user }) {
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
   if (tab === 'staff')       return <PageStaffDesktop user={user} />
   if (tab === 'orientation') return <PageOrientationDesktop />
-  return <PageTodayDesktop onHouseClick={onHouseClick} />
+  return <PageTodayDesktop onHouseClick={onHouseClick} user={user} />
 }
 
 function DesktopRail({ tab, setTab, user, onLogout }) {
@@ -107,7 +107,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+            <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} />
           </div>
         </div>
       )}

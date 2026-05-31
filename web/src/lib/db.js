@@ -56,6 +56,36 @@ export async function fetchShifts(orgId, houseId, date) {
   }))
 }
 
+// Fetch shifts for an entire week (inclusive date range).
+export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
+  if (!supabase || !orgId) return []
+  const startStr = toDateStr(weekStart)
+  const endStr = toDateStr(weekEnd)
+
+  let q = supabase
+    .from('shifts')
+    .select('*, houses(slug, color, name, short)')
+    .eq('org_id', orgId)
+    .gte('shift_date', startStr)
+    .lte('shift_date', endStr)
+
+  if (houseId) q = q.eq('house_id', houseId)
+
+  const { data, error } = await q
+  if (error) { console.error('fetchShiftsWeek:', error.message); return [] }
+
+  return (data || []).map(s => ({
+    id:     s.id,
+    house:  s.houses?.slug,
+    date:   s.shift_date,
+    start:  Number(s.start_hour),
+    end:    Number(s.end_hour),
+    person: s.person_name,
+    role:   s.role,
+    status: s.status,
+  }))
+}
+
 // Insert a new shift.
 export async function addShift(orgId, houseId, shift) {
   if (!supabase) return null

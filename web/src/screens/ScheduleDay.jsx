@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts, addShift, fetchStaff } from '../lib/db'
+import { fetchShifts, addShift, fetchStaff, fetchHouses } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
 
 const HOUR_PX = 56
-const DAY_START = 6
+const DAY_START = 0
 const DAY_END = 24
 
 function ViewToggle({ view, setView }) {
@@ -195,10 +195,12 @@ function ScreenA_ScheduleWeek({ setView, houses }) {
 function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
   const [personName, setPersonName] = useState('')
   const [role, setRole] = useState('DSP')
-  const [startHour, setStartHour] = useState('7')
-  const [endHour, setEndHour] = useState('15')
+  const [startTime, setStartTime] = useState('07:00')
+  const [endTime, setEndTime] = useState('15:00')
   const [houseId, setHouseId] = useState(user?.houseId || (houses[0]?.id ?? ''))
   const [saving, setSaving] = useState(false)
+
+  const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -207,12 +209,14 @@ function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
     const shift = await addShift(user.orgId, houseId, {
       personName: personName.trim(),
       role,
-      startHour: parseFloat(startHour),
-      endHour: parseFloat(endHour),
+      startHour: timeToHour(startTime),
+      endHour: timeToHour(endTime),
     })
     setSaving(false)
     if (shift) onAdded(shift, houseId)
   }
+
+  const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
@@ -222,13 +226,16 @@ function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <datalist id="dl-shift-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
           <input autoFocus placeholder="Staff name" value={personName} onChange={e => setPersonName(e.target.value)}
-            list="dl-shift-staff"
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+            list="dl-shift-staff" style={inputStyle} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <input placeholder="Start (e.g. 7)" value={startHour} onChange={e => setStartHour(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-            <input placeholder="End (e.g. 15)" value={endHour} onChange={e => setEndHour(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Start time</div>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>End time</div>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+            </div>
           </div>
           <select value={role} onChange={e => setRole(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
@@ -254,29 +261,38 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
   const [shifts, setShifts] = useState([])
-  const [dbHouses, setDbHouses] = useState(null)
+  const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
   const [staffNames, setStaffNames] = useState([])
   const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
   const nowFrac = useNowMinute()
 
-  const displayHouses = dbHouses ?? HOUSES
+  const isSupervisor = user?.role === 'supervisor'
+
+  // The grid keys houses by slug (matching the HOUSES constant + fetchShifts output).
+  // Non-supervisors are scoped to their own house.
+  const displayHouses = isSupervisor ? HOUSES : HOUSES.filter(h => h.id === user?.houseSlug)
+
+  // Picker options use real DB houses (UUID ids) so addShift inserts a valid house_id.
+  const pickerHouses = isSupervisor ? houseList : houseList.filter(h => h.slug === user?.houseSlug)
 
   useEffect(() => {
     if (!user?.orgId) return
-    const houseId = user.role === 'supervisor' ? null : (user.houseId || null)
+    const houseId = isSupervisor ? null : (user.houseId || null)
     fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
     fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
+    fetchHouses(user.orgId).then(setHouseList)
   }, [user?.orgId, user?.houseId, user?.role])
 
   const handleShiftAdded = (shift, houseId) => {
-    const hConst = displayHouses.find(h => h.id === houseId || (dbHouses ? h.id === houseId : false))
+    // houseId is a real UUID; map it back to the slug the grid uses to render.
+    const slug = houseList.find(h => h.id === houseId)?.slug ?? houseId
     setShifts(prev => [...prev, {
       id: shift.id,
-      house: hConst?.id ?? houseId,
+      house: slug,
       start: Number(shift.start_hour),
       end: Number(shift.end_hour),
       person: shift.person_name,
@@ -347,7 +363,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
       {showAddShift && (
         <AddShiftModal
           user={user}
-          houses={displayHouses.filter(h => !user?.houseId || h.id === user.houseId)}
+          houses={pickerHouses}
           staffNames={staffNames}
           onClose={() => setShowAddShift(false)}
           onAdded={handleShiftAdded}
