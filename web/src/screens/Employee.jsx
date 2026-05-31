@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
-import { useToast } from '../hooks/useToast'
-import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'

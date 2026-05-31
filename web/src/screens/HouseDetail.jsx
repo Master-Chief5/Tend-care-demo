@@ -47,7 +47,7 @@ const FALLBACK_RESIDENTS = [
 export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
   const house = HOUSES.find(h => h.id === houseId) || HOUSES[0]
   const c = house.color
-  const { toast, showToast } = useToast()
+  const [toast, showToast] = useToast()
 
   const [staffToday, setStaffToday] = useState(FALLBACK_STAFF)
   const [residents, setResidents]   = useState(FALLBACK_RESIDENTS)
@@ -157,7 +157,7 @@ export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
         </div>
       </div>
       <TabBar active="houses" />
-      {toast && <Toast {...toast} />}
+      <Toast msg={toast} />
     </div>
   )
 }
