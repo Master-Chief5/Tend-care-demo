@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts, addShift, fetchStaff, fetchHouses } from '../lib/db'
+import { fetchShifts, fetchShiftsWeek, addShift, fetchStaff, fetchHouses } from '../lib/db'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
 
@@ -142,7 +142,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8 }) {
   )
 }
 
-function WeekHouseRow({ house }) {
+function WeekHouseRow({ house, weekDates = [], weekShifts = [] }) {
   const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '8px 6px' }}>
@@ -150,18 +150,31 @@ function WeekHouseRow({ house }) {
         {days.map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 9, color: 'var(--a-ink3)', fontWeight: 600 }}>{d}</div>)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-        {[0, 1, 2, 3, 4, 5, 6].map(d => (
-          <div key={d} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ background: house.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '4px 3px', borderRadius: 4, textAlign: 'center', lineHeight: 1.2 }}>7a–3p</div>
-            <div style={{ background: `${house.color}99`, color: '#fff', fontSize: 9, fontWeight: 700, padding: '4px 3px', borderRadius: 4, textAlign: 'center', lineHeight: 1.2 }}>3p–11p</div>
-          </div>
-        ))}
+        {(weekDates.length === 7 ? weekDates : [0,1,2,3,4,5,6]).map((date, i) => {
+          const dayShifts = typeof date === 'string'
+            ? weekShifts.filter(s => s.house === house.id && s.date === date)
+            : []
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {dayShifts.length === 0 ? (
+                <div style={{ background: 'var(--a-paper)', fontSize: 9, padding: '4px 3px', borderRadius: 4, textAlign: 'center', color: 'var(--a-ink3)', lineHeight: 1.2 }}>—</div>
+              ) : (
+                dayShifts.slice(0, 2).map((s, si) => (
+                  <div key={si} style={{ background: house.color, color: '#fff', fontSize: 9, fontWeight: 700, padding: '4px 3px', borderRadius: 4, textAlign: 'center', lineHeight: 1.2 }}>
+                    {fmtTime(s.start)}–{fmtTime(s.end)}
+                  </div>
+                ))
+              )}
+              {dayShifts.length > 2 && <div style={{ fontSize: 8, color: 'var(--a-ink3)', textAlign: 'center' }}>+{dayShifts.length - 2}</div>}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function ScreenA_ScheduleWeek({ setView, houses }) {
+function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = [] }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
@@ -176,13 +189,16 @@ function ScreenA_ScheduleWeek({ setView, houses }) {
           <ViewToggle view="week" setView={setView} />
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 14px 24px' }}>
+          {houses.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)', fontSize: 13 }}>No houses set up yet.</div>
+          )}
           {houses.map(h => (
             <div key={h.id} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingLeft: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 999, background: h.color }} />
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{h.name}</span>
               </div>
-              <WeekHouseRow house={h} />
+              <WeekHouseRow house={h} weekDates={weekDates} weekShifts={weekShifts} />
             </div>
           ))}
         </div>
@@ -257,10 +273,13 @@ function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
   )
 }
 
-export function ScreenA_ScheduleDay({ user, employee = false }) {
+const toDateStr = (d) => d.toISOString().split('T')[0]
+
+export function ScreenA_ScheduleDay({ user, employee = false, houses = HOUSES }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
   const [shifts, setShifts] = useState([])
+  const [weekShifts, setWeekShifts] = useState([])
   const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
   const [staffNames, setStaffNames] = useState([])
   const [showAddShift, setShowAddShift] = useState(false)
@@ -270,18 +289,22 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
 
   const isSupervisor = user?.role === 'supervisor'
 
-  // The grid keys houses by slug (matching the HOUSES constant + fetchShifts output).
-  // Non-supervisors are scoped to their own house.
-  const displayHouses = isSupervisor ? HOUSES : HOUSES.filter(h => h.id === user?.houseSlug)
+  // Use the `houses` prop (real DB houses, normalized) instead of the HOUSES constant.
+  const displayHouses = isSupervisor ? houses : houses.filter(h => h.id === user?.houseSlug)
 
-  // Picker options use real DB houses (UUID ids) so addShift inserts a valid house_id.
+  // Picker options use raw DB houses (UUID ids) so addShift inserts a valid house_id.
   const pickerHouses = isSupervisor ? houseList : houseList.filter(h => h.slug === user?.houseSlug)
+
+  const weekDates = week.map(d => toDateStr(d.date))
 
   useEffect(() => {
     if (!user?.orgId) return
     const houseId = isSupervisor ? null : (user.houseId || null)
     fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
+    })
+    fetchShiftsWeek(user.orgId, houseId, weekDates[0], weekDates[6]).then(data => {
+      setWeekShifts(data)
     })
     fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
     fetchHouses(user.orgId).then(setHouseList)
@@ -302,7 +325,7 @@ export function ScreenA_ScheduleDay({ user, employee = false }) {
     setShowAddShift(false)
   }
 
-  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} />
+  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} weekShifts={weekShifts} weekDates={weekDates} />
 
   const visibleHouses = houseFilter === 'all' ? displayHouses : displayHouses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)

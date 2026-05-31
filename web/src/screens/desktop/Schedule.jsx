@@ -278,9 +278,9 @@ function WeekScheduleView({ houses = HOUSES, shifts = [] }) {
   )
 }
 
-export function PageScheduleDesktopExpanded({ user }) {
+export function PageScheduleDesktopExpanded({ user, houses: housesProp = HOUSES }) {
   const isManager = user?.role === 'manager'
-  const houses = isManager ? HOUSES.filter(h => h.id === user.houseSlug) : HOUSES
+  const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
 
   const [view, setView] = useState('day')
   const [dayIdx, setDayIdx] = useState(() => {

@@ -91,7 +91,7 @@ function HouseCard({ house, onEdit, onDelete }) {
   )
 }
 
-export function ScreenA_HouseSetup({ user }) {
+export function ScreenA_HouseSetup({ user, onHousesChanged }) {
   const [houses, setHouses] = useState([])
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -121,6 +121,7 @@ export function ScreenA_HouseSetup({ user }) {
       }])
       setShowAdd(false)
       showToast('House created')
+      onHousesChanged?.()
     }
   }
 
@@ -137,6 +138,7 @@ export function ScreenA_HouseSetup({ user }) {
       } : x))
       setEditHouse(null)
       showToast('House updated')
+      onHousesChanged?.()
     }
   }
 
@@ -144,6 +146,7 @@ export function ScreenA_HouseSetup({ user }) {
     await deleteHouse(id)
     setHouses(prev => prev.filter(h => h.id !== id))
     showToast('House deleted')
+    onHousesChanged?.()
   }
 
   return (

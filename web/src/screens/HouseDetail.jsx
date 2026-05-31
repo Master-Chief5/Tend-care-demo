@@ -44,8 +44,8 @@ const FALLBACK_RESIDENTS = [
   { name: 'Donna Park',   room: '4', status: 'program', note: 'Day program' },
 ]
 
-export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
-  const house = HOUSES.find(h => h.id === houseId) || HOUSES[0]
+export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack, houses = HOUSES }) {
+  const house = houses.find(h => h.id === houseId) || houses[0] || HOUSES[0]
   const c = house.color
   const [toast, showToast] = useToast()
 

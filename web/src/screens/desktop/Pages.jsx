@@ -76,7 +76,7 @@ function CenteredColumn({ children, width = 760, side }) {
 
 // ── Today ─────────────────────────────────────────────────────────────
 
-export function PageTodayDesktop({ onHouseClick, user }) {
+export function PageTodayDesktop({ onHouseClick, user, houses = HOUSES }) {
   const [toast, showToast] = useToast()
   const [branchFilter, setBranchFilter] = useState('All')
   const greeting = getGreeting()
@@ -84,15 +84,11 @@ export function PageTodayDesktop({ onHouseClick, user }) {
   const firstName = user?.name?.split(' ')[0] || 'there'
   const isManager = user?.role === 'manager'
 
-  const allHouseCards = [
-    { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: ['Out: oat milk, bananas', 'R. Johnson MAR 2pm', '1:30p drive to dentist'] },
-    { house: HOUSES[1], urgent: 1, staff: 1, present: 3, drives: 0, needs: ['Low: paper towels, chicken', 'Devon shift note (8:14a)'] },
-    { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: ['Refill: K. Diaz', 'Dryer service', 'Shop run 4p'] },
-    { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: ['All clear · 2 incident-free wks'] },
-  ]
-  const visibleCards = isManager
-    ? allHouseCards.filter(d => d.house.id === user.houseSlug)
-    : allHouseCards.filter(d => branchFilter === 'All' || d.house.branch === branchFilter)
+  const branches = ['All', ...new Set(houses.map(h => h.branch).filter(Boolean))]
+  const scopedHouses = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
+  const visibleCards = scopedHouses
+    .filter(h => isManager || branchFilter === 'All' || h.branch === branchFilter)
+    .map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
 
   return (
     <>
@@ -112,9 +108,9 @@ export function PageTodayDesktop({ onHouseClick, user }) {
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Houses today</div>
-          {!isManager && (
+          {!isManager && branches.length > 1 && (
             <div style={{ display: 'flex', gap: 6 }}>
-              {['All', 'North', 'South'].map(b => (
+              {branches.map(b => (
                 <button key={b} onClick={() => setBranchFilter(b)} style={{
                   border: b === branchFilter ? '0' : '1px solid var(--a-line)',
                   background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
@@ -224,38 +220,26 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
   )
 }
 
-export function PageHousesDesktop({ onHouseClick, user }) {
-  const allHouseData = [
-    { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: [
-      { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
-      { kind: 'med', text: 'R. Johnson — 2pm MAR signoff' },
-      { kind: 'drive', text: '1:30pm — M. Lee to dentist (Aisha)' },
-    ]},
-    { house: HOUSES[1], urgent: 1, staff: 1, present: 3, drives: 0, needs: [
-      { kind: 'grocery', text: 'Running low: paper towels, chicken' },
-      { kind: 'note', text: 'D. Park left a shift note (8:14am)' },
-    ]},
-    { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: [
-      { kind: 'med', text: 'Refill: K. Diaz, levetiracetam' },
-      { kind: 'maint', text: 'Dryer making a noise — vendor TBD' },
-      { kind: 'grocery', text: 'Shopping run scheduled — Aisha, 4pm' },
-    ]},
-    { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: [
-      { kind: 'note', text: 'All clear · 2 incident-free weeks' },
-    ]},
-  ]
+export function PageHousesDesktop({ onHouseClick, user, houses = HOUSES }) {
   const isManager = user?.role === 'manager'
   const houseData = isManager
-    ? allHouseData.filter(d => d.house.id === user.houseSlug)
-    : allHouseData
+    ? houses.filter(h => h.id === user?.houseSlug).map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
+    : houses.map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
   const subText = isManager
     ? `${houseData.length} house · manager view`
-    : `${houseData.length} houses · North + South branches`
+    : `${houseData.length} house${houseData.length === 1 ? '' : 's'}`
   return (
     <>
       <DTopBar title="Houses" sub={subText}
         actions={!isManager && <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
+        {houseData.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--a-ink3)' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🏠</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No houses yet</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}>Go to House Setup to create your first house.</div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
           {houseData.map(({ house, urgent, staff, present, drives, needs }) => (
             <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
@@ -552,7 +536,7 @@ export function PageResourcesDesktop() {
 
 // ── Staff ─────────────────────────────────────────────────────────────
 
-export function PageStaffDesktop({ user }) {
+export function PageStaffDesktop({ user, houses = HOUSES }) {
   const [query, setQuery] = useState('')
   const [houseFilter, setHouseFilter] = useState('All')
   const [staffList, setStaffList] = useState(STAFF_LIST)
@@ -567,8 +551,10 @@ export function PageStaffDesktop({ user }) {
     })
   }, [user?.orgId, user?.houseId, user?.role])
 
+  const houseFilterTabs = ['All', ...houses.map(h => h.name)]
+
   const filtered = staffList.filter(s => {
-    const matchHouse = houseFilter === 'All' || s.house === houseFilter.toLowerCase()
+    const matchHouse = houseFilter === 'All' || s.houseName === houseFilter || s.house === houseFilter.toLowerCase()
     const matchQuery = s.name.toLowerCase().includes(query.toLowerCase()) || s.role.toLowerCase().includes(query.toLowerCase())
     return matchHouse && matchQuery
   })
@@ -588,8 +574,8 @@ export function PageStaffDesktop({ user }) {
                 style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 12.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {['All', 'Oak', 'Willow', 'Maple', 'Cedar'].map(b => (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            {houseFilterTabs.map(b => (
               <button key={b} onClick={() => setHouseFilter(b)} style={{
                 border: b === houseFilter ? '0' : '1px solid var(--a-line)',
                 background: b === houseFilter ? 'var(--a-ink)' : 'transparent',
@@ -612,9 +598,9 @@ export function PageStaffDesktop({ user }) {
                 <span className="serif" style={{ fontSize: 18 }}>{selectedStaff.name}</span>
               </div>
               <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: HOUSES.find(h => h.id === selectedStaff.house)?.color ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: selectedStaff.houseColor ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedStaff.role}</div>
-                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{HOUSES.find(h => h.id === selectedStaff.house)?.name ?? 'All houses'} · {selectedStaff.tenure}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{selectedStaff.houseName ?? 'All houses'} · {selectedStaff.tenure}</div>
               </div>
               <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
                 <div style={{ width: `${selectedStaff.score}%`, height: '100%', background: selectedStaff.score >= 90 ? '#3f7050' : selectedStaff.score >= 80 ? '#a47012' : '#a93a25', borderRadius: 999 }} />
@@ -660,7 +646,7 @@ export function PageStaffDesktop({ user }) {
 // ── Orientation ───────────────────────────────────────────────────────
 
 function NewHireCard({ name, house, mentor, day, pct, next }) {
-  const h = HOUSES.find(x => x.id === house)
+  const h = HOUSES.find(x => x.id === house) || { color: '#888888', name: house }
   const initials = name.split(' ').map(n => n[0]).join('')
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px' }}>

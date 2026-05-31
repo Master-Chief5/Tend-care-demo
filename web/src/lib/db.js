@@ -132,6 +132,7 @@ export async function fetchStaff(orgId, houseId) {
     house:     s.houses?.slug ?? null,
     houseId:   s.house_id ?? null,
     houseName: s.houses?.name ?? null,
+    houseColor: s.houses?.color ?? null,
     score:     s.quality_score ?? 85,
     sub:       s.tenure ?? '',
     highlight: s.highlight ?? null,

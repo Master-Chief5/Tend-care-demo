@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
 import { fetchStaff, inviteStaff, removeStaff } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -19,10 +18,9 @@ export function RingChart({ pct = 0.9, color = 'var(--a-sage)', size = 40 }) {
   )
 }
 
-export function StaffCard({ name, role, house, houseId, houseName, score, sub, highlight, onClick }) {
-  const hConst = house ? HOUSES.find(x => x.id === house) : null
-  const hColor = hConst?.color ?? '#888'
-  const hName = houseName || hConst?.name || 'Staff'
+export function StaffCard({ name, role, house, houseId, houseName, houseColor, score, sub, highlight, onClick }) {
+  const hColor = houseColor ?? '#888'
+  const hName = houseName || 'Staff'
   const initials = name.split(' ').map(n => n[0]).join('')
   const scoreColor = score >= 90 ? '#3f7050' : score >= 80 ? '#a47012' : '#a93a25'
   const flagMap = {
@@ -56,9 +54,8 @@ export function StaffCard({ name, role, house, houseId, houseName, score, sub, h
 }
 
 function StaffDetail({ staff, onBack, onRemove }) {
-  const hConst = staff.house ? HOUSES.find(x => x.id === staff.house) : null
-  const hColor = hConst?.color ?? '#888'
-  const hName = staff.houseName || hConst?.name || 'All houses'
+  const hColor = staff.houseColor ?? '#888'
+  const hName = staff.houseName || 'All houses'
   const initials = staff.name.split(' ').map(n => n[0]).join('')
   const scoreColor = staff.score >= 90 ? '#3f7050' : staff.score >= 80 ? '#a47012' : '#a93a25'
   return (
@@ -132,7 +129,10 @@ function AddStaffModal({ user, onClose, onAdded }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add staff</div>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 8 }}>Add staff</div>
+        <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginBottom: 14, lineHeight: 1.5 }}>
+          Creates a staff profile. The person must sign up separately at this app's URL to get login access.
+        </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input autoFocus placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
