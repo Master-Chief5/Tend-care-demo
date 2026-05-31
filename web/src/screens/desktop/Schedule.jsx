@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { HOUSES } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
 import { useNowMinute } from '../../hooks/useNowMinute'
-import { fetchShifts } from '../../lib/db'
+import { fetchShifts, fetchShiftsWeek } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 
@@ -152,16 +152,9 @@ function DesktopTimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
   )
 }
 
-function ScheduleRow({ house }) {
-  const dayShifts = [
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['7a–3p', 'Jay B.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'OPEN']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Jay B.'], ['3p–11p', 'Aisha M.']],
-    [['7a–3p', 'Jay B.'], ['3p–11p', 'Aisha M.']],
-  ]
+const toDateStr = (d) => d.toISOString().split('T')[0]
+
+function ScheduleRow({ house, weekShifts, weekDates }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', borderBottom: '1px solid var(--a-line)', minHeight: 86 }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, borderRight: '1px solid var(--a-line)' }}>
@@ -171,19 +164,25 @@ function ScheduleRow({ house }) {
           <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{house.branch}</div>
         </div>
       </div>
-      {dayShifts.map((shifts, i) => (
-        <div key={i} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {shifts.map((s, j) => {
-            const open = s[1] === 'OPEN'
-            return (
-              <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
-                <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{s[0]}</div>
-                <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s[1]}</div>
-              </div>
-            )
-          })}
-        </div>
-      ))}
+      {weekDates.map((d, i) => {
+        const dateStr = toDateStr(d.date)
+        const dayShifts = weekShifts.filter(s => s.house === house.id && s.date === dateStr)
+        return (
+          <div key={i} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {dayShifts.length === 0 ? (
+              <div style={{ color: 'var(--a-ink3)', fontSize: 11, padding: '4px 4px', opacity: 0.45 }}>—</div>
+            ) : dayShifts.map((s, j) => {
+              const open = s.status === 'open'
+              return (
+                <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
+                  <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{fmtTime(s.start)}–{fmtTime(s.end)}</div>
+                  <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s.person}</div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -249,10 +248,11 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
   )
 }
 
-function WeekScheduleView({ houses = HOUSES }) {
+function WeekScheduleView({ houses = HOUSES, shifts = [] }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
+  const openCount = shifts.filter(s => s.status === 'open').length
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
@@ -260,7 +260,7 @@ function WeekScheduleView({ houses = HOUSES }) {
         <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{weekLabel}</span>
         <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>3</strong></span>
+        {openCount > 0 && <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>{openCount}</strong></span>}
       </div>
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
@@ -272,7 +272,7 @@ function WeekScheduleView({ houses = HOUSES }) {
             </div>
           ))}
         </div>
-        {houses.map(h => <ScheduleRow key={h.id} house={h} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} />)}
       </div>
     </>
   )
@@ -290,12 +290,17 @@ export function PageScheduleDesktopExpanded({ user }) {
   })
   const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
   const [shifts, setShifts] = useState([])
+  const [weekShifts, setWeekShifts] = useState([])
 
   useEffect(() => {
     if (!user?.orgId) return
     const houseId = isManager ? (user.houseId || null) : null
     fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
+    })
+    const week = buildWeek(new Date())
+    fetchShiftsWeek(user.orgId, houseId, week[0].date, week[6].date).then(data => {
+      setWeekShifts(data)
     })
   }, [user?.orgId, user?.houseId, isManager])
 
@@ -316,7 +321,7 @@ export function PageScheduleDesktopExpanded({ user }) {
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {view === 'day'
           ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} houses={houses} isManager={isManager} />
-          : <WeekScheduleView houses={houses} />}
+          : <WeekScheduleView houses={houses} shifts={weekShifts} />}
       </div>
     </>
   )

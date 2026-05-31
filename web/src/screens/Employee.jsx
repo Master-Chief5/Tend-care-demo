@@ -201,12 +201,19 @@ export function ScreenA_MyDay({ user }) {
   )
 }
 
-export function ScreenA_Me({ user, onLogout }) {
+export function ScreenA_Me({ user, onLogout, onNavigate }) {
   const name = user?.name || 'Aisha Mendez'
   const initial = name[0] || 'A'
   const sub = user?.role === 'supervisor' ? 'Supervisor'
     : user?.role === 'manager' ? `House Mgr · ${user.houseSlug || 'House'}`
     : `DSP Lead · ${user?.houseSlug || 'Oak House'}`
+
+  const navRows = [
+    { Icon: IconCal,  label: 'My schedule', tab: 'sched' },
+    { Icon: IconCar,  label: 'My trips',    tab: 'drive' },
+    { Icon: IconChat, label: 'Messages',    tab: null },
+    { Icon: IconBook, label: 'Training',    tab: null },
+  ]
 
   return (
     <div className="phone-screen">
@@ -225,17 +232,17 @@ export function ScreenA_Me({ user, onLogout }) {
           </div>
 
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '4px 0', marginBottom: 14 }}>
-            {[
-              { Icon: IconCal,  label: 'My schedule' },
-              { Icon: IconCar,  label: 'My trips' },
-              { Icon: IconChat, label: 'Messages' },
-              { Icon: IconBook, label: 'Training' },
-            ].map(({ Icon, label }, i, arr) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--a-line)' : '', cursor: 'pointer' }}>
-                <Icon size={18} sw={1.7} color="var(--a-ink2)" />
-                <span style={{ fontSize: 14, color: 'var(--a-ink)' }}>{label}</span>
-              </div>
-            ))}
+            {navRows.map(({ Icon, label, tab }, i, arr) => {
+              const active = !!tab && !!onNavigate
+              return (
+                <div key={label} onClick={() => active && onNavigate(tab)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < arr.length - 1 ? '1px solid var(--a-line)' : '', cursor: active ? 'pointer' : 'default', opacity: active ? 1 : 0.45 }}>
+                  <Icon size={18} sw={1.7} color="var(--a-ink2)" />
+                  <span style={{ fontSize: 14, color: 'var(--a-ink)', flex: 1 }}>{label}</span>
+                  {!active && <span style={{ fontSize: 10, color: 'var(--a-ink3)', fontWeight: 600, letterSpacing: '0.04em' }}>SOON</span>}
+                </div>
+              )
+            })}
           </div>
 
           {onLogout && (

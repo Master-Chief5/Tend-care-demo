@@ -18,7 +18,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
       case 'sched': return <ScreenA_ScheduleDay user={user} employee />
       case 'drive': return <ScreenA_Driving user={user} />
       case 'resources': return <ScreenA_Resources user={user} />
-      case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} />
+      case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
     }
   }
   switch (tab) {
@@ -28,7 +28,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout) {
     case 'resources': return <ScreenA_Resources user={user} />
     case 'me':        return role === 'supervisor'
       ? <ScreenA_Staff user={user} onLogout={onLogout} />
-      : <ScreenA_Me user={user} onLogout={onLogout} />
+      : <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
   }
   return <ScreenA_Houses user={user} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
 }

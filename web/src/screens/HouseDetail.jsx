@@ -3,6 +3,8 @@ import { HOUSES } from '../data/constants'
 import { fetchHouses, fetchStaff, fetchResidents, fetchShifts, fetchTrips } from '../lib/db'
 import { IconChev, IconDots, IconChat, IconPlus } from '../components/icons'
 import { TabBar } from '../components/ui/TabBar'
+import { useToast } from '../hooks/useToast'
+import { Toast } from '../components/ui/Toast'
 
 function Stat({ label, big, sub }) {
   return (
@@ -45,6 +47,7 @@ const FALLBACK_RESIDENTS = [
 export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
   const house = HOUSES.find(h => h.id === houseId) || HOUSES[0]
   const c = house.color
+  const { toast, showToast } = useToast()
 
   const [staffToday, setStaffToday] = useState(FALLBACK_STAFF)
   const [residents, setResidents]   = useState(FALLBACK_RESIDENTS)
@@ -144,16 +147,17 @@ export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack }) {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <button style={{ flex: 1, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <button onClick={() => showToast('Team messaging coming soon')} style={{ flex: 1, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
               <IconChat size={15} sw={1.7} /> Message
             </button>
-            <button style={{ flex: 1, padding: '11px 0', background: c, border: 0, borderRadius: 12, fontSize: 12.5, fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <button onClick={() => showToast('Log item coming soon')} style={{ flex: 1, padding: '11px 0', background: c, border: 0, borderRadius: 12, fontSize: 12.5, fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
               <IconPlus size={14} sw={2.2} /> Log item
             </button>
           </div>
         </div>
       </div>
       <TabBar active="houses" />
+      {toast && <Toast {...toast} />}
     </div>
   )
 }
