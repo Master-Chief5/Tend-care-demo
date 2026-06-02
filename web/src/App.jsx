@@ -41,7 +41,9 @@ async function enrichUser(session, setUser, seq, seqRef) {
 //  - supervisor: create a brand-new organization
 //  - staff: search for and join an existing organization
 function NeedsSetupScreen({ user, onLinked, onLogout }) {
-  const isSupervisor = user.role === 'supervisor'
+  // Default to the role carried in the JWT, but let the user switch — a supervisor
+  // whose role wasn't detected must never get stranded on the "join" path.
+  const [isSupervisor, setIsSupervisor] = useState(user.role === 'supervisor')
   const [selectedOrg, setSelectedOrg] = useState(null)
   const [orgName, setOrgName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -104,6 +106,13 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
             </button>
           </>
         )}
+
+        <button onClick={() => { setIsSupervisor(s => !s); setError(null) }}
+          style={{ width: '100%', marginTop: 16, padding: 0, background: 'transparent', border: 0, fontSize: 12.5, color: 'var(--a-ink3)', fontFamily: 'Geist, sans-serif', cursor: 'pointer', textAlign: 'center' }}>
+          {isSupervisor
+            ? 'Joining an existing organization instead? Search for it →'
+            : 'Setting up a new organization? Create one instead →'}
+        </button>
 
         <button onClick={onLogout}
           style={{ width: '100%', marginTop: 10, padding: '10px', borderRadius: 999, background: 'transparent', border: '1px solid var(--a-line)', fontSize: 13, color: 'var(--a-ink3)', fontFamily: 'Geist, sans-serif', cursor: 'pointer' }}>
