@@ -5,8 +5,10 @@ import { ROLES } from '../../data/constants'
 import { supabase, isDemoMode } from '../../lib/supabase'
 import { searchOrganizations, registerAsStaff, createOrgAndSupervisor } from '../../lib/db'
 
-export function LoginScreen({ onLogin, onSignedUp }) {
-  return isDemoMode ? <DemoLogin onLogin={onLogin} /> : <RealAuth onLogin={onLogin} onSignedUp={onSignedUp} />
+export function LoginScreen({ onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
+  return isDemoMode
+    ? <DemoLogin onLogin={onLogin} />
+    : <RealAuth onLogin={onLogin} onSignedUp={onSignedUp} onSignupStart={onSignupStart} onSignupCancel={onSignupCancel} />
 }
 
 // ── Demo mode ─────────────────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ function AccountButton({ user, onLogin }) {
 }
 
 // ── Real auth router ──────────────────────────────────────────────────────────
-function RealAuth({ onLogin, onSignedUp }) {
+function RealAuth({ onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
   const [mode, setMode] = useState('login') // 'login' | 'signup' | 'check-email'
 
   if (mode === 'signup') return (
@@ -61,6 +63,8 @@ function RealAuth({ onLogin, onSignedUp }) {
       onCheckEmail={() => setMode('check-email')}
       onLogin={onLogin}
       onSignedUp={onSignedUp}
+      onSignupStart={onSignupStart}
+      onSignupCancel={onSignupCancel}
     />
   )
   if (mode === 'check-email') return <CheckEmailScreen onBack={() => setMode('login')} />
@@ -188,10 +192,10 @@ export function OrgSearchPicker({ selected, onSelect }) {
 }
 
 // ── Sign-up form (role selection + branching) ─────────────────────────────────
-const toSlug = (name) =>
-  name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40)
+export const toSlug = (name) =>
+  (name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40)
 
-function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp }) {
+function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
   const [accountType, setAccountType] = useState(null) // 'supervisor' | 'staff'
   const [name, setName]               = useState('')
   const [email, setEmail]             = useState('')
@@ -222,26 +226,33 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp }) {
 
     setError(null); setLoading(true)
 
+    // Tell App a signup is in flight so its auth listener defers enrichment
+    // until our registration RPC has created the staff/org row.
+    onSignupStart?.()
+
     const { data, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name: name.trim(), role: accountType === 'supervisor' ? 'supervisor' : 'staff' } },
     })
 
-    if (signUpErr) { setLoading(false); setError(signUpErr.message); return }
+    if (signUpErr) { setLoading(false); onSignupCancel?.(); setError(signUpErr.message); return }
 
     if (data.session) {
       if (accountType === 'supervisor') {
-        await createOrgAndSupervisor(orgName.trim(), orgSlug || toSlug(orgName), name.trim())
+        const slug = orgSlug || toSlug(orgName) || `org-${Math.random().toString(36).slice(2, 8)}`
+        await createOrgAndSupervisor(orgName.trim(), slug, name.trim())
       } else {
         await registerAsStaff(selectedOrg.id, name.trim())
       }
       setLoading(false)
-      onSignedUp?.()
       const role = data.user?.user_metadata?.role ?? 'staff'
       onLogin({ id: role, name: name.trim(), role, enriched: false })
+      // Now that the row exists, run enrichment (clears the deferral flag too).
+      onSignedUp?.()
     } else {
       setLoading(false)
+      onSignupCancel?.()
       onCheckEmail()
     }
   }
