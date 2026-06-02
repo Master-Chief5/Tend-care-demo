@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, STAFF_LIST, CHAT_DATA } from '../../data/constants'
-import { fetchStaff } from '../../lib/db'
+import { HOUSES, CHAT_DATA } from '../../data/constants'
+import { fetchStaff, fetchTrips, fetchVehicles } from '../../lib/db'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
@@ -366,8 +366,39 @@ function PageTeamDesktop_OLD() {
 
 // ── Driving ───────────────────────────────────────────────────────────
 
-export function PageDrivingDesktop() {
+export function PageDrivingDesktop({ user }) {
   const [toast, showToast] = useToast()
+  const [trips, setTrips] = useState([])
+  const [vehicles, setVehicles] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user?.orgId) return
+    const scopedHouseId = user.role === 'manager' ? user.houseId : null
+    setLoading(true)
+    Promise.all([
+      fetchTrips(user.orgId, scopedHouseId, null),
+      fetchVehicles(user.orgId, scopedHouseId),
+    ]).then(([tripsData, vehiclesData]) => {
+      setTrips(tripsData)
+      setVehicles(vehiclesData)
+      setLoading(false)
+    })
+  }, [user?.orgId, user?.houseId, user?.role])
+
+  const totalMiles = trips.reduce((sum, t) => sum + (Number(t.miles) || 0), 0)
+  const tripCount = trips.length
+
+  const fmtDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    const today = new Date()
+    const diff = Math.floor((today - d) / 86400000)
+    if (diff === 0) return 'Today'
+    if (diff === 1) return 'Yesterday'
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <>
       <Toast msg={toast} />
@@ -375,48 +406,35 @@ export function PageDrivingDesktop() {
         actions={<button onClick={() => showToast('Opening trip form…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Start trip</button>} />
       <CenteredColumn width={780} side>
         <div>
-          <div style={{ background: 'var(--a-ink)', color: '#fbf6ec', borderRadius: 16, padding: '20px 22px', marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: '#7dd28a', boxShadow: '0 0 0 4px rgba(125,210,138,0.2)' }} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em', color: '#7dd28a', textTransform: 'uppercase' }}>Trip in progress</span>
-            </div>
-            <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em' }}>M. Lee to Dr. Patel's office</div>
-            <div style={{ fontSize: 13, opacity: 0.65, marginTop: 4 }}>Driver: Aisha M. · Van #2 · Oak House</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(251,246,236,0.12)' }}>
-              <Mini label="Time" value="0:18" />
-              <Mini label="Distance" value="4.2 mi" />
-              <Mini label="Purpose" value="Medical" />
-              <Mini label="ETA" value="0:09" />
-            </div>
-          </div>
-
           <div style={{ ...dCard, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span className="serif" style={{ fontSize: 18 }}>Recent trips</span>
-              <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>Last 7 days · 34 trips</span>
+              <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '6px 18px', borderTop: '1px solid var(--a-line)', borderBottom: '1px solid var(--a-line)', background: 'var(--a-paper)', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               <span>When</span><span>Trip</span><span>Driver</span><span>Purpose</span><span style={{ textAlign: 'right' }}>Miles</span>
             </div>
-            {[
-              ['Today · 9:14a', 'willow', 'Willow → Walmart', 'Devon P.', 'Grocery', '3.8'],
-              ['Today · 8:02a', 'maple', 'Maple → Day program', 'Saira K.', 'Program', '6.1'],
-              ['Mon · 4:40p', 'oak', 'Oak → Dr. Patel', 'Aisha M.', 'Medical', '4.2'],
-              ['Mon · 11:20a', 'oak', 'Oak → Library', 'Jay B.', 'Activity', '1.6'],
-              ['Sun · 2:30p', 'cedar', 'Cedar → Park', 'Tomas R.', 'Activity', '5.4'],
-              ['Sun · 9:15a', 'maple', 'Maple → Church', 'Reni T.', 'Faith', '2.2'],
-            ].map((row, i) => {
-              const h = HOUSES.find(x => x.id === row[1])
+            {loading && <div style={{ padding: '24px 18px', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
+            {!loading && trips.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>Start a trip to record a resident transport.</div>
+              </div>
+            )}
+            {!loading && trips.map((t) => {
+              const color = t.houses?.color || 'var(--a-ink3)'
+              const route = `${t.houses?.name ? t.houses.name + ' → ' : ''}${t.destination}`
               return (
-                <div key={i} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
-                  <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{row[0]}</span>
+                <div key={t.id} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
+                  <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{fmtDate(t.trip_date)}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 3, height: 16, background: h.color, borderRadius: 2 }} />
-                    {row[2]}
+                    <span style={{ width: 3, height: 16, background: color, borderRadius: 2 }} />
+                    {route}
                   </span>
-                  <span style={{ color: 'var(--a-ink2)' }}>{row[3]}</span>
-                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{row[4]}</span>
-                  <span className="tnum" style={{ textAlign: 'right', fontWeight: 500 }}>{row[5]}<span style={{ color: 'var(--a-ink3)', fontWeight: 400, fontSize: 10 }}> mi</span></span>
+                  <span style={{ color: 'var(--a-ink2)' }}>{t.driver_name}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{t.purpose}</span>
+                  <span className="tnum" style={{ textAlign: 'right', fontWeight: 500 }}>{t.miles}<span style={{ color: 'var(--a-ink3)', fontWeight: 400, fontSize: 10 }}> mi</span></span>
                 </div>
               )
             })}
@@ -425,13 +443,13 @@ export function PageDrivingDesktop() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={dCard}>
-            <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>This pay period</div>
+            <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Logged miles</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-              <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>248.4</span>
-              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi · $<span className="tnum" style={{ fontWeight: 600, color: 'var(--a-ink)' }}>166.43</span></span>
+              <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>{totalMiles.toFixed(1)}</span>
+              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi</span>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--a-ink3)' }}>
-              <span>34 trips</span><span>·</span><span>6 days remaining</span>
+              <span>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
             </div>
             <svg viewBox="0 0 200 40" style={{ width: '100%', height: 40, marginTop: 10 }}>
               <polyline points="0,30 20,28 40,22 60,24 80,18 100,20 120,15 140,17 160,12 180,9 200,11" fill="none" stroke="var(--a-sage)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -441,9 +459,21 @@ export function PageDrivingDesktop() {
           <div style={dCard}>
             <span className="serif" style={{ fontSize: 18 }}>Vehicles</span>
             <div style={{ marginTop: 8 }}>
-              <VehicleRow name="Van #1 · Sienna '22" sub="Oak / Willow · 38,402 mi" status="ok" onClick={() => showToast('Van #1 — available')} />
-              <VehicleRow name="Van #2 · Sienna '21" sub="Aisha out · 51,108 mi" status="active" onClick={() => showToast('Van #2 — in use by Aisha')} />
-              <VehicleRow name="Van #3 · Odyssey '23" sub="Oil due 4/8" status="due" last onClick={() => showToast('Van #3 — service overdue')} />
+              {!loading && vehicles.length === 0 && (
+                <div style={{ fontSize: 13, color: 'var(--a-ink3)', padding: '12px 0' }}>No vehicles yet.</div>
+              )}
+              {vehicles.map((v, i) => {
+                const status = (Number(v.mileage) || 0) > 50000 ? 'due' : 'ok'
+                const sub = [
+                  v.mileage != null ? `${Number(v.mileage).toLocaleString()} mi` : null,
+                  v.plate || null,
+                ].filter(Boolean).join(' · ')
+                return (
+                  <VehicleRow key={v.id} name={v.name} sub={sub} status={status}
+                    last={i === vehicles.length - 1}
+                    onClick={() => showToast(`${v.name} — ${status === 'due' ? 'service due' : 'available'}`)} />
+                )
+              })}
             </div>
           </div>
         </div>
@@ -539,15 +569,18 @@ export function PageResourcesDesktop() {
 export function PageStaffDesktop({ user, houses = HOUSES }) {
   const [query, setQuery] = useState('')
   const [houseFilter, setHouseFilter] = useState('All')
-  const [staffList, setStaffList] = useState(STAFF_LIST)
+  const [staffList, setStaffList] = useState([])
+  const [loading, setLoading] = useState(true)
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [toast, showToast] = useToast()
 
   useEffect(() => {
     if (!user?.orgId) return
     const houseId = user.role === 'manager' ? user.houseId : null
+    setLoading(true)
     fetchStaff(user.orgId, houseId).then(data => {
-      if (data.length > 0) setStaffList(data)
+      setStaffList(data)
+      setLoading(false)
     })
   }, [user?.orgId, user?.houseId, user?.role])
 
@@ -584,8 +617,16 @@ export function PageStaffDesktop({ user, houses = HOUSES }) {
               }}>{b}</button>
             ))}
           </div>
-          {filtered.map((s, i) => <StaffCard key={i} {...s} onClick={() => setSelectedStaff(s)} />)}
-          {filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
+          {loading && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>Loading…</div>}
+          {!loading && staffList.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No staff yet</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Hire your first team member to get started.</div>
+            </div>
+          )}
+          {!loading && staffList.length > 0 && filtered.map((s) => <StaffCard key={s.id} {...s} onClick={() => setSelectedStaff(s)} />)}
+          {!loading && staffList.length > 0 && filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

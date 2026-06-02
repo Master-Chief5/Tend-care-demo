@@ -331,6 +331,65 @@ export async function updateTrip(id, updates) {
   return data
 }
 
+// ── Vehicles ──────────────────────────────────────────────────────────────
+// Fetch vehicles for an org (optionally scoped to one house).
+export async function fetchVehicles(orgId, houseId) {
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('vehicles')
+    .select('*, houses(slug, name, color, short)')
+    .eq('org_id', orgId)
+    .order('name')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchVehicles:', error.message); return [] }
+  return data || []
+}
+
+// Insert a vehicle.
+export async function addVehicle(orgId, vehicle) {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('vehicles')
+    .insert({
+      org_id:       orgId,
+      house_id:     vehicle.houseId || null,
+      name:         vehicle.name,
+      plate:        vehicle.plate || null,
+      mileage:      vehicle.mileage || 0,
+      last_service: vehicle.lastService || null,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addVehicle:', error.message); return null }
+  return data
+}
+
+// Update a vehicle. (Requires a vehicles_update RLS policy to be in place.)
+export async function updateVehicle(id, updates) {
+  if (!supabase || !id) return null
+  const patch = {}
+  if (updates.name !== undefined)        patch.name         = updates.name
+  if (updates.plate !== undefined)       patch.plate        = updates.plate
+  if (updates.mileage !== undefined)     patch.mileage      = updates.mileage
+  if (updates.lastService !== undefined) patch.last_service = updates.lastService
+  const { data, error } = await supabase
+    .from('vehicles')
+    .update(patch)
+    .eq('id', id)
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('updateVehicle:', error.message); return null }
+  return data
+}
+
+// Delete a vehicle. (Requires a vehicles_delete RLS policy to be in place.)
+export async function deleteVehicle(id) {
+  if (!supabase || !id) return
+  const { error } = await supabase.from('vehicles').delete().eq('id', id)
+  if (error) console.error('deleteVehicle:', error.message)
+}
+
 // Fetch all houses in an org.
 export async function fetchHouses(orgId) {
   if (!supabase || !orgId) return []

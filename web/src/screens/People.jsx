@@ -109,16 +109,24 @@ function AddStaffModal({ user, onClose, onAdded }) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('staff')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const houseId = user?.houseId || null
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   const submit = async (e) => {
     e.preventDefault()
     if (!name.trim() || !user?.orgId) return
+    const trimmedEmail = email.trim()
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    setError('')
     setSaving(true)
     const member = await inviteStaff(user.orgId, houseId, {
       name: name.trim(),
-      email: email.trim() || null,
+      email: trimmedEmail,
       role,
     })
     setSaving(false)
@@ -131,13 +139,14 @@ function AddStaffModal({ user, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 8 }}>Add staff</div>
         <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginBottom: 14, lineHeight: 1.5 }}>
-          Enter their email. When they sign up at this app's URL using that email, they'll be automatically linked to this house and org.
+          We can't verify this address. The person will be linked to this house when they sign up using this exact email.
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input autoFocus placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <input placeholder="Email (optional)" value={email} onChange={e => setEmail(e.target.value)} type="email"
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          <input placeholder="Email" value={email} onChange={e => { setEmail(e.target.value); if (error) setError('') }} type="email"
+            style={{ background: 'var(--a-card)', border: `1px solid ${error ? '#e0a99a' : 'var(--a-line)'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          {error && <div style={{ fontSize: 11.5, color: '#a93a25', marginTop: -4 }}>{error}</div>}
           <select value={role} onChange={e => setRole(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
             <option value="staff">DSP</option>

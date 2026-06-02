@@ -207,20 +207,58 @@ export function ScreenA_Resources({ user }) {
             </div>
           )}
 
-          {isSupervisor && (
-            <>
-              <SectionHeader title="Spend by house · this month" />
-              <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
-                <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-                <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
-                <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
-                <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
-                  <span>0</span><span>$1,250</span>
+          {isSupervisor && (() => {
+            // Group real fetched items by house and sum cost (null cost counts as 0).
+            const byHouse = {}
+            for (const item of items) {
+              if (!item.house_id) continue
+              const h = item.houses
+              const key = item.house_id
+              if (!byHouse[key]) {
+                const hState = houses.find(x => x.id === key)
+                byHouse[key] = {
+                  total: 0,
+                  house: {
+                    color: h?.color || hState?.color || '#888888',
+                    short: h?.short || hState?.short || (h?.name || hState?.name || '—').slice(0, 4).toUpperCase(),
+                    name:  h?.name || hState?.name || '—',
+                  },
+                }
+              }
+              byHouse[key].total += Number(item.cost) || 0
+            }
+            const rows = Object.values(byHouse)
+              .filter(r => r.total > 0)
+              .sort((a, b) => b.total - a.total)
+            const maxTotal = rows.reduce((m, r) => Math.max(m, r.total), 0)
+            const fmt = (n) => `$${Math.round(n).toLocaleString('en-US')}`
+
+            return (
+              <>
+                <SectionHeader title="Spend by house · this month" />
+                <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                  {rows.length === 0 ? (
+                    <div style={{ textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)', padding: '6px 0' }}>No spend recorded yet</div>
+                  ) : (
+                    <>
+                      {rows.map((r, i) => (
+                        <HouseBar
+                          key={i}
+                          house={r.house}
+                          value={fmt(r.total)}
+                          pct={maxTotal ? r.total / maxTotal : 0}
+                          last={i === rows.length - 1}
+                        />
+                      ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
+                        <span>0</span><span>{fmt(maxTotal)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )
+          })()}
         </div>
       </div>
 

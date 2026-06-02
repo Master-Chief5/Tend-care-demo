@@ -11,7 +11,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
-import { IconHome, IconCal, IconCart, IconCar, IconPeople, IconCheck } from '../icons'
+import { IconHome, IconCal, IconCart, IconCar, IconPeople, IconCheck, IconPlus } from '../icons'
 
 function normalizeHouse(h) {
   return {
@@ -39,6 +39,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
   }
   switch (tab) {
     case 'home':      return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
+    case 'setup':     return <ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} />
     case 'sched':     return <ScreenA_ScheduleDay user={user} houses={houses} />
     case 'drive':     return <ScreenA_Driving user={user} />
     case 'resources': return <ScreenA_Resources user={user} />
@@ -122,6 +123,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'me',        label: 'Me',        icon: IconPeople },
   ] : [
     { id: 'home',      label: 'Houses',    icon: IconHome },
+    ...(role === 'supervisor' ? [{ id: 'setup', label: 'Add house', icon: IconPlus }] : []),
     { id: 'sched',     label: 'Schedule',  icon: IconCal },
     { id: 'drive',     label: 'Driving',   icon: IconCar },
     { id: 'resources', label: 'Supplies',  icon: IconCart },

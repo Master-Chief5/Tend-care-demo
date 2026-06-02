@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
-import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
@@ -105,12 +105,65 @@ function TripModal({ title, initial, staffNames, residentNames, onClose, onSave 
   )
 }
 
+function VehicleForm({ onSave, onCancel, saving }) {
+  const [name, setName]       = useState('')
+  const [plate, setPlate]     = useState('')
+  const [mileage, setMileage] = useState('')
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    onSave({ name: name.trim(), plate: plate.trim(), mileage: parseInt(mileage, 10) || 0 })
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <input placeholder="Vehicle name (e.g. Van #1 · Sienna '22)" value={name} onChange={e => setName(e.target.value)}
+        autoFocus style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <input placeholder="Plate" value={plate} onChange={e => setPlate(e.target.value)} style={inputStyle} />
+        <input placeholder="Mileage" value={mileage} onChange={e => setMileage(e.target.value)} style={inputStyle} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={onCancel}
+          style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 10, fontSize: 13, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>
+          Cancel
+        </button>
+        <button type="submit" disabled={!name.trim() || saving}
+          style={{ flex: 2, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>
+          {saving ? 'Saving…' : 'Add vehicle'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function VehicleModal({ onClose, onSave }) {
+  const [saving, setSaving] = useState(false)
+  const handleSave = async (data) => {
+    setSaving(true)
+    await onSave(data)
+    setSaving(false)
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add vehicle</div>
+        <VehicleForm onSave={handleSave} onCancel={onClose} saving={saving} />
+      </div>
+    </div>
+  )
+}
+
 export function ScreenA_Driving({ user }) {
   const [trips, setTrips]         = useState([])
+  const [vehicles, setVehicles]   = useState([])
   const [staffNames, setStaffNames]     = useState([])
   const [residentNames, setResidentNames] = useState([])
   const [showLog, setShowLog]     = useState(false)
   const [editTrip, setEditTrip]   = useState(null)
+  const [showAddVehicle, setShowAddVehicle] = useState(false)
   const [loading, setLoading]     = useState(false)
   const [toast, showToast]        = useToast()
 
@@ -127,7 +180,10 @@ export function ScreenA_Driving({ user }) {
     fetchResidents(user.orgId, user.houseId || null).then(data => {
       setResidentNames(data.map(r => r.name))
     })
-  }, [user?.orgId, user?.houseId])
+    fetchVehicles(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
+      setVehicles(data)
+    })
+  }, [user?.orgId, user?.houseId, user?.role])
 
   const handleAdd = async (data) => {
     const trip = await addTrip(user.orgId, { ...data, houseId: user.houseId || null })
@@ -151,6 +207,15 @@ export function ScreenA_Driving({ user }) {
     await deleteTrip(id)
     setTrips(prev => prev.filter(t => t.id !== id))
     showToast('Trip removed')
+  }
+
+  const handleAddVehicle = async (data) => {
+    const vehicle = await addVehicle(user.orgId, { ...data, houseId: user.houseId || null })
+    if (vehicle) {
+      setVehicles(prev => [vehicle, ...prev])
+      setShowAddVehicle(false)
+      showToast('Vehicle added')
+    }
   }
 
   const fmtDate = (dateStr) => {
@@ -220,11 +285,26 @@ export function ScreenA_Driving({ user }) {
             </>
           )}
 
-          <SectionHeader title="Vehicles" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <SectionHeader title="Vehicles" />
+            <button onClick={() => setShowAddVehicle(true)}
+              style={{ background: 'transparent', border: 0, color: 'var(--a-ink2)', fontSize: 11.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Geist', cursor: 'pointer' }}>
+              <IconPlus size={12} sw={2.4} /> Add vehicle
+            </button>
+          </div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '12px 14px' }}>
-            <VehicleRow name="Van #1 · Sienna '22" sub="38,402 mi" status="ok" onClick={() => showToast('Van #1 — all clear')} />
-            <VehicleRow name="Van #2 · Sienna '21" sub="51,108 mi" status="active" onClick={() => showToast('Van #2 — currently in use')} />
-            <VehicleRow name="Van #3 · Odyssey '23" sub="Oil due — check with manager" status="due" last onClick={() => showToast('Van #3 — service needed')} />
+            {vehicles.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '14px 0', color: 'var(--a-ink3)', fontSize: 12.5 }}>No vehicles added yet</div>
+            )}
+            {vehicles.map((v, i) => {
+              const mileageStr = v.mileage?.toLocaleString?.() ?? v.mileage
+              const sub = v.plate ? `${mileageStr} mi · ${v.plate}` : `${mileageStr} mi`
+              const status = v.mileage > 50000 ? 'due' : 'ok'
+              return (
+                <VehicleRow key={v.id} name={v.name} sub={sub} status={status} last={i === vehicles.length - 1}
+                  onClick={() => showToast(status === 'due' ? `${v.name} — service due` : `${v.name} — all clear`)} />
+              )
+            })}
           </div>
         </div>
       </div>
@@ -238,6 +318,9 @@ export function ScreenA_Driving({ user }) {
       {editTrip && (
         <TripModal title="Edit trip" initial={editTrip} staffNames={staffNames} residentNames={residentNames}
           onClose={() => setEditTrip(null)} onSave={handleEdit} />
+      )}
+      {showAddVehicle && (
+        <VehicleModal onClose={() => setShowAddVehicle(false)} onSave={handleAddVehicle} />
       )}
     </div>
   )

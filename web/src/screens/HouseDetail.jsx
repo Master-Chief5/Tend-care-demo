@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES } from '../data/constants'
-import { fetchHouses, fetchStaff, fetchResidents, fetchShifts, fetchTrips } from '../lib/db'
+import { fetchStaff, fetchResidents, fetchTrips } from '../lib/db'
 import { IconChev, IconDots, IconChat, IconPlus } from '../components/icons'
 import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
@@ -31,49 +31,34 @@ function NeedRow({ kind, text, color }) {
   )
 }
 
-// Demo fallbacks — shown only when there's no live DB data (e.g. demo mode).
-const FALLBACK_STAFF = [
-  { name: 'Aisha Mendez', role: 'Lead · 7a–3p', status: 'here' },
-  { name: 'Jay Brooks',   role: 'DSP · 7a–3p',  status: 'here' },
-  { name: 'Carmen Vela',  role: 'DSP · 3p–11p', status: 'sched' },
-]
-const FALLBACK_RESIDENTS = [
-  { name: 'Ruth Johnson', room: '1', status: 'home' },
-  { name: 'Marcus Lee',   room: '2', status: 'appt',    note: 'Dentist 1:30p' },
-  { name: 'Tom Reyes',    room: '3', status: 'home' },
-  { name: 'Donna Park',   room: '4', status: 'program', note: 'Day program' },
-]
-
 export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack, houses = HOUSES }) {
   const house = houses.find(h => h.id === houseId) || houses[0] || HOUSES[0]
   const c = house.color
   const [toast, showToast] = useToast()
 
-  const [staffToday, setStaffToday] = useState(FALLBACK_STAFF)
-  const [residents, setResidents]   = useState(FALLBACK_RESIDENTS)
-  const [drives, setDrives]         = useState(2)
+  const [staffToday, setStaffToday] = useState([])
+  const [residents, setResidents]   = useState([])
+  const [drives, setDrives]         = useState(0)
+
+  // The house's real DB UUID comes through on the normalized house object as `_uuid`.
+  const houseUuid = house._uuid
 
   useEffect(() => {
-    if (!user?.orgId) return
+    if (!user?.orgId || !houseUuid) return
     let cancelled = false
-    // Resolve this house's real UUID from its slug, then load its data.
-    fetchHouses(user.orgId).then(houses => {
-      const match = houses.find(h => h.slug === house.id)
-      if (!match) return
-      fetchStaff(user.orgId, match.id).then(rows => {
-        if (cancelled || !rows.length) return
-        setStaffToday(rows.map(s => ({ name: s.name, role: s.role, status: 'sched' })))
-      })
-      fetchResidents(user.orgId, match.id).then(rows => {
-        if (cancelled || !rows.length) return
-        setResidents(rows.map((r, i) => ({ name: r.name, room: r.room || String(i + 1), status: r.status === 'active' ? 'home' : r.status })))
-      })
-      fetchTrips(user.orgId, match.id, new Date()).then(rows => {
-        if (!cancelled) setDrives(rows.length)
-      })
+    fetchStaff(user.orgId, houseUuid).then(rows => {
+      if (cancelled) return
+      setStaffToday(rows.map(s => ({ name: s.name, role: s.role, status: 'sched' })))
+    })
+    fetchResidents(user.orgId, houseUuid).then(rows => {
+      if (cancelled) return
+      setResidents(rows.map((r, i) => ({ name: r.name, room: r.room || String(i + 1), status: r.status === 'active' ? 'home' : r.status })))
+    })
+    fetchTrips(user.orgId, houseUuid, new Date()).then(rows => {
+      if (!cancelled) setDrives(rows.length)
     })
     return () => { cancelled = true }
-  }, [user?.orgId, house.id])
+  }, [user?.orgId, houseUuid])
 
   const onShift = staffToday.filter(s => s.status === 'here').length || staffToday.length
   const residentsIn = residents.filter(r => r.status === 'home' || r.status === 'appt' || r.status === 'program').length
@@ -107,6 +92,9 @@ export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack, houses = HO
 
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Staff</div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '0 14px', marginBottom: 14 }}>
+            {staffToday.length === 0 && (
+              <div style={{ padding: '14px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No staff assigned yet</div>
+            )}
             {staffToday.map((s, i) => {
               const st = s.status === 'here'
                 ? { tag: 'On shift', bg: '#dee6df', tc: '#3f604d' }
@@ -127,6 +115,9 @@ export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack, houses = HO
 
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Residents</div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
+            {residents.length === 0 && (
+              <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No residents yet</div>
+            )}
             {residents.map((r, i) => {
               const m = {
                 home:    { tag: 'Home',        bg: '#dee6df', tc: '#3f604d' },

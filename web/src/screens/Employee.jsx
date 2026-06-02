@@ -6,14 +6,6 @@ import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
 import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus } from '../components/icons'
 
-const FALLBACK_TASKS = [
-  { kind: 'med',   text: 'Morning meds — Ruth J., Marcus L., Tom R., Donna P.',   done: true,  urgent: false },
-  { kind: 'drive', text: '1:30pm — M. Lee to dentist (Dr. Patel, 14 Oak St)',     done: false, urgent: true },
-  { kind: 'note',  text: 'Document shift note before 3pm handoff',                done: false, urgent: false },
-  { kind: 'shop',  text: 'Grocery order — oat milk, bananas, dish soap',          done: false, urgent: false },
-  { kind: 'med',   text: 'Afternoon meds — Ruth J. 2pm (needs 2nd signoff)',      done: false, urgent: true },
-]
-
 const kindMap = {
   med:   { label: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
   drive: { label: 'Drive', bg: '#dde6f0', tc: '#3c5887' },
@@ -89,7 +81,7 @@ function AddTaskModal({ user, onClose, onAdded }) {
 }
 
 export function ScreenA_MyDay({ user }) {
-  const [tasks, setTasks] = useState(FALLBACK_TASKS)
+  const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(!!user?.staffId)
   const [showAdd, setShowAdd] = useState(false)
   const today = new Date()
@@ -178,8 +170,10 @@ export function ScreenA_MyDay({ user }) {
             )
           })}
           {!loading && tasks.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--a-ink3)', fontSize: 13, paddingTop: 32 }}>
-              No tasks for today.
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>☀️</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nothing scheduled for today</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add task" below to log something to do.</div>
             </div>
           )}
           {!loading && (

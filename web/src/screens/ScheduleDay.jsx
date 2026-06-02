@@ -208,13 +208,25 @@ function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = []
   )
 }
 
-function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
+function AddShiftModal({ user, houses, onClose, onAdded }) {
   const [personName, setPersonName] = useState('')
   const [role, setRole] = useState('DSP')
   const [startTime, setStartTime] = useState('07:00')
   const [endTime, setEndTime] = useState('15:00')
   const [houseId, setHouseId] = useState(user?.houseId || (houses[0]?.id ?? ''))
+  const [staff, setStaff] = useState([])
   const [saving, setSaving] = useState(false)
+
+  // Strict staff list scoped to the selected house — only real current employees.
+  useEffect(() => {
+    if (!user?.orgId || !houseId) { setStaff([]); return }
+    let active = true
+    fetchStaff(user.orgId, houseId).then(data => { if (active) setStaff(data) })
+    return () => { active = false }
+  }, [user?.orgId, houseId])
+
+  // Reset the chosen person when the house (and therefore the staff list) changes.
+  useEffect(() => { setPersonName('') }, [houseId])
 
   const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
 
@@ -240,9 +252,12 @@ function AddShiftModal({ user, houses, staffNames, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add shift</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <datalist id="dl-shift-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
-          <input autoFocus placeholder="Staff name" value={personName} onChange={e => setPersonName(e.target.value)}
-            list="dl-shift-staff" style={inputStyle} />
+          <select autoFocus value={personName} onChange={e => setPersonName(e.target.value)} style={inputStyle}>
+            <option value="" disabled>Select staff member</option>
+            {staff.length === 0
+              ? <option value="" disabled>No staff in this house — add staff first</option>
+              : staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </select>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Start time</div>
@@ -281,7 +296,6 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = HOUSES })
   const [shifts, setShifts] = useState([])
   const [weekShifts, setWeekShifts] = useState([])
   const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
-  const [staffNames, setStaffNames] = useState([])
   const [showAddShift, setShowAddShift] = useState(false)
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
@@ -306,7 +320,6 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = HOUSES })
     fetchShiftsWeek(user.orgId, houseId, weekDates[0], weekDates[6]).then(data => {
       setWeekShifts(data)
     })
-    fetchStaff(user.orgId, houseId).then(data => setStaffNames(data.map(s => s.name)))
     fetchHouses(user.orgId).then(setHouseList)
   }, [user?.orgId, user?.houseId, user?.role])
 
@@ -387,7 +400,6 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = HOUSES })
         <AddShiftModal
           user={user}
           houses={pickerHouses}
-          staffNames={staffNames}
           onClose={() => setShowAddShift(false)}
           onAdded={handleShiftAdded}
         />
