@@ -117,7 +117,7 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <GreetingHeader name={user?.name} isSupervisor={isSupervisor} onAddHouse={onAddHouse} />
+        <GreetingHeader name={user?.name} isSupervisor={isSupervisor && visibleHouses.length > 0} onAddHouse={onAddHouse} />
         {!isManager && branches.length > 1 && <BranchTabs branches={branches} active={branch} setActive={setBranch} />}
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px 24px' }}>
           {visibleHouses.length === 0 && (
