@@ -451,6 +451,19 @@ export async function searchOrganizations(query) {
   return data || []
 }
 
+// Create a new organization and register the caller as its supervisor.
+// Used during supervisor self-onboarding. Slug conflicts are handled server-side.
+export async function createOrgAndSupervisor(orgName, orgSlug, name) {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('create_org_and_supervisor', {
+    p_org_name: orgName,
+    p_org_slug: orgSlug,
+    p_name:     name,
+  })
+  if (error) { console.error('createOrgAndSupervisor:', error.message); return null }
+  return data
+}
+
 // Create or link a staff profile after sign-up.
 // If a supervisor pre-created a row with this email, it links auth_user_id instead of inserting.
 export async function registerAsStaff(orgId, name) {

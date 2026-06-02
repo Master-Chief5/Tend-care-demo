@@ -45,3 +45,42 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION register_as_staff(uuid, text) TO authenticated;
+
+-- 3. Supervisor self-onboarding — creates a brand-new organization and registers
+--    the caller as its supervisor in one atomic transaction.
+--    Handles slug conflicts by appending -1, -2, etc.
+CREATE OR REPLACE FUNCTION create_org_and_supervisor(
+  p_org_name text,
+  p_org_slug text,
+  p_name     text
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_org_id  uuid;
+  v_email   text;
+  v_slug    text;
+  v_attempt int := 0;
+BEGIN
+  v_email := (SELECT email FROM auth.users WHERE id = auth.uid());
+  v_slug  := p_org_slug;
+
+  LOOP
+    BEGIN
+      INSERT INTO organizations (name, slug, subscription_tier)
+      VALUES (p_org_name, v_slug, 'free')
+      RETURNING id INTO v_org_id;
+      EXIT;
+    EXCEPTION WHEN unique_violation THEN
+      v_attempt := v_attempt + 1;
+      v_slug := p_org_slug || '-' || v_attempt;
+      IF v_attempt > 20 THEN RAISE; END IF;
+    END;
+  END LOOP;
+
+  INSERT INTO staff (org_id, name, email, auth_user_id, role)
+  VALUES (v_org_id, p_name, v_email, auth.uid(), 'supervisor');
+
+  RETURN v_org_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION create_org_and_supervisor(text, text, text) TO authenticated;
