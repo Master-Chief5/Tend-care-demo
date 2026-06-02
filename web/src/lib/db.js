@@ -437,10 +437,13 @@ export async function fetchHouses(orgId) {
   }))
 }
 
-// Insert a house.
+// Insert a house. Returns { data, error } so the UI can surface the real reason
+// a save failed (missing org link, RLS rejection, missing migration, etc.)
+// instead of silently doing nothing.
 export async function addHouse(orgId, house) {
-  if (isDemoMode) return demo.demoAddHouse(house)
-  if (!supabase) return null
+  if (isDemoMode) return { data: demo.demoAddHouse(house), error: null }
+  if (!supabase) return { data: null, error: 'Not connected to database' }
+  if (!orgId)    return { data: null, error: 'Your account is not linked to an organization yet' }
   const { data, error } = await supabase
     .from('houses')
     .insert({
@@ -456,8 +459,8 @@ export async function addHouse(orgId, house) {
     })
     .select()
     .single()
-  if (error) { console.error('addHouse:', error.message); return null }
-  return data
+  if (error) { console.error('addHouse:', error.message); return { data: null, error: error.message } }
+  return { data, error: null }
 }
 
 // Update a house.

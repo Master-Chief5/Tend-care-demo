@@ -40,7 +40,7 @@ await page.waitForTimeout(600)
 log('house 1 added')
 
 // still on setup screen — add second house
-await page.getByRole('button', { name: /Add house/i }).first().click()
+await page.getByRole('button', { name: /Add another house/i }).first().click()
 await page.waitForTimeout(300)
 await page.getByPlaceholder('House name (e.g. Oak House)').fill('Willow Run')
 await page.getByPlaceholder('Short code (e.g. OAK)').fill('WLW')

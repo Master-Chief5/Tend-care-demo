@@ -109,20 +109,21 @@ export function ScreenA_HouseSetup({ user, onHousesChanged }) {
   }, [user?.orgId])
 
   const handleAdd = async (data) => {
-    if (!user?.orgId) return
     setSaving(true)
-    const h = await addHouse(user.orgId, { ...data, slug: data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })
+    const { data: h, error } = await addHouse(user?.orgId, { ...data, slug: data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })
     setSaving(false)
-    if (h) {
-      setHouses(prev => [...prev, {
-        id: h.id, slug: h.slug, name: h.name, short: h.short,
-        address: h.address ?? '', branch: h.branch ?? '',
-        color: h.color, managerName: h.manager_name ?? '', residentsCount: 0,
-      }])
-      setShowAdd(false)
-      showToast('House created')
-      onHousesChanged?.()
+    if (error || !h) {
+      showToast(error ? `Couldn't save: ${error}` : "Couldn't save house — please try again")
+      return
     }
+    setHouses(prev => [...prev, {
+      id: h.id, slug: h.slug, name: h.name, short: h.short,
+      address: h.address ?? '', branch: h.branch ?? '',
+      color: h.color, managerName: h.manager_name ?? '', residentsCount: 0,
+    }])
+    setShowAdd(false)
+    showToast('House created')
+    onHousesChanged?.()
   }
 
   const handleEdit = async (data) => {
