@@ -30,7 +30,7 @@ function AccountButton({ user, onLogin }) {
   const [hov, setHov] = useState(false)
   return (
     <button
-      onClick={() => onLogin({ ...user, role: user.id, enriched: true })}
+      onClick={() => onLogin({ ...user, role: user.id, orgId: 'demo-org', enriched: true })}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{

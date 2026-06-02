@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchStaff, inviteStaff, removeStaff } from '../lib/db'
+import { fetchStaff, inviteStaff, removeStaff, fetchHouses } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
@@ -104,14 +104,17 @@ function StaffDetail({ staff, onBack, onRemove }) {
   )
 }
 
-function AddStaffModal({ user, onClose, onAdded }) {
+function AddStaffModal({ user, houses = [], onClose, onAdded }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('staff')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Supervisors choose which house the person belongs to; managers/staff are
+  // scoped to their own house already.
+  const isSupervisor = user?.role === 'supervisor'
+  const [houseId, setHouseId] = useState(isSupervisor ? (houses[0]?.id ?? '') : (user?.houseId || ''))
 
-  const houseId = user?.houseId || null
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   const submit = async (e) => {
@@ -124,7 +127,7 @@ function AddStaffModal({ user, onClose, onAdded }) {
     }
     setError('')
     setSaving(true)
-    const member = await inviteStaff(user.orgId, houseId, {
+    const member = await inviteStaff(user.orgId, houseId || null, {
       name: name.trim(),
       email: trimmedEmail,
       role,
@@ -152,6 +155,14 @@ function AddStaffModal({ user, onClose, onAdded }) {
             <option value="staff">DSP</option>
             <option value="manager">House Manager</option>
           </select>
+          {isSupervisor && (
+            <select value={houseId} onChange={e => setHouseId(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+              {houses.length === 0
+                ? <option value="">No houses yet — add one first</option>
+                : houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          )}
           <button type="submit" disabled={!name.trim() || saving}
             style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>
             {saving ? 'Saving…' : 'Add staff member'}
@@ -167,6 +178,7 @@ export function ScreenA_Staff({ user, onLogout }) {
   const [staffList, setStaffList] = useState([])
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [houses, setHouses] = useState([])
   const [toast, showToast] = useToast()
 
   useEffect(() => {
@@ -174,16 +186,21 @@ export function ScreenA_Staff({ user, onLogout }) {
     fetchStaff(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
       setStaffList(data)
     })
+    fetchHouses(user.orgId).then(setHouses)
   }, [user?.orgId, user?.houseId, user?.role])
 
   const handleAdded = (member) => {
+    const h = houses.find(x => x.id === member.house_id)
     setStaffList(prev => [...prev, {
       id: member.id,
       name: member.name,
       email: member.email ?? '',
       role: member.role === 'manager' ? 'House mgr' : 'DSP',
       rawRole: member.role,
-      house: null,
+      house: h?.slug ?? null,
+      houseId: member.house_id ?? null,
+      houseName: h?.name ?? null,
+      houseColor: h?.color ?? null,
       score: 85,
       sub: 'New',
       tenure: 'New',
@@ -258,7 +275,7 @@ export function ScreenA_Staff({ user, onLogout }) {
       <TabBar active="me" />
 
       {showAdd && user?.orgId && (
-        <AddStaffModal user={user} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
+        <AddStaffModal user={user} houses={houses} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
       )}
     </div>
   )

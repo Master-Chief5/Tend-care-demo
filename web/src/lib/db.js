@@ -1,4 +1,5 @@
-import { supabase } from './supabase'
+import { supabase, isDemoMode } from './supabase'
+import * as demo from './demoStore'
 
 // Returns the staff profile for the authenticated user.
 // Uses a SECURITY DEFINER RPC that bypasses RLS — safe for initial login bootstrap.
@@ -31,6 +32,7 @@ export async function fetchStaffProfile(authUserId, _email) {
 // Fetch all shifts for an org on a given date.
 // Pass houseId to limit to one house (managers/staff); null for all (supervisors).
 export async function fetchShifts(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchShifts(houseId, date)
   if (!supabase || !orgId) return []
   const dateStr = toDateStr(date)
 
@@ -58,6 +60,7 @@ export async function fetchShifts(orgId, houseId, date) {
 
 // Fetch shifts for an entire week (inclusive date range).
 export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
+  if (isDemoMode) return demo.demoFetchShiftsWeek(houseId, weekStart, weekEnd)
   if (!supabase || !orgId) return []
   const startStr = toDateStr(weekStart)
   const endStr = toDateStr(weekEnd)
@@ -88,6 +91,7 @@ export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
 
 // Insert a new shift.
 export async function addShift(orgId, houseId, shift) {
+  if (isDemoMode) return demo.demoAddShift(houseId, shift)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('shifts')
@@ -110,6 +114,7 @@ export async function addShift(orgId, houseId, shift) {
 // Fetch staff list for an org.
 // Pass houseId to limit to one house; null for all staff in org.
 export async function fetchStaff(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchStaff(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -143,6 +148,7 @@ export async function fetchStaff(orgId, houseId) {
 
 // Insert a staff record (no auth invite yet — placeholder).
 export async function inviteStaff(orgId, houseId, member) {
+  if (isDemoMode) return demo.demoInviteStaff(houseId, member)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('staff')
@@ -161,6 +167,7 @@ export async function inviteStaff(orgId, houseId, member) {
 
 // Update a staff member's role or house.
 export async function updateStaffMember(id, updates) {
+  if (isDemoMode) return demo.demoUpdateStaff(id, updates)
   if (!supabase || !id) return null
   const { data, error } = await supabase
     .from('staff')
@@ -174,6 +181,7 @@ export async function updateStaffMember(id, updates) {
 
 // Remove a staff member.
 export async function removeStaff(id) {
+  if (isDemoMode) return demo.demoRemoveStaff(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('staff').delete().eq('id', id)
   if (error) console.error('removeStaff:', error.message)
@@ -181,6 +189,7 @@ export async function removeStaff(id) {
 
 // Fetch tasks for a staff member on a given date.
 export async function fetchTasks(staffId, date) {
+  if (isDemoMode) return demo.demoFetchTasks(staffId, date)
   if (!supabase || !staffId) return []
   const dateStr = toDateStr(date)
 
@@ -197,6 +206,7 @@ export async function fetchTasks(staffId, date) {
 
 // Toggle a task's done state.
 export async function toggleTask(taskId, done) {
+  if (isDemoMode) return demo.demoToggleTask(taskId, done)
   if (!supabase || !taskId) return
   const { error } = await supabase.from('tasks').update({ done }).eq('id', taskId)
   if (error) console.error('toggleTask:', error.message)
@@ -204,6 +214,7 @@ export async function toggleTask(taskId, done) {
 
 // Insert a task for today.
 export async function addTask(orgId, staffId, task) {
+  if (isDemoMode) return demo.demoAddTask(staffId, task)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('tasks')
@@ -224,6 +235,7 @@ export async function addTask(orgId, staffId, task) {
 
 // Fetch resources; houseId=null means all houses in org.
 export async function fetchResources(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchResources(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -241,6 +253,7 @@ export async function fetchResources(orgId, houseId) {
 
 // Insert a resource item.
 export async function addResource(orgId, houseId, item) {
+  if (isDemoMode) return demo.demoAddResource(houseId, item)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('resources')
@@ -261,6 +274,7 @@ export async function addResource(orgId, houseId, item) {
 
 // Delete a resource by id.
 export async function deleteResource(id) {
+  if (isDemoMode) return demo.demoDeleteResource(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('resources').delete().eq('id', id)
   if (error) console.error('deleteResource:', error.message)
@@ -268,6 +282,7 @@ export async function deleteResource(id) {
 
 // Delete a trip by id.
 export async function deleteTrip(id) {
+  if (isDemoMode) return demo.demoDeleteTrip(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('trips').delete().eq('id', id)
   if (error) console.error('deleteTrip:', error.message)
@@ -275,6 +290,7 @@ export async function deleteTrip(id) {
 
 // Fetch trips for a given date (or null for all). houseId=null means all houses.
 export async function fetchTrips(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchTrips(houseId, date)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -293,6 +309,7 @@ export async function fetchTrips(orgId, houseId, date) {
 
 // Insert a trip.
 export async function addTrip(orgId, trip) {
+  if (isDemoMode) return demo.demoAddTrip(trip)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('trips')
@@ -314,6 +331,7 @@ export async function addTrip(orgId, trip) {
 
 // Update a trip.
 export async function updateTrip(id, updates) {
+  if (isDemoMode) return demo.demoUpdateTrip(id, updates)
   if (!supabase || !id) return null
   const { data, error } = await supabase
     .from('trips')
@@ -334,6 +352,7 @@ export async function updateTrip(id, updates) {
 // ── Vehicles ──────────────────────────────────────────────────────────────
 // Fetch vehicles for an org (optionally scoped to one house).
 export async function fetchVehicles(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchVehicles(houseId)
   if (!supabase || !orgId) return []
   let q = supabase
     .from('vehicles')
@@ -348,6 +367,7 @@ export async function fetchVehicles(orgId, houseId) {
 
 // Insert a vehicle.
 export async function addVehicle(orgId, vehicle) {
+  if (isDemoMode) return demo.demoAddVehicle(vehicle)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('vehicles')
@@ -367,6 +387,7 @@ export async function addVehicle(orgId, vehicle) {
 
 // Update a vehicle. (Requires a vehicles_update RLS policy to be in place.)
 export async function updateVehicle(id, updates) {
+  if (isDemoMode) return demo.demoUpdateVehicle(id, updates)
   if (!supabase || !id) return null
   const patch = {}
   if (updates.name !== undefined)        patch.name         = updates.name
@@ -385,6 +406,7 @@ export async function updateVehicle(id, updates) {
 
 // Delete a vehicle. (Requires a vehicles_delete RLS policy to be in place.)
 export async function deleteVehicle(id) {
+  if (isDemoMode) return demo.demoDeleteVehicle(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('vehicles').delete().eq('id', id)
   if (error) console.error('deleteVehicle:', error.message)
@@ -392,6 +414,7 @@ export async function deleteVehicle(id) {
 
 // Fetch all houses in an org.
 export async function fetchHouses(orgId) {
+  if (isDemoMode) return demo.demoFetchHouses()
   if (!supabase || !orgId) return []
 
   const { data, error } = await supabase
@@ -416,6 +439,7 @@ export async function fetchHouses(orgId) {
 
 // Insert a house.
 export async function addHouse(orgId, house) {
+  if (isDemoMode) return demo.demoAddHouse(house)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('houses')
@@ -438,6 +462,7 @@ export async function addHouse(orgId, house) {
 
 // Update a house.
 export async function updateHouse(id, updates) {
+  if (isDemoMode) return demo.demoUpdateHouse(id, updates)
   if (!supabase || !id) return null
   const dbUpdates = {}
   if (updates.name !== undefined)         dbUpdates.name           = updates.name
@@ -459,6 +484,7 @@ export async function updateHouse(id, updates) {
 
 // Delete a house.
 export async function deleteHouse(id) {
+  if (isDemoMode) return demo.demoDeleteHouse(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('houses').delete().eq('id', id)
   if (error) console.error('deleteHouse:', error.message)
@@ -466,6 +492,7 @@ export async function deleteHouse(id) {
 
 // Fetch residents.
 export async function fetchResidents(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchResidents(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -483,6 +510,7 @@ export async function fetchResidents(orgId, houseId) {
 
 // Insert a resident.
 export async function addResident(orgId, houseId, resident) {
+  if (isDemoMode) return demo.demoAddResident(houseId, resident)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('residents')
