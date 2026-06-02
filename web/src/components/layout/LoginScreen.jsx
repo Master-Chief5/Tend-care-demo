@@ -239,11 +239,20 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
     if (signUpErr) { setLoading(false); onSignupCancel?.(); setError(signUpErr.message); return }
 
     if (data.session) {
+      let regError = null
       if (accountType === 'supervisor') {
         const slug = orgSlug || toSlug(orgName) || `org-${Math.random().toString(36).slice(2, 8)}`
-        await createOrgAndSupervisor(orgName.trim(), slug, name.trim())
+        const { error: e } = await createOrgAndSupervisor(orgName.trim(), slug, name.trim())
+        regError = e
       } else {
-        await registerAsStaff(selectedOrg.id, name.trim())
+        const { error: e } = await registerAsStaff(selectedOrg.id, name.trim())
+        regError = e
+      }
+      if (regError) {
+        setLoading(false)
+        onSignupCancel?.()
+        setError(`Could not set up your profile: ${regError}`)
+        return
       }
       setLoading(false)
       const role = data.user?.user_metadata?.role ?? 'staff'

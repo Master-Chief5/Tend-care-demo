@@ -452,25 +452,25 @@ export async function searchOrganizations(query) {
 }
 
 // Create a new organization and register the caller as its supervisor.
-// Used during supervisor self-onboarding. Slug conflicts are handled server-side.
+// Returns { data, error } so callers can surface the actual DB error message.
 export async function createOrgAndSupervisor(orgName, orgSlug, name) {
-  if (!supabase) return null
+  if (!supabase) return { data: null, error: 'Not connected to database' }
   const { data, error } = await supabase.rpc('create_org_and_supervisor', {
     p_org_name: orgName,
     p_org_slug: orgSlug,
     p_name:     name,
   })
-  if (error) { console.error('createOrgAndSupervisor:', error.message); return null }
-  return data
+  if (error) { console.error('createOrgAndSupervisor:', error.message) }
+  return { data: error ? null : data, error: error?.message ?? null }
 }
 
 // Create or link a staff profile after sign-up.
-// If a supervisor pre-created a row with this email, it links auth_user_id instead of inserting.
+// Returns { data, error } so callers can surface the actual DB error message.
 export async function registerAsStaff(orgId, name) {
-  if (!supabase) return null
+  if (!supabase) return { data: null, error: 'Not connected to database' }
   const { data, error } = await supabase.rpc('register_as_staff', { p_org_id: orgId, p_name: name })
-  if (error) { console.error('registerAsStaff:', error.message); return null }
-  return data
+  if (error) { console.error('registerAsStaff:', error.message) }
+  return { data: error ? null : data, error: error?.message ?? null }
 }
 
 

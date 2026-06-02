@@ -52,9 +52,9 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
   const handleJoin = async () => {
     if (!selectedOrg) return
     setBusy(true)
-    const result = await registerAsStaff(selectedOrg.id, user.name)
+    const { error: e } = await registerAsStaff(selectedOrg.id, user.name)
     setBusy(false)
-    if (!result) { setError('Could not link your account. Please try again.'); return }
+    if (e) { setError(`Could not link your account: ${e}`); return }
     onLinked()
   }
 
@@ -62,9 +62,9 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
     if (!orgName.trim()) return
     setBusy(true)
     const slug = toSlug(orgName) || `org-${Math.random().toString(36).slice(2, 8)}`
-    const result = await createOrgAndSupervisor(orgName.trim(), slug, user.name)
+    const { error: e } = await createOrgAndSupervisor(orgName.trim(), slug, user.name)
     setBusy(false)
-    if (!result) { setError('Could not create your organization. Please try again.'); return }
+    if (e) { setError(`Could not create organization: ${e}`); return }
     onLinked()
   }
 
