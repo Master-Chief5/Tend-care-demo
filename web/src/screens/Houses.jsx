@@ -11,25 +11,26 @@ function GreetingHeader({ name, isSupervisor, onAddHouse }) {
   const today = new Date()
   const firstName = name?.split(' ')[0] || 'there'
   return (
-    <div style={{ padding: '10px 22px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-      <div>
+    <div style={{ padding: '10px 22px 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 2 }}>{fmtDayLabel(today)}</div>
+        <TendLogo size={14} style={{ marginTop: 2 }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>
           {getGreeting()},<br /><em style={{ color: 'var(--a-sage)' }}>{firstName}</em>
         </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8 }}>
         {isSupervisor && onAddHouse && (
           <button onClick={onAddHouse} style={{
             display: 'flex', alignItems: 'center', gap: 5,
             background: 'var(--a-ink)', color: 'var(--a-card)',
             border: 0, borderRadius: 999, padding: '6px 12px',
             fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer',
+            marginBottom: 2, flexShrink: 0,
           }}>
             <IconPlus size={13} sw={2.2} /> Add house
           </button>
         )}
-        <TendLogo size={14} />
       </div>
     </div>
   )

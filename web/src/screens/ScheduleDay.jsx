@@ -180,12 +180,12 @@ function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = []
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div>
-            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{weekLabel}</div>
+        <div style={{ padding: '14px 22px 6px' }}>
+          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{weekLabel}</div>
+            <ViewToggle view="week" setView={setView} />
           </div>
-          <ViewToggle view="week" setView={setView} />
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 14px 24px' }}>
           {houses.length === 0 && (
@@ -347,18 +347,18 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 6px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div>
-            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{fmtDayLabel(week[dayIdx].date)} · {shifts.length} shifts</div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <ViewToggle view={view} setView={setView} />
-            {canAddShift && (
-              <button onClick={() => setShowAddShift(true)} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <IconPlus size={16} sw={2.2} />
-              </button>
-            )}
+        <div style={{ padding: '14px 22px 6px' }}>
+          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(week[dayIdx].date)} · {shifts.length} shifts</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <ViewToggle view={view} setView={setView} />
+              {canAddShift && (
+                <button onClick={() => setShowAddShift(true)} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <IconPlus size={16} sw={2.2} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

@@ -375,15 +375,15 @@ export function ScreenA_Driving({ user }) {
     <div className="phone-screen">
       <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 4px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div>
-            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Driving</div>
-            <div style={{ fontSize: 12, color: 'var(--a-ink2)', marginTop: 2 }}>Logs · Mileage · Vehicles</div>
+        <div style={{ padding: '14px 22px 6px' }}>
+          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Driving</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Logs · Mileage · Vehicles</div>
+            <button onClick={() => setShowLog(true)}
+              style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+              <IconPlus size={13} sw={2.4} /> Log trip
+            </button>
           </div>
-          <button onClick={() => setShowLog(true)}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '8px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
-            <IconPlus size={14} sw={2.4} /> Log trip
-          </button>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 22px 24px' }}>
