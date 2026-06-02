@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
 import { fetchResources, addResource, deleteResource, fetchHouses } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -189,10 +188,10 @@ export function ScreenA_Resources({ user }) {
             <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
               {items.map((item, i) => {
                 const h = item.houses
-                const hConst = h ? HOUSES.find(x => x.id === h.slug) : null
+                const hColor = h?.color
                 return (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < items.length - 1 ? '1px solid var(--a-line)' : '' }}>
-                    {hConst && <div style={{ width: 3, height: 28, background: hConst.color, borderRadius: 4 }} />}
+                    {hColor && <div style={{ width: 3, height: 28, background: hColor, borderRadius: 4 }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 500 }}>{item.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>

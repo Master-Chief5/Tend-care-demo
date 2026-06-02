@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
 import { fetchShifts, fetchShiftsWeek, addShift, fetchStaff, fetchHouses } from '../lib/db'
@@ -290,7 +289,7 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
 
 const toDateStr = (d) => d.toISOString().split('T')[0]
 
-export function ScreenA_ScheduleDay({ user, employee = false, houses = HOUSES }) {
+export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
   const [shifts, setShifts] = useState([])

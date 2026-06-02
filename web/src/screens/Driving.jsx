@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
 import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -259,10 +258,10 @@ export function ScreenA_Driving({ user }) {
               <SectionHeader title="Recent trips" />
               <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
                 {trips.map((t, i) => {
-                  const hConst = t.houses ? HOUSES.find(x => x.id === t.houses.slug) : null
+                  const hColor = t.houses?.color
                   return (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < trips.length - 1 ? '1px solid var(--a-line)' : '' }}>
-                      {hConst && <div style={{ width: 3, height: 28, background: hConst.color, borderRadius: 4 }} />}
+                      {hColor && <div style={{ width: 3, height: 28, background: hColor, borderRadius: 4 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12.5, color: 'var(--a-ink)', fontWeight: 500 }}>{t.resident_name} → {t.destination}</div>
                         <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 1 }}>

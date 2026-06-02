@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ROLES, HOUSES } from '../../data/constants'
+import { ROLES } from '../../data/constants'
 import { isDemoMode } from '../../lib/supabase'
 import { fetchHouses } from '../../lib/db'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
@@ -111,7 +111,7 @@ export function DesktopShell({ user, onLogout }) {
   const defaultTab = (user.role ?? user.id) === 'staff' ? 'myday' : 'today'
   const [tab, setTab] = useState(defaultTab)
   const [houseDetail, setHouseDetail] = useState(null)
-  const [houses, setHouses] = useState(isDemoMode ? HOUSES : [])
+  const [houses, setHouses] = useState([])
 
   useEffect(() => {
     if (!user?.orgId) return

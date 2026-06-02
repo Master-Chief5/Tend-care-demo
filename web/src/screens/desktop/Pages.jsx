@@ -76,7 +76,7 @@ function CenteredColumn({ children, width = 760, side }) {
 
 // ── Today ─────────────────────────────────────────────────────────────
 
-export function PageTodayDesktop({ onHouseClick, user, houses = HOUSES }) {
+export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
   const [toast, showToast] = useToast()
   const [branchFilter, setBranchFilter] = useState('All')
   const greeting = getGreeting()
@@ -155,15 +155,17 @@ export function PageTodayDesktop({ onHouseClick, user, houses = HOUSES }) {
                 <span>Mar 1</span><span>Today · $1,034/wk</span>
               </div>
             </div>
-            <div style={dCard}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span className="serif" style={{ fontSize: 18 }}>Cross-house swaps</span>
-                <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>2 suggested</span>
+            {houses.length >= 4 && (
+              <div style={dCard}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span className="serif" style={{ fontSize: 18 }}>Cross-house swaps</span>
+                  <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>2 suggested</span>
+                </div>
+                <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
+                <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
+                <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar over-bought" />
               </div>
-              <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
-              <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar over-bought" />
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -220,7 +222,7 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
   )
 }
 
-export function PageHousesDesktop({ onHouseClick, user, houses = HOUSES }) {
+export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
   const isManager = user?.role === 'manager'
   const houseData = isManager
     ? houses.filter(h => h.id === user?.houseSlug).map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
@@ -485,78 +487,18 @@ export function PageDrivingDesktop({ user }) {
 // ── Resources ─────────────────────────────────────────────────────────
 
 export function PageResourcesDesktop() {
-  const [dismissed, setDismissed] = useState(false)
   const [toast, showToast] = useToast()
   return (
     <>
       <Toast msg={toast} />
       <DTopBar title="Resources" sub="Spend insights · grocery · cross-house"
         actions={<button onClick={() => showToast('Generating list…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Generate list</button>} />
-      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-          <DStat label="Weekly avg" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
-          <DStat label="Per resident" value="$64" sub="↓ $4 vs Apr" tone="good" />
-          <DStat label="Highest house" value="Maple" sub="$1,250 · ↑ 8%" tone="warn" />
-          <DStat label="Lowest house" value="Willow" sub="$840 · steady" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 16 }}>
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 20 }}>Spend by house · May</span>
-            <div style={{ marginTop: 14 }}>
-              <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-              <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
-              <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
-              <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
-              <span>0</span><span>$1,250</span>
-            </div>
-          </div>
-          {!dismissed ? (
-            <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <IconFlag size={14} color="#a47012" sw={2} />
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
-              </div>
-              <div style={{ fontSize: 14, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
-                <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda.
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button onClick={() => showToast('Message sent to Saira K.')} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>Send to Saira</button>
-                <button onClick={() => setDismissed(true)} style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist', cursor: 'pointer' }}>Dismiss</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ ...dCard, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--a-ink3)', fontSize: 13 }}>
-              Coach card dismissed
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 20 }}>What you buy most</span>
-            <div style={{ marginTop: 8 }}>
-              <TopItem rank={1} name="Milk (gallon)"  qty="84 ct"     trend="steady" />
-              <TopItem rank={2} name="Bread"          qty="62 loaves" trend="up" />
-              <TopItem rank={3} name="Eggs (dozen)"   qty="48 ct"     trend="steady" />
-              <TopItem rank={4} name="Chicken breast" qty="44 lb"     trend="up" />
-              <TopItem rank={5} name="Paper towels"   qty="38 pk"     trend="down" last />
-            </div>
-          </div>
-          <div style={dCard}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span className="serif" style={{ fontSize: 20 }}>Cross-house swaps</span>
-              <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>save a shop run</span>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '12px 0' }} />
-              <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar overbought last week" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '12px 0' }} />
-              <SwapRow from={HOUSES[0]} to={HOUSES[3]} item="Coffee · 1 bag" note="Oak overbought · Cedar low" />
-            </div>
+      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--a-ink3)', maxWidth: 320 }}>
+          <div style={{ fontSize: 32, marginBottom: 14 }}>📦</div>
+          <div className="serif" style={{ fontSize: 22, color: 'var(--a-ink)', marginBottom: 8 }}>No supply data yet</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+            Add supplies through the mobile app to see spending insights and cross-house swap suggestions here.
           </div>
         </div>
       </div>
@@ -566,7 +508,7 @@ export function PageResourcesDesktop() {
 
 // ── Staff ─────────────────────────────────────────────────────────────
 
-export function PageStaffDesktop({ user, houses = HOUSES }) {
+export function PageStaffDesktop({ user, houses = [] }) {
   const [query, setQuery] = useState('')
   const [houseFilter, setHouseFilter] = useState('All')
   const [staffList, setStaffList] = useState([])

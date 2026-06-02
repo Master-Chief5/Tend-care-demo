@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
 import { fetchStaff, fetchResidents, fetchTrips } from '../lib/db'
 import { IconChev, IconDots, IconChat, IconPlus } from '../components/icons'
 import { TabBar } from '../components/ui/TabBar'
@@ -31,8 +30,14 @@ function NeedRow({ kind, text, color }) {
   )
 }
 
-export function ScreenA_HouseDetail({ houseId = 'oak', user, onBack, houses = HOUSES }) {
-  const house = houses.find(h => h.id === houseId) || houses[0] || HOUSES[0]
+export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] }) {
+  const house = houses.find(h => h.id === houseId) || houses[0] || null
+  if (!house) return (
+    <div className="phone-screen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, padding: 32, textAlign: 'center' }}>
+      <div style={{ fontSize: 13, color: 'var(--a-ink3)' }}>House not found.</div>
+      <button onClick={onBack} style={{ background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 999, padding: '8px 20px', fontSize: 13, fontFamily: 'Geist', cursor: 'pointer', color: 'var(--a-ink2)' }}>← Back</button>
+    </div>
+  )
   const c = house.color
   const [toast, showToast] = useToast()
 

@@ -96,7 +96,7 @@ function DskShiftBlock({ shift, houseColor }) {
   )
 }
 
-function DesktopTimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
+function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * DSK_HOUR_PX
@@ -187,7 +187,7 @@ function ScheduleRow({ house, weekShifts, weekDates }) {
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = HOUSES, isManager = false }) {
+function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = [], isManager = false }) {
   const week = buildWeek(new Date())
   const nowFrac = useNowMinute()
   const visibleHouses = houseFilter === 'all' ? houses : houses.filter(h => h.id === houseFilter)
@@ -248,7 +248,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
   )
 }
 
-function WeekScheduleView({ houses = HOUSES, shifts = [] }) {
+function WeekScheduleView({ houses = [], shifts = [] }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
@@ -380,7 +380,7 @@ function AddShiftModal({ user, houses, defaultHouseUuid, isManager, onClose, onA
   )
 }
 
-export function PageScheduleDesktopExpanded({ user, houses: housesProp = HOUSES }) {
+export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const isManager = user?.role === 'manager'
   const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
 

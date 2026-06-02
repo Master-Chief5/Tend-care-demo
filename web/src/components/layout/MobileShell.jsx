@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ROLES, HOUSES } from '../../data/constants'
+import { ROLES } from '../../data/constants'
 import { isDemoMode } from '../../lib/supabase'
 import { fetchHouses } from '../../lib/db'
 import { ScreenA_Houses } from '../../screens/Houses'
@@ -11,7 +11,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
-import { IconHome, IconCal, IconCart, IconCar, IconPeople, IconCheck, IconPlus } from '../icons'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck } from '../icons'
 
 function normalizeHouse(h) {
   return {
@@ -32,22 +32,23 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     switch (tab) {
       case 'home':  return <ScreenA_MyDay user={user} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
+      case 'team':  return <ScreenA_Chat user={user} />
       case 'drive': return <ScreenA_Driving user={user} />
-      case 'resources': return <ScreenA_Resources user={user} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
     }
   }
   switch (tab) {
-    case 'home':      return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
-    case 'setup':     return <ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} />
-    case 'sched':     return <ScreenA_ScheduleDay user={user} houses={houses} />
-    case 'drive':     return <ScreenA_Driving user={user} />
-    case 'resources': return <ScreenA_Resources user={user} />
-    case 'me':        return role === 'supervisor'
-      ? <ScreenA_Staff user={user} onLogout={onLogout} />
+    case 'home':   return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
+    case 'setup':  return <ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} />
+    case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
+    case 'team':   return <ScreenA_Chat user={user} />
+    case 'drive':  return <ScreenA_Driving user={user} />
+    case 'supply': return <ScreenA_Resources user={user} />
+    case 'me':     return role === 'supervisor'
+      ? <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
       : <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
   }
-  return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('resources')} />
+  return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
 }
 
 function RoleSwitcher({ role, setRole, open, setOpen }) {
@@ -99,7 +100,7 @@ export function MobileShell({ user, onLogout }) {
   const [tab, setTab] = useState('home')
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false)
   const [houseDetail, setHouseDetail] = useState(null)
-  const [houses, setHouses] = useState(isDemoMode ? HOUSES : [])
+  const [houses, setHouses] = useState([])
 
   useEffect(() => {
     if (!user?.orgId) return
@@ -116,18 +117,17 @@ export function MobileShell({ user, onLogout }) {
   const isStaff = role === 'staff'
 
   const tabs = isStaff ? [
-    { id: 'home',      label: 'My Day',    icon: IconHome },
-    { id: 'sched',     label: 'Schedule',  icon: IconCal },
-    { id: 'drive',     label: 'Driving',   icon: IconCar },
-    { id: 'resources', label: 'Supplies',  icon: IconCart },
-    { id: 'me',        label: 'Me',        icon: IconPeople },
+    { id: 'home',  label: 'My Day',   icon: IconHome },
+    { id: 'sched', label: 'Schedule', icon: IconCal },
+    { id: 'team',  label: 'Team',     icon: IconChat },
+    { id: 'drive', label: 'Driving',  icon: IconCar },
+    { id: 'me',    label: 'Me',       icon: IconPeople },
   ] : [
-    { id: 'home',      label: 'Houses',    icon: IconHome },
-    ...(role === 'supervisor' ? [{ id: 'setup', label: 'Add house', icon: IconPlus }] : []),
-    { id: 'sched',     label: 'Schedule',  icon: IconCal },
-    { id: 'drive',     label: 'Driving',   icon: IconCar },
-    { id: 'resources', label: 'Supplies',  icon: IconCart },
-    { id: 'me',        label: 'Me',        icon: IconPeople },
+    { id: 'home',  label: 'Houses',   icon: IconHome },
+    { id: 'sched', label: 'Schedule', icon: IconCal },
+    { id: 'team',  label: 'Team',     icon: IconChat },
+    { id: 'drive', label: 'Driving',  icon: IconCar },
+    { id: 'me',    label: 'Me',       icon: IconPeople },
   ]
 
   const screen = houseDetail
