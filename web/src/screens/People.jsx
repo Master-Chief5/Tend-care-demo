@@ -131,7 +131,7 @@ function AddStaffModal({ user, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 8 }}>Add staff</div>
         <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginBottom: 14, lineHeight: 1.5 }}>
-          Creates a staff profile. The person must sign up separately at this app's URL to get login access.
+          Enter their email. When they sign up at this app's URL using that email, they'll be automatically linked to this house and org.
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input autoFocus placeholder="Full name" value={name} onChange={e => setName(e.target.value)}

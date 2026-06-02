@@ -442,6 +442,25 @@ export async function addResident(orgId, houseId, resident) {
   return data
 }
 
+// Search organizations by name or slug — callable before the user is authenticated
+// (uses the search_organizations SECURITY DEFINER function which grants anon access).
+export async function searchOrganizations(query) {
+  if (!supabase || !query.trim()) return []
+  const { data, error } = await supabase.rpc('search_organizations', { query: query.trim() })
+  if (error) { console.error('searchOrganizations:', error.message); return [] }
+  return data || []
+}
+
+// Create or link a staff profile after sign-up.
+// If a supervisor pre-created a row with this email, it links auth_user_id instead of inserting.
+export async function registerAsStaff(orgId, name) {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('register_as_staff', { p_org_id: orgId, p_name: name })
+  if (error) { console.error('registerAsStaff:', error.message); return null }
+  return data
+}
+
+
 function toDateStr(date) {
   if (typeof date === 'string') return date
   return date.toISOString().split('T')[0]
