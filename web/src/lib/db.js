@@ -438,12 +438,35 @@ export async function fetchHouses(orgId) {
 }
 
 // Insert a house. Returns { data, error } so the UI can surface the real reason
-// a save failed (missing org link, RLS rejection, missing migration, etc.)
-// instead of silently doing nothing.
+// a save failed. Uses the create_house SECURITY DEFINER RPC, which derives the
+// caller's org server-side and bypasses RLS — so it works even if the per-table
+// INSERT policy wasn't created. Falls back to a direct insert if the RPC is
+// missing (older databases that haven't run migration_writes.sql).
 export async function addHouse(orgId, house) {
   if (isDemoMode) return { data: demo.demoAddHouse(house), error: null }
   if (!supabase) return { data: null, error: 'Not connected to database' }
-  if (!orgId)    return { data: null, error: 'Your account is not linked to an organization yet' }
+
+  const { data, error } = await supabase.rpc('create_house', {
+    p_name:         house.name,
+    p_slug:         house.slug || '',
+    p_short:        house.short || '',
+    p_address:      house.address || '',
+    p_branch:       house.branch || '',
+    p_color:        house.color || '',
+    p_manager_name: house.managerName || '',
+  })
+
+  // RPC not deployed yet → fall back to a direct insert so nothing regresses.
+  if (error && /function .*create_house.* does not exist/i.test(error.message)) {
+    return addHouseDirect(orgId, house)
+  }
+  if (error) { console.error('addHouse:', error.message); return { data: null, error: error.message } }
+  return { data, error: null }
+}
+
+// Direct-insert fallback (subject to RLS). Used only when create_house RPC isn't present.
+async function addHouseDirect(orgId, house) {
+  if (!orgId) return { data: null, error: 'Your account is not linked to an organization yet' }
   const { data, error } = await supabase
     .from('houses')
     .insert({
@@ -459,7 +482,7 @@ export async function addHouse(orgId, house) {
     })
     .select()
     .single()
-  if (error) { console.error('addHouse:', error.message); return { data: null, error: error.message } }
+  if (error) { console.error('addHouseDirect:', error.message); return { data: null, error: error.message } }
   return { data, error: null }
 }
 
