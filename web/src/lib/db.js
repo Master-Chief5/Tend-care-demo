@@ -218,7 +218,7 @@ export async function fetchStaff(orgId, houseId) {
     houseId:   s.house_id ?? null,
     houseName: s.houses?.name ?? null,
     houseColor: s.houses?.color ?? null,
-    score:     s.quality_score ?? 85,
+    linked:    !!s.auth_user_id,   // true once they've signed in with this email
     sub:       s.tenure ?? '',
     highlight: s.highlight ?? null,
     tenure:    s.tenure ?? '',

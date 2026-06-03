@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { HOUSES, CHAT_DATA } from '../../data/constants'
-import { fetchStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts } from '../../lib/db'
+import { fetchStaff, removeStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts } from '../../lib/db'
+import { StaffFormModal, StaffStatus } from '../../components/StaffFormModal'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
 import { Toast } from '../../components/ui/Toast'
 import { Pill } from '../../components/ui/Pill'
-import { StaffCard, RingChart } from '../People'
+import { StaffCard } from '../People'
 import { SwapRow, HouseBar, TopItem } from '../Resources'
 import { VehicleRow } from '../Driving'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
@@ -618,17 +619,27 @@ export function PageStaffDesktop({ user, houses = [] }) {
   const [staffList, setStaffList] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedStaff, setSelectedStaff] = useState(null)
+  const [modal, setModal] = useState(null)   // null | { mode:'add' } | { mode:'edit', staff }
   const [toast, showToast] = useToast()
 
-  useEffect(() => {
-    if (!user?.orgId) return
+  const reload = () => {
+    if (!user?.orgId) return Promise.resolve([])
     const houseId = user.role === 'manager' ? user.houseId : null
-    setLoading(true)
-    fetchStaff(user.orgId, houseId).then(data => {
-      setStaffList(data)
-      setLoading(false)
-    })
-  }, [user?.orgId, user?.houseId, user?.role])
+    return fetchStaff(user.orgId, houseId).then(data => { setStaffList(data); setLoading(false); return data })
+  }
+  useEffect(() => { setLoading(true); reload() }, [user?.orgId, user?.houseId, user?.role])
+
+  const onSaved = async (_row, mode) => {
+    setModal(null)
+    const data = await reload()
+    if (mode === 'edit' && selectedStaff) setSelectedStaff(data.find(s => s.id === selectedStaff.id) || null)
+    showToast(mode === 'edit' ? 'Staff updated' : 'Staff added')
+  }
+  const onRemove = async (staff) => {
+    if (!staff.id) return
+    await removeStaff(staff.id); setSelectedStaff(null); reload(); showToast('Staff removed')
+  }
+  const pendingCount = staffList.filter(s => !s.linked).length
 
   const houseFilterTabs = ['All', ...houses.map(h => h.name)]
 
@@ -642,7 +653,7 @@ export function PageStaffDesktop({ user, houses = [] }) {
     <>
       <Toast msg={toast} />
       <DTopBar title="Staff" sub={`${staffList.length} staff member${staffList.length === 1 ? '' : 's'}`}
-        actions={<button onClick={() => showToast('Opening hiring flow…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Hire</button>}
+        actions={<button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add staff</button>}
         search={false} />
       <CenteredColumn width={820} side>
         <div>
@@ -687,45 +698,44 @@ export function PageStaffDesktop({ user, houses = [] }) {
               <div style={{ textAlign: 'center', marginBottom: 14 }}>
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: selectedStaff.houseColor ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedStaff.role}</div>
-                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{selectedStaff.houseName ?? 'All houses'} · {selectedStaff.tenure}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 8 }}>{selectedStaff.houseName ?? 'No house assigned'}</div>
+                <StaffStatus linked={selectedStaff.linked} />
               </div>
-              <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
-                <div style={{ width: `${selectedStaff.score}%`, height: '100%', background: selectedStaff.score >= 90 ? '#3f7050' : selectedStaff.score >= 80 ? '#a47012' : '#a93a25', borderRadius: 999 }} />
+              {selectedStaff.email && <div style={{ fontSize: 12, color: 'var(--a-ink3)', textAlign: 'center', marginBottom: 4 }}>{selectedStaff.email}</div>}
+              {!selectedStaff.linked && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', lineHeight: 1.5, marginBottom: 12 }}>Invited — becomes active once they sign in with this email.</div>}
+              {selectedStaff.notes && <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5, marginBottom: 12 }}>{selectedStaff.notes}</div>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <button onClick={() => setModal({ mode: 'edit', staff: selectedStaff })} style={{ ...dBtnGhost, flex: 1, justifyContent: 'center' }}>Edit</button>
+                <button onClick={() => onRemove(selectedStaff)} style={{ ...dBtnGhost, flex: 1, justifyContent: 'center', color: '#a93a25', borderColor: '#e3b6ad' }}>Remove</button>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 12 }}>Quality score: <strong style={{ color: selectedStaff.score >= 90 ? '#3f7050' : '#a47012' }}>{selectedStaff.score}</strong></div>
-              <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5 }}>{selectedStaff.notes}</div>
             </div>
           ) : (
             <div style={dCard}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span className="serif" style={{ fontSize: 18 }}>Quality of care</span>
-                <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>↑ 4 pts</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-                <RingChart pct={0.92} color="var(--a-sage)" size={60} />
-                <div>
-                  <div className="serif tnum" style={{ fontSize: 36, fontWeight: 500, lineHeight: 1, letterSpacing: '-0.02em' }}>92</div>
-                  <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 2 }}>out of 100 · May</div>
+              <span className="serif" style={{ fontSize: 18 }}>Team overview</span>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <div style={{ flex: 1, textAlign: 'center', background: 'var(--a-paper)', borderRadius: 10, padding: '12px 4px' }}>
+                  <div className="serif tnum" style={{ fontSize: 26, fontWeight: 500 }}>{staffList.length}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Total</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', background: 'var(--a-paper)', borderRadius: 10, padding: '12px 4px' }}>
+                  <div className="serif tnum" style={{ fontSize: 26, fontWeight: 500, color: '#3f7050' }}>{staffList.length - pendingCount}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Active</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', background: 'var(--a-paper)', borderRadius: 10, padding: '12px 4px' }}>
+                  <div className="serif tnum" style={{ fontSize: 26, fontWeight: 500, color: '#a47012' }}>{pendingCount}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pending</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-                <Pill color="var(--a-sage)">MAR · 100%</Pill>
-                <Pill color="var(--a-sage)">Notes · 96%</Pill>
-                <Pill color="var(--a-clay)">Late · 8%</Pill>
-                <Pill color="var(--a-sage)">Family ★ 4.7</Pill>
+              <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 14, lineHeight: 1.5 }}>
+                Click a staff card to view, edit, or remove them. <strong>Pending</strong> means they’ve been invited but haven’t signed in yet.
               </div>
-              <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 12 }}>Click a staff card to view their profile.</div>
             </div>
           )}
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 18 }}>Decisions for you</span>
-            <div style={{ marginTop: 8 }}>
-              <DDecision tag="Promote" tone="good" who="Aisha Mendez" why="Lead-ready" cta="Open" onCta={() => showToast('Opening review…')} />
-              <DDecision tag="Coach" tone="warn" who="Marcus Lewis" why="4 lates in 2 wks" cta="Open" last onCta={() => showToast('Opening scorecard…')} />
-            </div>
-          </div>
         </div>
       </CenteredColumn>
+      {modal && (
+        <StaffFormModal user={user} centered editStaff={modal.mode === 'edit' ? modal.staff : null} onClose={() => setModal(null)} onSaved={onSaved} />
+      )}
     </>
   )
 }

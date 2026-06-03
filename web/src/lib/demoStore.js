@@ -151,7 +151,7 @@ export function demoFetchStaff(houseId) {
       houseId: s.house_id ?? null,
       houseName: houseJoin(s.house_id)?.name ?? null,
       houseColor: houseJoin(s.house_id)?.color ?? null,
-      score: s.quality_score ?? 85, sub: s.tenure ?? '',
+      linked: !!s.auth_user_id, sub: s.tenure ?? '',
       highlight: s.highlight ?? null, tenure: s.tenure ?? '', notes: s.notes ?? '',
     }))
 }

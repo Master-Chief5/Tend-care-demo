@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { HouseItems } from '../components/HouseItems'
-import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
 import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus } from '../components/icons'
@@ -221,9 +220,6 @@ export function ScreenA_Me({ user, onLogout, onNavigate }) {
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--a-sage)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 24, margin: '0 auto 12px' }}>{initial}</div>
             <div className="serif" style={{ fontSize: 22 }}>{name}</div>
             <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>{sub}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-              {user?.score && <Pill color="var(--a-sage)">Score: {user.score}</Pill>}
-            </div>
           </div>
 
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '4px 0', marginBottom: 14 }}>
