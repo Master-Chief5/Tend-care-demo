@@ -91,7 +91,7 @@ function HouseCard({ house, onEdit, onDelete }) {
   )
 }
 
-export function ScreenA_HouseSetup({ user, onHousesChanged }) {
+export function ScreenA_HouseSetup({ user, onHousesChanged, onHouseAdded }) {
   const [houses, setHouses] = useState([])
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -123,6 +123,7 @@ export function ScreenA_HouseSetup({ user, onHousesChanged }) {
     }])
     setShowAdd(false)
     showToast('House created')
+    onHouseAdded?.(h)
     onHousesChanged?.()
   }
 

@@ -413,18 +413,14 @@ export async function deleteVehicle(id) {
 }
 
 // Fetch all houses in an org.
+// Tries the get_my_houses SECURITY DEFINER RPC first (bypasses RLS, works even
+// when the SELECT policy is missing). Falls back to a direct query for orgs that
+// haven't run migration_writes.sql yet.
 export async function fetchHouses(orgId) {
   if (isDemoMode) return demo.demoFetchHouses()
   if (!supabase || !orgId) return []
 
-  const { data, error } = await supabase
-    .from('houses')
-    .select('*')
-    .eq('org_id', orgId)
-    .order('name')
-
-  if (error) { console.error('fetchHouses:', error.message); return [] }
-  return (data || []).map(h => ({
+  const normalizeRows = (rows) => (rows || []).map(h => ({
     id:             h.id,
     slug:           h.slug,
     name:           h.name,
@@ -435,6 +431,22 @@ export async function fetchHouses(orgId) {
     managerName:    h.manager_name ?? '',
     residentsCount: h.residents_count ?? 0,
   }))
+
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_my_houses')
+  if (!rpcErr) return normalizeRows(rpcData)
+
+  if (!/function.*get_my_houses.*does not exist/i.test(rpcErr.message)) {
+    console.error('fetchHouses (rpc):', rpcErr.message)
+  }
+
+  const { data, error } = await supabase
+    .from('houses')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('name')
+
+  if (error) { console.error('fetchHouses:', error.message); return [] }
+  return normalizeRows(data)
 }
 
 // Insert a house. Returns { data, error } so the UI can surface the real reason

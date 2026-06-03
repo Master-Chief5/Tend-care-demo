@@ -11,6 +11,13 @@
 -- RLS. They are the same pattern already used by create_org_and_supervisor and
 -- register_as_staff. Safe to re-run (CREATE OR REPLACE).
 
+-- Fetch all houses for the caller's organization (bypasses RLS SELECT policy).
+CREATE OR REPLACE FUNCTION get_my_houses()
+RETURNS SETOF houses LANGUAGE sql SECURITY DEFINER STABLE AS $$
+  SELECT * FROM houses WHERE org_id = auth_org_id() ORDER BY name;
+$$;
+GRANT EXECUTE ON FUNCTION get_my_houses() TO authenticated;
+
 -- Create a house for the caller's organization.
 CREATE OR REPLACE FUNCTION create_house(
   p_name         text,

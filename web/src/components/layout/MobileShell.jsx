@@ -27,7 +27,7 @@ function normalizeHouse(h) {
   }
 }
 
-function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses) {
+function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses, addHouseToState) {
   if (role === 'staff') {
     switch (tab) {
       case 'home':  return <ScreenA_MyDay user={user} />
@@ -39,7 +39,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
   }
   switch (tab) {
     case 'home':   return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
-    case 'setup':  return <ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} />
+    case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
     case 'team':   return <ScreenA_Chat user={user} />
     case 'drive':  return <ScreenA_Driving user={user} />
@@ -109,7 +109,18 @@ export function MobileShell({ user, onLogout }) {
 
   const refreshHouses = () => {
     if (!user?.orgId) return
-    fetchHouses(user.orgId).then(rows => setHouses(rows.map(normalizeHouse)))
+    fetchHouses(user.orgId).then(rows => {
+      if (rows.length > 0) setHouses(rows.map(normalizeHouse))
+    })
+  }
+
+  const addHouseToState = (rawHouse) => {
+    setHouses(prev => {
+      const n = normalizeHouse(rawHouse)
+      if (prev.some(h => h._uuid === n._uuid || h.id === n.id)) return prev
+      return [...prev, n]
+    })
+    refreshHouses()
   }
 
   const switchTab = (t) => { setTab(t); setHouseDetail(null) }
@@ -132,7 +143,7 @@ export function MobileShell({ user, onLogout }) {
 
   const screen = houseDetail
     ? <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} houses={houses} />
-    : pickScreen(role, tab, user, setHouseDetail, switchTab, onLogout, houses, refreshHouses)
+    : pickScreen(role, tab, user, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState)
 
   return (
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
