@@ -111,6 +111,28 @@ export async function addShift(orgId, houseId, shift) {
   return data
 }
 
+export async function updateShift(id, updates) {
+  if (isDemoMode) return demo.demoUpdateShift(id, updates)
+  if (!supabase) return null
+  const patch = {}
+  if (updates.personName !== undefined) patch.person_name = updates.personName
+  if (updates.role !== undefined)       patch.role = updates.role
+  if (updates.startHour !== undefined)  patch.start_hour = updates.startHour
+  if (updates.endHour !== undefined)    patch.end_hour = updates.endHour
+  if (updates.date !== undefined)       patch.shift_date = updates.date
+  if (updates.status !== undefined)     patch.status = updates.status
+  const { data, error } = await supabase.from('shifts').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateShift:', error.message); return null }
+  return data
+}
+
+export async function deleteShift(id) {
+  if (isDemoMode) return demo.demoDeleteShift(id)
+  if (!supabase) return
+  const { error } = await supabase.from('shifts').delete().eq('id', id)
+  if (error) console.error('deleteShift:', error.message)
+}
+
 // Fetch staff list for an org.
 // Pass houseId to limit to one house; null for all staff in org.
 export async function fetchStaff(orgId, houseId) {

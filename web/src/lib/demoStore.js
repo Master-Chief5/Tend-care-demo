@@ -123,6 +123,23 @@ export function demoAddShift(houseId, shift) {
   return row
 }
 
+export function demoUpdateShift(id, updates) {
+  const s = store.shifts.find(x => x.id === id)
+  if (!s) return null
+  if (updates.personName !== undefined) s.person_name = updates.personName
+  if (updates.role !== undefined)       s.role = updates.role
+  if (updates.startHour !== undefined)  s.start_hour = updates.startHour
+  if (updates.endHour !== undefined)    s.end_hour = updates.endHour
+  if (updates.date !== undefined)       s.shift_date = updates.date
+  if (updates.status !== undefined)     s.status = updates.status
+  persist()
+  return s
+}
+
+export function demoDeleteShift(id) {
+  store.shifts = store.shifts.filter(s => s.id !== id); persist()
+}
+
 // ── Staff ───────────────────────────────────────────────────────────────────
 export function demoFetchStaff(houseId) {
   return store.staff

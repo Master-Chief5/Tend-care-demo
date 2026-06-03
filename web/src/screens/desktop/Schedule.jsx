@@ -1,13 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { HOUSES } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
 import { useNowMinute } from '../../hooks/useNowMinute'
-import { fetchShifts, fetchShiftsWeek, addShift, fetchStaff } from '../../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 
-const DAY_START = 6
+const DAY_START = 0
 const DAY_END = 24
+
+// "7:00 AM" style label from a decimal hour — used so AM/PM is always explicit.
+function hourLabel(h) {
+  const total = Math.round(h * 60)
+  let hh = Math.floor(total / 60) % 24
+  const mm = total % 60
+  const ap = hh < 12 ? 'AM' : 'PM'
+  const h12 = hh % 12 || 12
+  return `${h12}:${String(mm).padStart(2, '0')} ${ap}`
+}
 const DSK_HOUR_PX = 56
 
 function fmtHourLong(h) {
@@ -57,7 +67,7 @@ function DskHouseTab({ active, onClick, color, short, label, sub }) {
   )
 }
 
-function DskShiftBlock({ shift, houseColor }) {
+function DskShiftBlock({ shift, houseColor, onClick }) {
   const { start, end, person, role, status } = shift
   const top = (start - DAY_START) * DSK_HOUR_PX
   const height = (end - start) * DSK_HOUR_PX
@@ -68,7 +78,7 @@ function DskShiftBlock({ shift, houseColor }) {
   const bg = open ? 'transparent' : houseColor
   const border = open ? `1.5px dashed ${houseColor}` : late ? `1.5px solid #a93a25` : 'none'
   return (
-    <div style={{
+    <div onClick={onClick} title="Click to edit" style={{
       position: 'absolute', top: top + 3, left: 6, right: 6, height: height - 6,
       background: bg, border, borderRadius: 8,
       padding: '8px 12px', color: open ? houseColor : '#fff',
@@ -96,7 +106,7 @@ function DskShiftBlock({ shift, houseColor }) {
   )
 }
 
-function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
+function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8, onShiftClick }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * DSK_HOUR_PX
@@ -118,7 +128,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
         <div style={{ background: 'var(--a-paper)', borderRight: '1px solid var(--a-line)' }}>
           {hours.map((h, i) => (
             <div key={i} style={{ height: DSK_HOUR_PX, position: 'relative', borderBottom: i === hours.length - 1 ? '' : '1px solid var(--a-line)' }}>
-              <div style={{ position: 'absolute', top: -8, right: 10, fontSize: 11, fontWeight: 600, color: 'var(--a-ink2)', background: 'var(--a-paper)', padding: '0 4px', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ position: 'absolute', top: i === 0 ? 4 : -8, right: 10, fontSize: 11, fontWeight: 600, color: 'var(--a-ink2)', background: 'var(--a-paper)', padding: '0 4px', fontVariantNumeric: 'tabular-nums' }}>
                 {fmtHourLong(h)}
               </div>
             </div>
@@ -137,7 +147,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
               <div key={`half${i}`} style={{ position: 'absolute', top: i * DSK_HOUR_PX + DSK_HOUR_PX / 2, left: 0, right: 0, borderTop: '1px dashed var(--a-line)', opacity: 0.5 }} />
             ))}
             {shifts.filter(s => s.house === h.id).map((s, si) => (
-              <DskShiftBlock key={si} shift={s} houseColor={h.color} />
+              <DskShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>
         ))}
@@ -154,7 +164,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
 
 const toDateStr = (d) => d.toISOString().split('T')[0]
 
-function ScheduleRow({ house, weekShifts, weekDates }) {
+function ScheduleRow({ house, weekShifts, weekDates, onShiftClick }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', borderBottom: '1px solid var(--a-line)', minHeight: 86 }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, borderRight: '1px solid var(--a-line)' }}>
@@ -174,7 +184,7 @@ function ScheduleRow({ house, weekShifts, weekDates }) {
             ) : dayShifts.map((s, j) => {
               const open = s.status === 'open'
               return (
-                <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
+                <div key={s.id ?? j} onClick={() => onShiftClick?.(s)} title="Click to edit" style={{ cursor: 'pointer', background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
                   <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{fmtTime(s.start)}–{fmtTime(s.end)}</div>
                   <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s.person}</div>
                 </div>
@@ -187,7 +197,7 @@ function ScheduleRow({ house, weekShifts, weekDates }) {
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = [], isManager = false }) {
+function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = [], isManager = false, onShiftClick }) {
   const week = buildWeek(new Date())
   const nowFrac = useNowMinute()
   const visibleHouses = houseFilter === 'all' ? houses : houses.filter(h => h.id === houseFilter)
@@ -243,12 +253,12 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
         <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>Scale: 1 hr</span>
       </div>
 
-      <DesktopTimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} />
+      <DesktopTimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} onShiftClick={onShiftClick} />
     </>
   )
 }
 
-function WeekScheduleView({ houses = [], shifts = [] }) {
+function WeekScheduleView({ houses = [], shifts = [], onShiftClick }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
@@ -272,74 +282,94 @@ function WeekScheduleView({ houses = [], shifts = [] }) {
             </div>
           ))}
         </div>
-        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} />)}
       </div>
     </>
   )
 }
 
-function AddShiftModal({ user, houses, defaultHouseUuid, isManager, onClose, onAdded }) {
-  const initialHouse = isManager
-    ? (user?.houseId || houses[0]?._uuid || '')
-    : (defaultHouseUuid || houses[0]?._uuid || '')
+function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, editShift, onClose, onSaved, onDeleted }) {
+  const hourToTime = (h) => {
+    const total = Math.round((Number(h) || 0) * 60)
+    const hh = Math.floor(total / 60) % 24, mm = total % 60
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+  const initialHouse = editShift
+    ? (houses.find(h => h.id === editShift.house)?._uuid || houses[0]?._uuid || '')
+    : isManager
+      ? (user?.houseId || houses[0]?._uuid || '')
+      : (defaultHouseUuid || houses[0]?._uuid || '')
+
   const [houseUuid, setHouseUuid] = useState(initialHouse)
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(false)
-  const [personName, setPersonName] = useState('')
-  const [role, setRole] = useState('DSP')
-  const [startTime, setStartTime] = useState('07:00')
-  const [endTime, setEndTime] = useState('15:00')
+  const [personName, setPersonName] = useState(editShift?.person || '')
+  const [role, setRole] = useState(editShift?.role || 'DSP')
+  const [date, setDate] = useState(editShift?.date || defaultDate || toDateStr(new Date()))
+  const [startTime, setStartTime] = useState(editShift ? hourToTime(editShift.start) : '07:00')
+  const [endTime, setEndTime] = useState(editShift ? hourToTime(editShift.end) : '15:00')
   const [saving, setSaving] = useState(false)
 
-  // Refetch the staff list whenever the selected house changes — the user may
-  // only pick a real current employee of that house.
   useEffect(() => {
     let cancelled = false
     if (!user?.orgId || !houseUuid) { setStaff([]); return }
     setStaffLoading(true)
     fetchStaff(user.orgId, houseUuid).then(data => {
       if (cancelled) return
-      setStaff(data)
-      setPersonName(prev => (data.some(s => s.name === prev) ? prev : (data[0]?.name ?? '')))
-      setStaffLoading(false)
+      setStaff(data); setStaffLoading(false)
     })
     return () => { cancelled = true }
   }, [user?.orgId, houseUuid])
 
   const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
+  const sH = timeToHour(startTime), eH = timeToHour(endTime)
+  const dur = Math.round((eH - sH) * 10) / 10
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!personName || !houseUuid || !user?.orgId || saving) return
+    if (!personName.trim() || !houseUuid || !user?.orgId || saving) return
     setSaving(true)
-    const shift = await addShift(user.orgId, houseUuid, {
-      personName,
-      role,
-      startHour: timeToHour(startTime),
-      endHour: timeToHour(endTime),
-    })
+    if (editShift) {
+      await updateShift(editShift.id, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+    } else {
+      await addShift(user.orgId, houseUuid, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+    }
     setSaving(false)
-    if (shift) onAdded(shift, houseUuid)
+    onSaved()
+  }
+
+  const remove = async () => {
+    if (!editShift || saving) return
+    setSaving(true)
+    await deleteShift(editShift.id)
+    setSaving(false)
+    onDeleted()
   }
 
   const fieldStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const labelStyle = { fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }
-  const canSubmit = !!personName && !!houseUuid && !saving
+  const canSubmit = !!personName.trim() && !!houseUuid && !saving
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: 420, maxWidth: 'calc(100vw - 40px)', background: 'var(--a-bg)', border: '1px solid var(--a-line)', borderRadius: 16, padding: '22px 24px 26px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Add shift</div>
+          <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{editShift ? 'Edit shift' : 'Add shift'}</div>
           <button onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, fontFamily: 'Geist' }}>×</button>
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <div style={labelStyle}>House</div>
-            <select value={houseUuid} onChange={e => setHouseUuid(e.target.value)} disabled={isManager} style={{ ...fieldStyle, opacity: isManager ? 0.7 : 1 }}>
-              {houses.map(h => <option key={h._uuid} value={h._uuid}>{h.name}</option>)}
-            </select>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div style={labelStyle}>House</div>
+              <select value={houseUuid} onChange={e => setHouseUuid(e.target.value)} disabled={isManager || !!editShift} style={{ ...fieldStyle, opacity: (isManager || editShift) ? 0.7 : 1 }}>
+                {houses.map(h => <option key={h._uuid} value={h._uuid}>{h.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={labelStyle}>Day</div>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={fieldStyle} />
+            </div>
           </div>
           <div>
             <div style={labelStyle}>Staff member</div>
@@ -366,11 +396,21 @@ function AddShiftModal({ user, houses, defaultHouseUuid, isManager, onClose, onA
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={fieldStyle} />
             </div>
           </div>
+          {/* Always-clear AM/PM read-back so there's no 24h-vs-12h confusion */}
+          <div style={{ fontSize: 12.5, color: dur > 0 ? 'var(--a-ink2)' : 'var(--a-clay)', background: 'var(--a-paper)', borderRadius: 8, padding: '8px 12px' }}>
+            {dur > 0
+              ? <><strong>{hourLabel(sH)}</strong> → <strong>{hourLabel(eH)}</strong> · {dur}h{eH > 24 ? ' (overnight)' : ''}</>
+              : 'End time must be after start time'}
+          </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            {editShift && (
+              <button type="button" onClick={remove} disabled={saving}
+                style={{ ...dBtnGhost, padding: '11px 14px', color: '#a93a25', borderColor: '#e3b6ad' }}>Delete</button>
+            )}
             <button type="button" onClick={onClose} style={{ ...dBtnGhost, flex: 1, justifyContent: 'center', padding: '11px' }}>Cancel</button>
-            <button type="submit" disabled={!canSubmit}
-              style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: canSubmit ? 'pointer' : 'default', opacity: canSubmit ? 1 : 0.5 }}>
-              {saving ? 'Saving…' : 'Add shift'}
+            <button type="submit" disabled={!canSubmit || dur <= 0}
+              style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (canSubmit && dur > 0) ? 'pointer' : 'default', opacity: (canSubmit && dur > 0) ? 1 : 0.5 }}>
+              {saving ? 'Saving…' : editShift ? 'Save changes' : 'Add shift'}
             </button>
           </div>
         </form>
@@ -384,48 +424,29 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
 
   const [view, setView] = useState('day')
+  const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => {
-    const w = buildWeek(new Date())
-    const i = w.findIndex(d => d.today)
+    const i = week.findIndex(d => d.today)
     return i >= 0 ? i : 0
   })
   const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
-  const [shifts, setShifts] = useState([])
   const [weekShifts, setWeekShifts] = useState([])
-  const [showAdd, setShowAdd] = useState(false)
+  const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', shift }
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!user?.orgId) return
     const houseId = isManager ? (user.houseId || null) : null
-    fetchShifts(user.orgId, houseId, new Date()).then(data => {
-      if (data.length > 0) setShifts(data)
-    })
-    const week = buildWeek(new Date())
-    fetchShiftsWeek(user.orgId, houseId, week[0].date, week[6].date).then(data => {
-      setWeekShifts(data)
-    })
+    const w = buildWeek(new Date())
+    fetchShiftsWeek(user.orgId, houseId, w[0].date, w[6].date).then(setWeekShifts)
   }, [user?.orgId, user?.houseId, isManager])
 
-  // The grid renders shifts by `s.house === h.id`, where h.id is the house slug.
-  // addShift returns a raw DB row keyed by house UUID, so map it back to the slug.
-  const handleShiftAdded = (shift, houseUuid) => {
-    const slug = houses.find(h => h._uuid === houseUuid)?.id ?? houseUuid
-    const todayStr = toDateStr(new Date())
-    const rowDate = shift.shift_date || todayStr
-    const normalized = {
-      id: shift.id,
-      house: slug,
-      start: Number(shift.start_hour),
-      end: Number(shift.end_hour),
-      person: shift.person_name,
-      role: shift.role,
-      status: shift.status || 'scheduled',
-      date: rowDate,
-    }
-    if (rowDate === todayStr) setShifts(prev => [...prev, normalized])
-    setWeekShifts(prev => [...prev, normalized])
-    setShowAdd(false)
-  }
+  useEffect(() => { reload() }, [reload])
+
+  // Each day shows ONLY its own shifts (filtered from the week by date).
+  const selectedDate = toDateStr(week[dayIdx].date)
+  const dayShifts = weekShifts.filter(s => s.date === selectedDate)
+
+  const closeAndReload = () => { setModal(null); reload() }
 
   return (
     <>
@@ -437,24 +458,26 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         </span>}
         actions={<>
           <ViewToggleDesktop view={view} setView={setView} />
-          <button style={dBtnGhost}><IconFilter size={13} sw={1.8} /> Filter</button>
-          <button onClick={() => setShowAdd(true)} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
+          <button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
         </>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {view === 'day'
-          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} houses={houses} isManager={isManager} />
-          : <WeekScheduleView houses={houses} shifts={weekShifts} />}
+          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={dayShifts} houses={houses} isManager={isManager} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+          : <WeekScheduleView houses={houses} shifts={weekShifts} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />}
       </div>
 
-      {showAdd && (
-        <AddShiftModal
+      {modal && (
+        <ShiftModal
           user={user}
           houses={houses}
           isManager={isManager}
+          editShift={modal.mode === 'edit' ? modal.shift : null}
           defaultHouseUuid={houses.find(h => h.id === houseFilter)?._uuid}
-          onClose={() => setShowAdd(false)}
-          onAdded={handleShiftAdded}
+          defaultDate={selectedDate}
+          onClose={() => setModal(null)}
+          onSaved={closeAndReload}
+          onDeleted={closeAndReload}
         />
       )}
     </>

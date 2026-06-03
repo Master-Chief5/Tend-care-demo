@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime } from '../lib/utils'
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShifts, fetchShiftsWeek, addShift, fetchStaff, fetchHouses } from '../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses } from '../lib/db'
+
+// "7:00 AM" style label from a decimal hour — so AM/PM is always explicit.
+function hourLabel(h) {
+  const total = Math.round((Number(h) || 0) * 60)
+  const hh = Math.floor(total / 60) % 24, mm = total % 60
+  const ap = hh < 12 ? 'AM' : 'PM'
+  return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${ap}`
+}
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
 
@@ -75,7 +83,7 @@ function FilterChip({ active, onClick, label, sub, short, color }) {
   )
 }
 
-function ShiftBlock({ shift, houseColor, expanded }) {
+function ShiftBlock({ shift, houseColor, expanded, onClick }) {
   const { start, end, person, role, status } = shift
   const top = (start - DAY_START) * HOUR_PX
   const height = (end - start) * HOUR_PX
@@ -87,9 +95,9 @@ function ShiftBlock({ shift, houseColor, expanded }) {
   const border = open ? `1.5px dashed ${houseColor}` : late ? `1.5px solid #a93a25` : 'none'
   const txt = open ? houseColor : '#fff'
   return (
-    <div style={{
+    <div onClick={onClick} style={{
       position: 'absolute', top: top + 2, left: 2, right: 2, height: Math.max(height - 4, 20),
-      background: bg, border, borderRadius: 6,
+      background: bg, border, borderRadius: 6, cursor: 'pointer',
       padding: expanded ? '8px 12px' : '4px 6px', color: txt, overflow: 'hidden',
       display: 'flex', flexDirection: 'column', gap: 2, opacity: dim ? 0.78 : 1,
     }}>
@@ -106,7 +114,7 @@ function ShiftBlock({ shift, houseColor, expanded }) {
   )
 }
 
-function TimeGrid({ shifts, houses, nowFrac = 9.8 }) {
+function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * HOUR_PX
@@ -116,7 +124,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8 }) {
       <div style={{ width: 50, flexShrink: 0, position: 'relative', borderRight: '1px solid var(--a-line)', background: 'var(--a-paper)' }}>
         {hours.map((h, i) => (
           <div key={i} style={{ height: HOUR_PX, position: 'relative' }}>
-            <span style={{ position: 'absolute', top: -7, right: 6, fontSize: 10, color: 'var(--a-ink3)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ position: 'absolute', top: i === 0 ? 3 : -7, right: 6, fontSize: 10, color: 'var(--a-ink3)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
               {fmtHour(h)}
             </span>
           </div>
@@ -129,7 +137,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8 }) {
               <div key={i} style={{ height: HOUR_PX, borderBottom: i === hours.length - 1 ? '' : '1px solid var(--a-line)', background: i % 2 === 1 ? 'rgba(216, 204, 177, 0.07)' : 'transparent' }} />
             ))}
             {shifts.filter(s => s.house === h.id).map((s, si) => (
-              <ShiftBlock key={si} shift={s} houseColor={h.color} expanded={single} />
+              <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>
         ))}
@@ -207,16 +215,27 @@ function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = []
   )
 }
 
-function AddShiftModal({ user, houses, onClose, onAdded }) {
-  const [personName, setPersonName] = useState('')
-  const [role, setRole] = useState('DSP')
-  const [startTime, setStartTime] = useState('07:00')
-  const [endTime, setEndTime] = useState('15:00')
-  const [houseId, setHouseId] = useState(user?.houseId || (houses[0]?.id ?? ''))
+const toDateStr = (d) => d.toISOString().split('T')[0]
+
+function ShiftModal({ user, houses, defaultDate, editShift, onClose, onSaved, onDeleted }) {
+  const hourToTime = (h) => {
+    const total = Math.round((Number(h) || 0) * 60)
+    const hh = Math.floor(total / 60) % 24, mm = total % 60
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+  const initialHouse = editShift
+    ? (houses.find(h => h.slug === editShift.house)?.id || houses[0]?.id || '')
+    : (user?.houseId || houses[0]?.id || '')
+
+  const [personName, setPersonName] = useState(editShift?.person || '')
+  const [role, setRole] = useState(editShift?.role || 'DSP')
+  const [date, setDate] = useState(editShift?.date || defaultDate || toDateStr(new Date()))
+  const [startTime, setStartTime] = useState(editShift ? hourToTime(editShift.start) : '07:00')
+  const [endTime, setEndTime] = useState(editShift ? hourToTime(editShift.end) : '15:00')
+  const [houseId, setHouseId] = useState(initialHouse)
   const [staff, setStaff] = useState([])
   const [saving, setSaving] = useState(false)
 
-  // Strict staff list scoped to the selected house — only real current employees.
   useEffect(() => {
     if (!user?.orgId || !houseId) { setStaff([]); return }
     let active = true
@@ -224,32 +243,42 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
     return () => { active = false }
   }, [user?.orgId, houseId])
 
-  // Reset the chosen person when the house (and therefore the staff list) changes.
-  useEffect(() => { setPersonName('') }, [houseId])
-
   const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
+  const sH = timeToHour(startTime), eH = timeToHour(endTime)
+  const dur = Math.round((eH - sH) * 10) / 10
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!personName.trim() || !houseId || !user?.orgId) return
+    if (!personName.trim() || !houseId || !user?.orgId || saving || dur <= 0) return
     setSaving(true)
-    const shift = await addShift(user.orgId, houseId, {
-      personName: personName.trim(),
-      role,
-      startHour: timeToHour(startTime),
-      endHour: timeToHour(endTime),
-    })
+    if (editShift) {
+      await updateShift(editShift.id, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+    } else {
+      await addShift(user.orgId, houseId, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+    }
     setSaving(false)
-    if (shift) onAdded(shift, houseId)
+    onSaved()
+  }
+
+  const remove = async () => {
+    if (!editShift || saving) return
+    setSaving(true)
+    await deleteShift(editShift.id)
+    setSaving(false)
+    onDeleted()
   }
 
   const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
+  const canSave = personName.trim() && !saving && dur > 0
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add shift</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div className="serif" style={{ fontSize: 22 }}>{editShift ? 'Edit shift' : 'Add shift'}</div>
+          {editShift && <button type="button" onClick={remove} style={{ border: 0, background: 'transparent', color: '#a93a25', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>}
+        </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input list="mob-staff-options" autoFocus value={personName} onChange={e => setPersonName(e.target.value)}
             placeholder={staff.length ? 'Staff member name' : 'Type a name (or add staff first)'}
@@ -257,6 +286,10 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
           <datalist id="mob-staff-options">
             {staff.map(s => <option key={s.id} value={s.name} />)}
           </datalist>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Day</div>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Start time</div>
@@ -267,19 +300,22 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
             </div>
           </div>
+          <div style={{ fontSize: 12.5, color: dur > 0 ? 'var(--a-ink2)' : 'var(--a-clay)', background: 'var(--a-paper)', borderRadius: 8, padding: '8px 12px' }}>
+            {dur > 0 ? <><strong>{hourLabel(sH)}</strong> → <strong>{hourLabel(eH)}</strong> · {dur}h</> : 'End time must be after start time'}
+          </div>
           <select value={role} onChange={e => setRole(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
             {['DSP', 'Lead', 'Mgr', 'PT', 'Awake OT'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           {houses.length > 1 && (
-            <select value={houseId} onChange={e => setHouseId(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+            <select value={houseId} onChange={e => setHouseId(e.target.value)} disabled={!!editShift}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', opacity: editShift ? 0.7 : 1 }}>
               {houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
             </select>
           )}
-          <button type="submit" disabled={!personName.trim() || saving}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: personName.trim() ? 'pointer' : 'default', opacity: personName.trim() ? 1 : 0.5 }}>
-            {saving ? 'Saving…' : 'Add shift'}
+          <button type="submit" disabled={!canSave}
+            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : 0.5 }}>
+            {saving ? 'Saving…' : editShift ? 'Save changes' : 'Add shift'}
           </button>
         </form>
       </div>
@@ -287,15 +323,12 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
   )
 }
 
-const toDateStr = (d) => d.toISOString().split('T')[0]
-
 export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
-  const [shifts, setShifts] = useState([])
   const [weekShifts, setWeekShifts] = useState([])
   const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
-  const [showAddShift, setShowAddShift] = useState(false)
+  const [modal, setModal] = useState(null)         // null | { mode:'add' } | { mode:'edit', shift }
   const week = buildWeek(new Date())
   const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
   const nowFrac = useNowMinute()
@@ -310,37 +343,25 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
 
   const weekDates = week.map(d => toDateStr(d.date))
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (!user?.orgId) return
     const houseId = isSupervisor ? null : (user.houseId || null)
-    fetchShifts(user.orgId, houseId, new Date()).then(data => {
-      if (data.length > 0) setShifts(data)
-    })
-    fetchShiftsWeek(user.orgId, houseId, weekDates[0], weekDates[6]).then(data => {
-      setWeekShifts(data)
-    })
+    const w = buildWeek(new Date())
+    fetchShiftsWeek(user.orgId, houseId, toDateStr(w[0].date), toDateStr(w[6].date)).then(setWeekShifts)
     fetchHouses(user.orgId).then(setHouseList)
-  }, [user?.orgId, user?.houseId, user?.role])
+  }, [user?.orgId, user?.houseId, isSupervisor])
 
-  const handleShiftAdded = (shift, houseId) => {
-    // houseId is a real UUID; map it back to the slug the grid uses to render.
-    const slug = houseList.find(h => h.id === houseId)?.slug ?? houseId
-    setShifts(prev => [...prev, {
-      id: shift.id,
-      house: slug,
-      start: Number(shift.start_hour),
-      end: Number(shift.end_hour),
-      person: shift.person_name,
-      role: shift.role,
-      status: 'scheduled',
-    }])
-    setShowAddShift(false)
-  }
+  useEffect(() => { reload() }, [reload])
+
+  const closeAndReload = () => { setModal(null); reload() }
 
   if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} weekShifts={weekShifts} weekDates={weekDates} />
 
+  // Each day shows ONLY its own shifts (filtered from the week by date).
+  const selectedDate = weekDates[dayIdx]
+  const dayShifts = weekShifts.filter(s => s.date === selectedDate)
   const visibleHouses = houseFilter === 'all' ? displayHouses : displayHouses.filter(h => h.id === houseFilter)
-  const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
+  const filteredShifts = houseFilter === 'all' ? dayShifts : dayShifts.filter(s => s.house === houseFilter)
 
   const canAddShift = user?.role === 'supervisor' || user?.role === 'manager'
 
@@ -350,11 +371,11 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         <div style={{ padding: '14px 22px 6px' }}>
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(week[dayIdx].date)} · {shifts.length} shifts</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(week[dayIdx].date)} · {dayShifts.length} shifts</div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <ViewToggle view={view} setView={setView} />
               {canAddShift && (
-                <button onClick={() => setShowAddShift(true)} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setModal({ mode: 'add' })} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <IconPlus size={16} sw={2.2} />
                 </button>
               )}
@@ -390,17 +411,20 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
-          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} />
+          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
         </div>
       </div>
       <TabBar active="sched" />
 
-      {showAddShift && (
-        <AddShiftModal
+      {modal && (
+        <ShiftModal
           user={user}
           houses={pickerHouses}
-          onClose={() => setShowAddShift(false)}
-          onAdded={handleShiftAdded}
+          editShift={modal.mode === 'edit' ? modal.shift : null}
+          defaultDate={selectedDate}
+          onClose={() => setModal(null)}
+          onSaved={closeAndReload}
+          onDeleted={closeAndReload}
         />
       )}
     </div>
