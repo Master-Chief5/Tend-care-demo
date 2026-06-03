@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES, CHAT_DATA } from '../../data/constants'
-import { fetchStaff, fetchTrips, fetchVehicles } from '../../lib/db'
+import { fetchStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts } from '../../lib/db'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
@@ -58,6 +58,36 @@ function Mini({ label, value }) {
   )
 }
 
+// Live per-house snapshot (shifts on today, staff total, drives today, alerts),
+// shared by the desktop Today + Houses pages. Mirrors the mobile Houses screen.
+function useHouseSnapshot(user, houses) {
+  const [snap, setSnap] = useState({ stats: {}, alerts: {} })
+  useEffect(() => {
+    if (!user?.orgId || !houses.length) { setSnap({ stats: {}, alerts: {} }); return }
+    let alive = true
+    const today = new Date()
+    Promise.all([
+      fetchShifts(user.orgId, null, today),
+      fetchTrips(user.orgId, null, today),
+      fetchStaff(user.orgId, null),
+      fetchHouseAlerts(user.orgId),
+    ]).then(([shifts, trips, staff, alerts]) => {
+      if (!alive) return
+      const stats = {}
+      for (const h of houses) {
+        stats[h.id] = {
+          staffOn:    shifts.filter(s => s.house === h.id).length,
+          staffTotal: staff.filter(s => s.house === h.id).length,
+          drivesToday: trips.filter(t => (t.houses?.slug ?? t.house_id) === h.id).length,
+        }
+      }
+      setSnap({ stats, alerts: alerts || {} })
+    })
+    return () => { alive = false }
+  }, [user?.orgId, houses.length])
+  return snap
+}
+
 function CenteredColumn({ children, width = 760, side }) {
   return (
     <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -84,18 +114,32 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
   const firstName = user?.name?.split(' ')[0] || 'there'
   const isManager = user?.role === 'manager'
 
+  const { stats, alerts } = useHouseSnapshot(user, houses)
   const branches = ['All', ...new Set(houses.map(h => h.branch).filter(Boolean))]
   const scopedHouses = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
   const visibleCards = scopedHouses
     .filter(h => isManager || branchFilter === 'All' || h.branch === branchFilter)
-    .map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
+    .map(house => {
+      const a = alerts[house.id] || []
+      const st = stats[house.id] || {}
+      return {
+        house,
+        urgent: a.length,
+        staff: st.staffOn || 0,
+        staffTotal: st.staffTotal || 0,
+        present: house.residents || 0,
+        drives: st.drivesToday || 0,
+        needs: a.map(x => x.text),
+      }
+    })
+  const totalNeeds = visibleCards.reduce((n, c) => n + c.urgent, 0)
 
   return (
     <>
       <Toast msg={toast} />
       <DTopBar
         title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>{firstName}</em></>}
-        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'} · {isManager ? 'manager view' : <><span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}</>}
+        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'}{isManager ? ' · manager view' : totalNeeds > 0 ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{totalNeeds} {totalNeeds === 1 ? 'thing needs' : 'things need'} you</span></> : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all clear</span></>}</>}
         actions={<button onClick={() => showToast('Opening new item…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -123,8 +167,8 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {visibleCards.map(({ house, urgent, staff, present, drives, needs }) => (
-            <DHouseCard key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
+          {visibleCards.map(({ house, urgent, staff, staffTotal, present, drives, needs }) => (
+            <DHouseCard key={house.id} house={house} urgent={urgent} staff={staff} staffTotal={staffTotal} present={present} drives={drives} needs={needs}
               onClick={() => onHouseClick && onHouseClick(house.id)} />
           ))}
         </div>
@@ -175,7 +219,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
 
 // ── Houses ─────────────────────────────────────────────────────────────
 
-function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen }) {
+function HouseCardWide({ house, urgent, staff, staffTotal, present, drives, needs, onOpen }) {
   const c = house.color
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
@@ -199,7 +243,7 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 18px 14px', borderBottom: '1px dashed var(--a-line)' }}>
-        <Stat label="On shift" big={staff} sub="of 2" />
+        <Stat label="On shift" big={staff} sub={staffTotal > 0 ? `of ${staffTotal}` : 'on shift'} />
         <Stat label="Residents in" big={present} sub={`of ${house.residents}`} />
         <Stat label="Today's drives" big={drives} sub="planned" />
       </div>
@@ -224,9 +268,21 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
 
 export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
   const isManager = user?.role === 'manager'
-  const houseData = isManager
-    ? houses.filter(h => h.id === user?.houseSlug).map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
-    : houses.map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
+  const { stats, alerts } = useHouseSnapshot(user, houses)
+  const scoped = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
+  const houseData = scoped.map(house => {
+    const a = alerts[house.id] || []
+    const st = stats[house.id] || {}
+    return {
+      house,
+      urgent: a.length,
+      staff: st.staffOn || 0,
+      staffTotal: st.staffTotal || 0,
+      present: house.residents || 0,
+      drives: st.drivesToday || 0,
+      needs: a,
+    }
+  })
   const subText = isManager
     ? `${houseData.length} house · manager view`
     : `${houseData.length} house${houseData.length === 1 ? '' : 's'}`
@@ -243,8 +299,8 @@ export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
-          {houseData.map(({ house, urgent, staff, present, drives, needs }) => (
-            <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
+          {houseData.map(({ house, urgent, staff, staffTotal, present, drives, needs }) => (
+            <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} staffTotal={staffTotal} present={present} drives={drives} needs={needs}
               onOpen={() => onHouseClick && onHouseClick(house.id)} />
           ))}
         </div>

@@ -15,7 +15,7 @@ export function DStat({ label, value, sub, tone, big }) {
   )
 }
 
-export function DHouseCard({ house, urgent, staff, present, drives, needs, clear, onClick }) {
+export function DHouseCard({ house, urgent, staff, staffTotal, present, drives, needs, clear, onClick }) {
   return (
     <div onClick={onClick} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ height: 4, background: house.color }} />
@@ -32,7 +32,7 @@ export function DHouseCard({ house, urgent, staff, present, drives, needs, clear
           )}
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11, color: 'var(--a-ink2)' }}>
-          <span><span style={{ fontWeight: 600 }}>{staff}</span>/2 staff</span>
+          <span><span style={{ fontWeight: 600 }}>{staff}</span>{staffTotal > 0 ? `/${staffTotal}` : ''} staff</span>
           <span><span style={{ fontWeight: 600 }}>{present}</span>/{house.residents} in</span>
           <span><span style={{ fontWeight: 600 }}>{drives}</span> drives</span>
         </div>
