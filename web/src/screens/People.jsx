@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { fetchStaff, inviteStaff, removeStaff, fetchHouses } from '../lib/db'
+import { fetchStaff, removeStaff } from '../lib/db'
+import { StaffFormModal, StaffStatus } from '../components/StaffFormModal'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
-import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconSearch, IconChev } from '../components/icons'
 
@@ -18,46 +18,26 @@ export function RingChart({ pct = 0.9, color = 'var(--a-sage)', size = 40 }) {
   )
 }
 
-export function StaffCard({ name, role, house, houseId, houseName, houseColor, score, sub, highlight, onClick }) {
+export function StaffCard({ name, role, houseName, houseColor, linked, onClick }) {
   const hColor = houseColor ?? '#888'
-  const hName = houseName || 'Staff'
+  const hName = houseName || 'No house'
   const initials = name.split(' ').map(n => n[0]).join('')
-  const scoreColor = score >= 90 ? '#3f7050' : score >= 80 ? '#a47012' : '#a93a25'
-  const flagMap = {
-    promo:   { tag: 'Promote',        tc: '#3f7050', bg: '#dee6df' },
-    concern: { tag: 'Concern',        tc: '#a93a25', bg: '#fadcd7' },
-    orient:  { tag: 'In orientation', tc: '#5a3a6b', bg: '#e7dfe9' },
-  }
-  const flag = highlight ? flagMap[highlight] : null
   return (
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, marginBottom: 8, cursor: 'pointer' }}>
       <div style={{ width: 36, height: 36, borderRadius: '50%', background: hColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>{initials}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{name}</span>
-          {flag && <span style={{ fontSize: 9, fontWeight: 600, color: flag.tc, background: flag.bg, padding: '1px 5px', borderRadius: 3, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{flag.tag}</span>}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>{role} · {hName.split(' ')[0]} · {sub}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{name}</div>
+        <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>{role} · {hName.split(' ')[0]}</div>
       </div>
-      <div style={{ textAlign: 'right' }}>
-        {sub === 'New' || !score ? (
-          <div style={{ fontSize: 12, color: 'var(--a-ink3)', fontWeight: 500, lineHeight: 1.4 }}>New<br /><span style={{ fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>No score</span></div>
-        ) : (
-          <>
-            <div className="serif tnum" style={{ fontSize: 18, fontWeight: 500, color: scoreColor, lineHeight: 1 }}>{score}</div>
-            <div style={{ fontSize: 9, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>Quality</div>
-          </>
-        )}
-      </div>
+      <StaffStatus linked={linked} />
     </div>
   )
 }
 
-function StaffDetail({ staff, onBack, onRemove }) {
+function StaffDetail({ staff, onBack, onRemove, onEdit }) {
   const hColor = staff.houseColor ?? '#888'
-  const hName = staff.houseName || 'All houses'
+  const hName = staff.houseName || 'No house assigned'
   const initials = staff.name.split(' ').map(n => n[0]).join('')
-  const scoreColor = staff.score >= 90 ? '#3f7050' : staff.score >= 80 ? '#a47012' : '#a93a25'
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -74,18 +54,17 @@ function StaffDetail({ staff, onBack, onRemove }) {
             <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>{staff.role} · {hName}</div>
             {staff.email && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 4 }}>{staff.email}</div>}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
-              <Pill color="var(--a-sage)">{staff.tenure || staff.sub}</Pill>
+              <StaffStatus linked={staff.linked} />
             </div>
+            {!staff.linked && (
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 10, lineHeight: 1.5 }}>
+                Invited — becomes active once they sign in with this email.
+              </div>
+            )}
           </div>
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 18px', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Quality score</span>
-              <span className="serif tnum" style={{ fontSize: 28, fontWeight: 500, color: scoreColor }}>{staff.score}</span>
-            </div>
-            <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{ width: `${staff.score}%`, height: '100%', background: scoreColor, borderRadius: 999 }} />
-            </div>
-          </div>
+          <button onClick={() => onEdit(staff)} style={{ width: '100%', padding: '11px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 13, fontWeight: 600, color: 'var(--a-ink)', fontFamily: 'Geist', cursor: 'pointer', marginBottom: 14 }}>
+            Edit details
+          </button>
           {staff.notes && (
             <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 18px', marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Notes</div>
@@ -104,125 +83,50 @@ function StaffDetail({ staff, onBack, onRemove }) {
   )
 }
 
-function AddStaffModal({ user, houses = [], onClose, onAdded }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState('staff')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  // Supervisors choose which house the person belongs to; managers/staff are
-  // scoped to their own house already.
-  const isSupervisor = user?.role === 'supervisor'
-  const [houseId, setHouseId] = useState(isSupervisor ? (houses[0]?.id ?? '') : (user?.houseId || ''))
-
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!name.trim() || !user?.orgId) return
-    const trimmedEmail = email.trim()
-    if (!EMAIL_RE.test(trimmedEmail)) {
-      setError('Please enter a valid email address.')
-      return
-    }
-    setError('')
-    setSaving(true)
-    const member = await inviteStaff(user.orgId, houseId || null, {
-      name: name.trim(),
-      email: trimmedEmail,
-      role,
-    })
-    setSaving(false)
-    if (member) onAdded(member)
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 8 }}>Add staff</div>
-        <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginBottom: 14, lineHeight: 1.5 }}>
-          We can't verify this address. The person will be linked to this house when they sign up using this exact email.
-        </div>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input autoFocus placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <input placeholder="Email" value={email} onChange={e => { setEmail(e.target.value); if (error) setError('') }} type="email"
-            style={{ background: 'var(--a-card)', border: `1px solid ${error ? '#e0a99a' : 'var(--a-line)'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          {error && <div style={{ fontSize: 11.5, color: '#a93a25', marginTop: -4 }}>{error}</div>}
-          <select value={role} onChange={e => setRole(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
-            <option value="staff">DSP</option>
-            <option value="manager">House Manager</option>
-          </select>
-          {isSupervisor && (
-            <select value={houseId} onChange={e => setHouseId(e.target.value)}
-              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
-              {houses.length === 0
-                ? <option value="">No houses yet — add one first</option>
-                : houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-            </select>
-          )}
-          <button type="submit" disabled={!name.trim() || saving}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>
-            {saving ? 'Saving…' : 'Add staff member'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-}
-
 export function ScreenA_Staff({ user, onLogout }) {
   const [query, setQuery] = useState('')
   const [staffList, setStaffList] = useState([])
   const [selectedStaff, setSelectedStaff] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [houses, setHouses] = useState([])
+  const [modal, setModal] = useState(null)   // null | { mode:'add' } | { mode:'edit', staff }
   const [toast, showToast] = useToast()
 
-  useEffect(() => {
-    if (!user?.orgId) return
-    fetchStaff(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
-      setStaffList(data)
+  const reload = () => {
+    if (!user?.orgId) return Promise.resolve([])
+    return fetchStaff(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
+      setStaffList(data); return data
     })
-    fetchHouses(user.orgId).then(setHouses)
-  }, [user?.orgId, user?.houseId, user?.role])
+  }
+  useEffect(() => { reload() }, [user?.orgId, user?.houseId, user?.role])
 
-  const handleAdded = (member) => {
-    const h = houses.find(x => x.id === member.house_id)
-    setStaffList(prev => [...prev, {
-      id: member.id,
-      name: member.name,
-      email: member.email ?? '',
-      role: member.role === 'manager' ? 'House mgr' : 'DSP',
-      rawRole: member.role,
-      house: h?.slug ?? null,
-      houseId: member.house_id ?? null,
-      houseName: h?.name ?? null,
-      houseColor: h?.color ?? null,
-      score: 85,
-      sub: 'New',
-      tenure: 'New',
-    }])
-    setShowAdd(false)
-    showToast('Staff member added')
+  const handleSaved = async (_row, mode) => {
+    setModal(null)
+    const data = await reload()
+    if (mode === 'edit' && selectedStaff) {
+      setSelectedStaff(data.find(s => s.id === selectedStaff.id) || null)
+    }
+    showToast(mode === 'edit' ? 'Staff member updated' : 'Staff member added')
   }
 
   const handleRemove = async (staff) => {
     if (!staff.id) return
     await removeStaff(staff.id)
-    setStaffList(prev => prev.filter(s => s.id !== staff.id))
     setSelectedStaff(null)
+    reload()
     showToast('Staff member removed')
   }
 
   if (selectedStaff) return (
-    <StaffDetail
-      staff={selectedStaff}
-      onBack={() => setSelectedStaff(null)}
-      onRemove={handleRemove}
-    />
+    <>
+      <StaffDetail
+        staff={selectedStaff}
+        onBack={() => setSelectedStaff(null)}
+        onRemove={handleRemove}
+        onEdit={(s) => setModal({ mode: 'edit', staff: s })}
+      />
+      {modal?.mode === 'edit' && (
+        <StaffFormModal user={user} editStaff={modal.staff} onClose={() => setModal(null)} onSaved={handleSaved} />
+      )}
+    </>
   )
 
   const filtered = staffList.filter(s =>
@@ -239,7 +143,7 @@ export function ScreenA_Staff({ user, onLogout }) {
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Team</div>
             <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{staffList.length} staff members</div>
           </div>
-          <button onClick={() => setShowAdd(true)} style={{ background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink2)', borderRadius: 999, padding: '7px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+          <button onClick={() => setModal({ mode: 'add' })} style={{ background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink2)', borderRadius: 999, padding: '7px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
             <IconPlus size={13} sw={2.2} /> Add
           </button>
         </div>
@@ -274,8 +178,8 @@ export function ScreenA_Staff({ user, onLogout }) {
       </div>
       <TabBar active="me" />
 
-      {showAdd && user?.orgId && (
-        <AddStaffModal user={user} houses={houses} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
+      {modal?.mode === 'add' && user?.orgId && (
+        <StaffFormModal user={user} onClose={() => setModal(null)} onSaved={handleSaved} />
       )}
     </div>
   )
