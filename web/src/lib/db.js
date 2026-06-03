@@ -567,6 +567,147 @@ export async function addResident(orgId, houseId, resident) {
   return data
 }
 
+// ── Medication (MAR) alerts ─────────────────────────────────────────────────
+// Fetch open med alerts; houseId=null means all houses in org.
+export async function fetchMedAlerts(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchMedAlerts(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('med_alerts')
+    .select('*, houses(slug, name, color, short)')
+    .eq('org_id', orgId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchMedAlerts:', error.message); return [] }
+  return data || []
+}
+
+// Insert a med alert.
+export async function addMedAlert(orgId, houseId, alert) {
+  if (isDemoMode) return demo.demoAddMedAlert(houseId, alert)
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('med_alerts')
+    .insert({
+      org_id:        orgId,
+      house_id:      houseId || null,
+      resident_name: alert.residentName || null,
+      text:          alert.text,
+      due_at:        alert.dueAt || null,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addMedAlert:', error.message); return null }
+  return data
+}
+
+// Mark a med alert resolved.
+export async function resolveMedAlert(id) {
+  if (isDemoMode) return demo.demoResolveMedAlert(id)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('med_alerts').update({ status: 'resolved' }).eq('id', id)
+  if (error) console.error('resolveMedAlert:', error.message)
+}
+
+// ── Shift notes ─────────────────────────────────────────────────────────────
+// Fetch shift notes; houseId=null means all houses in org.
+export async function fetchShiftNotes(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchShiftNotes(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('shift_notes')
+    .select('*, houses(slug, name, color, short)')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchShiftNotes:', error.message); return [] }
+  return data || []
+}
+
+// Insert a shift note.
+export async function addShiftNote(orgId, houseId, note) {
+  if (isDemoMode) return demo.demoAddShiftNote(houseId, note)
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('shift_notes')
+    .insert({
+      org_id:      orgId,
+      house_id:    houseId || null,
+      author_name: note.authorName || null,
+      text:        note.text,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addShiftNote:', error.message); return null }
+  return data
+}
+
+// Mark a shift note read.
+export async function markShiftNoteRead(id) {
+  if (isDemoMode) return demo.demoMarkShiftNoteRead(id)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('shift_notes').update({ read: true }).eq('id', id)
+  if (error) console.error('markShiftNoteRead:', error.message)
+}
+
+// Build the per-house "Needs attention" rows for the Houses dashboard from real
+// data. Returns a map keyed by house slug → [{ kind, text }], where kind is one
+// of 'grocery' | 'med' | 'note' | 'drive'. Each house is capped at a few rows so
+// cards stay scannable; the UI shows a "+N more" affordance for the rest.
+export async function fetchHouseAlerts(orgId) {
+  const empty = {}
+  if (!orgId) return empty
+  const today = toDateStr(new Date())
+
+  const [resources, meds, notes, trips] = await Promise.all([
+    fetchResources(orgId, null),
+    fetchMedAlerts(orgId, null),
+    fetchShiftNotes(orgId, null),
+    fetchTrips(orgId, null, today),
+  ])
+
+  const map = {}
+  const push = (slug, row) => {
+    if (!slug) return
+    ;(map[slug] ||= []).push(row)
+  }
+
+  // Shop — group resource items per house into a single row.
+  const byHouseResources = {}
+  for (const r of resources) {
+    const slug = r.houses?.slug
+    if (!slug) continue
+    ;(byHouseResources[slug] ||= []).push(r.name)
+  }
+  for (const [slug, names] of Object.entries(byHouseResources)) {
+    const shown = names.slice(0, 3).join(', ')
+    const extra = names.length > 3 ? ` +${names.length - 3} more` : ''
+    push(slug, { kind: 'grocery', text: `Need: ${shown}${extra}` })
+  }
+
+  // Med — one row per open alert.
+  for (const m of meds) {
+    push(m.houses?.slug, { kind: 'med', text: m.resident_name ? `${m.resident_name} — ${m.text}` : m.text })
+  }
+
+  // Note — one row per note (unread flagged).
+  for (const n of notes) {
+    const who = n.author_name ? `${n.author_name} ` : ''
+    push(n.houses?.slug, { kind: 'note', text: `${who}shift note${n.read ? '' : ' — unread'}` })
+  }
+
+  // Drive — one row per trip scheduled today.
+  for (const t of trips) {
+    const driver = t.driver_name ? ` (${t.driver_name})` : ''
+    push(t.houses?.slug, { kind: 'drive', text: `${t.resident_name || 'Resident'} to ${t.destination}${driver}` })
+  }
+
+  return map
+}
+
 // Search organizations by name or slug — callable before the user is authenticated
 // (uses the search_organizations SECURITY DEFINER function which grants anon access).
 export async function searchOrganizations(query) {
