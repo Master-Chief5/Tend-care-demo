@@ -4,8 +4,27 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconChat, IconChev, IconPlus } from '../components/icons'
-import { fetchShifts, fetchTrips, fetchStaff } from '../lib/db'
+import { IconChat, IconChev, IconPlus, IconDots } from '../components/icons'
+import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts } from '../lib/db'
+
+// One "Needs attention" row — a tinted tag (Shop / Med / Note / Drive) + text.
+const NEED_KINDS = {
+  grocery: { tag: 'Shop',  bg: '#f5e9d6', tc: '#a47012' },
+  med:     { tag: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
+  note:    { tag: 'Note',  bg: '#e7dfe9', tc: '#5a3a6b' },
+  drive:   { tag: 'Drive', bg: '#dde6f0', tc: '#3c5887' },
+  maint:   { tag: 'Maint', bg: '#dee6df', tc: '#3f604d' },
+}
+
+function NeedRow({ kind, text }) {
+  const k = NEED_KINDS[kind] || NEED_KINDS.grocery
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0' }}>
+      <span style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 700, color: k.tc, background: k.bg, padding: '2px 7px', borderRadius: 5, letterSpacing: '0.03em' }}>{k.tag}</span>
+      <span style={{ fontSize: 12.5, color: 'var(--a-ink2)', lineHeight: 1.35 }}>{text}</span>
+    </div>
+  )
+}
 
 function GreetingHeader({ name, isSupervisor, onAddHouse }) {
   const today = new Date()
@@ -62,12 +81,14 @@ function HouseStat({ label, big, sub }) {
   )
 }
 
-function HouseCard({ house, stats, onHouseClick, onTeamChat }) {
+function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
   const [toast, showToast] = useToast()
   const c = house.color
   const staffOn    = stats?.staffOn    ?? 0
   const staffTotal = stats?.staffTotal ?? 0
   const drivesToday = stats?.drivesToday ?? 0
+  const shown = alerts.slice(0, 2)
+  const extra = alerts.length - shown.length
 
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 16, overflow: 'hidden', marginBottom: 10 }}>
@@ -78,14 +99,33 @@ function HouseCard({ house, stats, onHouseClick, onTeamChat }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: c, letterSpacing: '0.1em', background: `${c}1a`, padding: '2px 7px', borderRadius: 4 }}>{house.short}</span>
           <span className="serif" style={{ fontSize: 17, fontWeight: 500, flex: 1, letterSpacing: '-0.01em' }}>{house.name}</span>
+          {alerts.length > 0 && (
+            <span style={{ background: '#d44e3a', color: '#fff', fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{alerts.length}</span>
+          )}
+          <button onClick={() => showToast('Opening options…')} style={{ background: 'transparent', border: 0, padding: 2, color: 'var(--a-ink3)', cursor: 'pointer', display: 'flex' }} aria-label="House options">
+            <IconDots size={16} />
+          </button>
         </div>
 
         {/* 3-stat strip */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '10px 0', borderTop: '1px dashed var(--a-line)', borderBottom: '1px dashed var(--a-line)', marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '10px 0', borderTop: '1px dashed var(--a-line)', borderBottom: '1px dashed var(--a-line)', marginBottom: alerts.length > 0 ? 10 : 12 }}>
           <HouseStat label="Staff on" big={staffOn} sub={staffTotal > 0 ? `of ${staffTotal}` : null} />
           <HouseStat label="Residents in" big={house.residents || 0} sub={house.residents ? `of ${house.residents}` : null} />
           <HouseStat label="Drives today" big={drivesToday} />
         </div>
+
+        {/* Needs attention */}
+        {alerts.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            {shown.map((a, i) => <NeedRow key={i} kind={a.kind} text={a.text} />)}
+            {extra > 0 && (
+              <button onClick={() => onHouseClick ? onHouseClick(house.id) : showToast(`Opening ${house.name}…`)}
+                style={{ background: 'transparent', border: 0, padding: '4px 0 0', color: 'var(--a-ink3)', fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>
+                +{extra} more
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
@@ -108,6 +148,7 @@ function HouseCard({ house, stats, onHouseClick, onTeamChat }) {
 export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, onAddHouse }) {
   const [branch, setBranch] = useState('All')
   const [houseStats, setHouseStats] = useState({})
+  const [houseAlerts, setHouseAlerts] = useState({})
   const isManager  = user?.role === 'manager'
   const isSupervisor = user?.role === 'supervisor'
 
@@ -138,6 +179,7 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
       }
       setHouseStats(stats)
     })
+    fetchHouseAlerts(user.orgId).then(setHouseAlerts)
   }, [user?.orgId, houses.length])
 
   return (
@@ -167,7 +209,7 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
             </div>
           )}
           {visibleHouses.map(h => (
-            <HouseCard key={h.id} house={h} stats={houseStats[h.id]} onHouseClick={onHouseClick} onTeamChat={onTeamChat} />
+            <HouseCard key={h.id} house={h} stats={houseStats[h.id]} alerts={houseAlerts[h.id]} onHouseClick={onHouseClick} onTeamChat={onTeamChat} />
           ))}
         </div>
       </div>

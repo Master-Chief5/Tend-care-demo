@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [] }
 }
 
 function load() {
@@ -271,6 +271,52 @@ export function demoUpdateVehicle(id, updates) {
 
 export function demoDeleteVehicle(id) {
   store.vehicles = store.vehicles.filter(v => v.id !== id); persist()
+}
+
+// ── Med alerts ──────────────────────────────────────────────────────────────
+export function demoFetchMedAlerts(houseId) {
+  return store.medAlerts
+    .filter(m => m.status === 'open' && (!houseId || m.house_id === houseId))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(m => ({ ...m, houses: houseJoin(m.house_id) }))
+}
+
+export function demoAddMedAlert(houseId, alert) {
+  const row = {
+    id: uid('med'), house_id: houseId || null,
+    resident_name: alert.residentName || null, text: alert.text,
+    status: 'open', due_at: alert.dueAt || null, created_at: now(),
+  }
+  store.medAlerts.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoResolveMedAlert(id) {
+  const m = store.medAlerts.find(x => x.id === id)
+  if (m) { m.status = 'resolved'; persist() }
+}
+
+// ── Shift notes ─────────────────────────────────────────────────────────────
+export function demoFetchShiftNotes(houseId) {
+  return store.shiftNotes
+    .filter(n => !houseId || n.house_id === houseId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(n => ({ ...n, houses: houseJoin(n.house_id) }))
+}
+
+export function demoAddShiftNote(houseId, note) {
+  const row = {
+    id: uid('note'), house_id: houseId || null,
+    author_name: note.authorName || null, text: note.text,
+    read: false, created_at: now(),
+  }
+  store.shiftNotes.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoMarkShiftNoteRead(id) {
+  const n = store.shiftNotes.find(x => x.id === id)
+  if (n) { n.read = true; persist() }
 }
 
 // ── Residents ───────────────────────────────────────────────────────────────

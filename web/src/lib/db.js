@@ -567,6 +567,154 @@ export async function addResident(orgId, houseId, resident) {
   return data
 }
 
+// ── Medication (MAR) alerts ─────────────────────────────────────────────────
+// Fetch open med alerts; houseId=null means all houses in org.
+export async function fetchMedAlerts(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchMedAlerts(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('med_alerts')
+    .select('*, houses(slug, name, color, short)')
+    .eq('org_id', orgId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchMedAlerts:', error.message); return [] }
+  return data || []
+}
+
+// Insert a med alert.
+export async function addMedAlert(orgId, houseId, alert) {
+  if (isDemoMode) return demo.demoAddMedAlert(houseId, alert)
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('med_alerts')
+    .insert({
+      org_id:        orgId,
+      house_id:      houseId || null,
+      resident_name: alert.residentName || null,
+      text:          alert.text,
+      due_at:        alert.dueAt || null,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addMedAlert:', error.message); return null }
+  return data
+}
+
+// Mark a med alert resolved.
+export async function resolveMedAlert(id) {
+  if (isDemoMode) return demo.demoResolveMedAlert(id)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('med_alerts').update({ status: 'resolved' }).eq('id', id)
+  if (error) console.error('resolveMedAlert:', error.message)
+}
+
+// ── Shift notes ─────────────────────────────────────────────────────────────
+// Fetch shift notes; houseId=null means all houses in org.
+export async function fetchShiftNotes(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchShiftNotes(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('shift_notes')
+    .select('*, houses(slug, name, color, short)')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchShiftNotes:', error.message); return [] }
+  return data || []
+}
+
+// Insert a shift note.
+export async function addShiftNote(orgId, houseId, note) {
+  if (isDemoMode) return demo.demoAddShiftNote(houseId, note)
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('shift_notes')
+    .insert({
+      org_id:      orgId,
+      house_id:    houseId || null,
+      author_name: note.authorName || null,
+      text:        note.text,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addShiftNote:', error.message); return null }
+  return data
+}
+
+// Mark a shift note read.
+export async function markShiftNoteRead(id) {
+  if (isDemoMode) return demo.demoMarkShiftNoteRead(id)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('shift_notes').update({ read: true }).eq('id', id)
+  if (error) console.error('markShiftNoteRead:', error.message)
+}
+
+// Build the per-house "Needs attention" rows for the Houses dashboard from real
+// data. Returns a map keyed by house slug → [{ kind, text }], where kind is one
+// of 'grocery' | 'med' | 'note' | 'drive'. Each house is capped at a few rows so
+// cards stay scannable; the UI shows a "+N more" affordance for the rest.
+export async function fetchHouseAlerts(orgId) {
+  const empty = {}
+  if (!orgId) return empty
+  const today = toDateStr(new Date())
+
+  const [resources, meds, notes, trips] = await Promise.all([
+    fetchResources(orgId, null),
+    fetchMedAlerts(orgId, null),
+    fetchShiftNotes(orgId, null),
+    fetchTrips(orgId, null, today),
+  ])
+
+  const map = {}
+  const push = (slug, row) => {
+    if (!slug) return
+    ;(map[slug] ||= []).push(row)
+  }
+
+  // Shop — flag low/out supply items per house (qty 0 = out, 1–2 = low).
+  const byHouseResources = {}
+  for (const r of resources) {
+    const slug = r.houses?.slug
+    if (!slug) continue
+    const q = Number(r.qty)
+    const bucket = q <= 0 ? 'out' : q <= 2 ? 'low' : null
+    if (!bucket) continue
+    ;(byHouseResources[slug] ||= { out: [], low: [] })[bucket].push(r.name)
+  }
+  const joinNames = (names) => {
+    const shown = names.slice(0, 3).join(', ')
+    return names.length > 3 ? `${shown} +${names.length - 3} more` : shown
+  }
+  for (const [slug, b] of Object.entries(byHouseResources)) {
+    if (b.out.length) push(slug, { kind: 'grocery', text: `Out: ${joinNames(b.out)}` })
+    if (b.low.length) push(slug, { kind: 'grocery', text: `Low: ${joinNames(b.low)}` })
+  }
+
+  // Med — one row per open alert.
+  for (const m of meds) {
+    push(m.houses?.slug, { kind: 'med', text: m.resident_name ? `${m.resident_name} — ${m.text}` : m.text })
+  }
+
+  // Note — one row per note, with the time it was left (unread flagged).
+  for (const n of notes) {
+    const who = n.author_name ? `${n.author_name} ` : ''
+    const t = n.created_at ? ` (${fmtClock(n.created_at)})` : ''
+    push(n.houses?.slug, { kind: 'note', text: `${who}shift note${t}${n.read ? '' : ' — unread'}` })
+  }
+
+  // Drive — one row per trip scheduled today.
+  for (const t of trips) {
+    const driver = t.driver_name ? ` (${t.driver_name})` : ''
+    push(t.houses?.slug, { kind: 'drive', text: `${t.resident_name || 'Resident'} to ${t.destination}${driver}` })
+  }
+
+  return map
+}
+
 // Search organizations by name or slug — callable before the user is authenticated
 // (uses the search_organizations SECURITY DEFINER function which grants anon access).
 export async function searchOrganizations(query) {
@@ -602,4 +750,11 @@ export async function registerAsStaff(orgId, name) {
 function toDateStr(date) {
   if (typeof date === 'string') return date
   return date.toISOString().split('T')[0]
+}
+
+// Short clock label like "8:14a" / "2:05p" for alert timestamps.
+function fmtClock(iso) {
+  const d = new Date(iso)
+  const h = d.getHours(), m = d.getMinutes()
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`
 }
