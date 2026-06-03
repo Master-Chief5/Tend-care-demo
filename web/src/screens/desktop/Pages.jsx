@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, STAFF_LIST, CHAT_DATA } from '../../data/constants'
-import { fetchStaff } from '../../lib/db'
+import { HOUSES, CHAT_DATA } from '../../data/constants'
+import { fetchStaff, fetchTrips, fetchVehicles } from '../../lib/db'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
@@ -76,26 +76,26 @@ function CenteredColumn({ children, width = 760, side }) {
 
 // ── Today ─────────────────────────────────────────────────────────────
 
-export function PageTodayDesktop({ onHouseClick }) {
+export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
   const [toast, showToast] = useToast()
   const [branchFilter, setBranchFilter] = useState('All')
   const greeting = getGreeting()
   const dateLabel = fmtDayLabel(new Date())
+  const firstName = user?.name?.split(' ')[0] || 'there'
+  const isManager = user?.role === 'manager'
 
-  const allHouseCards = [
-    { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: ['Out: oat milk, bananas', 'R. Johnson MAR 2pm', '1:30p drive to dentist'] },
-    { house: HOUSES[1], urgent: 1, staff: 1, present: 3, drives: 0, needs: ['Low: paper towels, chicken', 'Devon shift note (8:14a)'] },
-    { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: ['Refill: K. Diaz', 'Dryer service', 'Shop run 4p'] },
-    { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: ['All clear · 2 incident-free wks'] },
-  ]
-  const visibleCards = allHouseCards.filter(d => branchFilter === 'All' || d.house.branch === branchFilter)
+  const branches = ['All', ...new Set(houses.map(h => h.branch).filter(Boolean))]
+  const scopedHouses = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
+  const visibleCards = scopedHouses
+    .filter(h => isManager || branchFilter === 'All' || h.branch === branchFilter)
+    .map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
 
   return (
     <>
       <Toast msg={toast} />
       <DTopBar
-        title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>Lina</em></>}
-        sub={<>{dateLabel} · 4 houses · 22 staff · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}
+        title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>{firstName}</em></>}
+        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'} · {isManager ? 'manager view' : <><span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>8 things need you</span></>}</>}
         actions={<button onClick={() => showToast('Opening new item…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -108,16 +108,18 @@ export function PageTodayDesktop({ onHouseClick }) {
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Houses today</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {['All', 'North', 'South'].map(b => (
-              <button key={b} onClick={() => setBranchFilter(b)} style={{
-                border: b === branchFilter ? '0' : '1px solid var(--a-line)',
-                background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
-                color: b === branchFilter ? 'var(--a-card)' : 'var(--a-ink2)',
-                padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer',
-              }}>{b}</button>
-            ))}
-          </div>
+          {!isManager && branches.length > 1 && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {branches.map(b => (
+                <button key={b} onClick={() => setBranchFilter(b)} style={{
+                  border: b === branchFilter ? '0' : '1px solid var(--a-line)',
+                  background: b === branchFilter ? 'var(--a-ink)' : 'transparent',
+                  color: b === branchFilter ? 'var(--a-card)' : 'var(--a-ink2)',
+                  padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer',
+                }}>{b}</button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -153,15 +155,17 @@ export function PageTodayDesktop({ onHouseClick }) {
                 <span>Mar 1</span><span>Today · $1,034/wk</span>
               </div>
             </div>
-            <div style={dCard}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span className="serif" style={{ fontSize: 18 }}>Cross-house swaps</span>
-                <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>2 suggested</span>
+            {houses.length >= 4 && (
+              <div style={dCard}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span className="serif" style={{ fontSize: 18 }}>Cross-house swaps</span>
+                  <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>2 suggested</span>
+                </div>
+                <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
+                <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
+                <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar over-bought" />
               </div>
-              <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
-              <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar over-bought" />
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -218,31 +222,26 @@ function HouseCardWide({ house, urgent, staff, present, drives, needs, onOpen })
   )
 }
 
-export function PageHousesDesktop({ onHouseClick }) {
-  const houseData = [
-    { house: HOUSES[0], urgent: 3, staff: 2, present: 3, drives: 2, needs: [
-      { kind: 'grocery', text: 'Out: oat milk, bananas, dish soap' },
-      { kind: 'med', text: 'R. Johnson — 2pm MAR signoff' },
-      { kind: 'drive', text: '1:30pm — M. Lee to dentist (Aisha)' },
-    ]},
-    { house: HOUSES[1], urgent: 1, staff: 1, present: 3, drives: 0, needs: [
-      { kind: 'grocery', text: 'Running low: paper towels, chicken' },
-      { kind: 'note', text: 'D. Park left a shift note (8:14am)' },
-    ]},
-    { house: HOUSES[2], urgent: 4, staff: 2, present: 4, drives: 3, needs: [
-      { kind: 'med', text: 'Refill: K. Diaz, levetiracetam' },
-      { kind: 'maint', text: 'Dryer making a noise — vendor TBD' },
-      { kind: 'grocery', text: 'Shopping run scheduled — Aisha, 4pm' },
-    ]},
-    { house: HOUSES[3], urgent: 0, staff: 2, present: 4, drives: 1, needs: [
-      { kind: 'note', text: 'All clear · 2 incident-free weeks' },
-    ]},
-  ]
+export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
+  const isManager = user?.role === 'manager'
+  const houseData = isManager
+    ? houses.filter(h => h.id === user?.houseSlug).map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
+    : houses.map(house => ({ house, urgent: 0, staff: 0, present: 0, drives: 0, needs: [] }))
+  const subText = isManager
+    ? `${houseData.length} house · manager view`
+    : `${houseData.length} house${houseData.length === 1 ? '' : 's'}`
   return (
     <>
-      <DTopBar title="Houses" sub="4 houses · North + South branches"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
+      <DTopBar title="Houses" sub={subText}
+        actions={!isManager && <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
+        {houseData.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--a-ink3)' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🏠</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No houses yet</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}>Go to House Setup to create your first house.</div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
           {houseData.map(({ house, urgent, staff, present, drives, needs }) => (
             <HouseCardWide key={house.id} house={house} urgent={urgent} staff={staff} present={present} drives={drives} needs={needs}
@@ -369,8 +368,39 @@ function PageTeamDesktop_OLD() {
 
 // ── Driving ───────────────────────────────────────────────────────────
 
-export function PageDrivingDesktop() {
+export function PageDrivingDesktop({ user }) {
   const [toast, showToast] = useToast()
+  const [trips, setTrips] = useState([])
+  const [vehicles, setVehicles] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user?.orgId) return
+    const scopedHouseId = user.role === 'manager' ? user.houseId : null
+    setLoading(true)
+    Promise.all([
+      fetchTrips(user.orgId, scopedHouseId, null),
+      fetchVehicles(user.orgId, scopedHouseId),
+    ]).then(([tripsData, vehiclesData]) => {
+      setTrips(tripsData)
+      setVehicles(vehiclesData)
+      setLoading(false)
+    })
+  }, [user?.orgId, user?.houseId, user?.role])
+
+  const totalMiles = trips.reduce((sum, t) => sum + (Number(t.miles) || 0), 0)
+  const tripCount = trips.length
+
+  const fmtDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    const today = new Date()
+    const diff = Math.floor((today - d) / 86400000)
+    if (diff === 0) return 'Today'
+    if (diff === 1) return 'Yesterday'
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <>
       <Toast msg={toast} />
@@ -378,48 +408,35 @@ export function PageDrivingDesktop() {
         actions={<button onClick={() => showToast('Opening trip form…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Start trip</button>} />
       <CenteredColumn width={780} side>
         <div>
-          <div style={{ background: 'var(--a-ink)', color: '#fbf6ec', borderRadius: 16, padding: '20px 22px', marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: '#7dd28a', boxShadow: '0 0 0 4px rgba(125,210,138,0.2)' }} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em', color: '#7dd28a', textTransform: 'uppercase' }}>Trip in progress</span>
-            </div>
-            <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em' }}>M. Lee to Dr. Patel's office</div>
-            <div style={{ fontSize: 13, opacity: 0.65, marginTop: 4 }}>Driver: Aisha M. · Van #2 · Oak House</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(251,246,236,0.12)' }}>
-              <Mini label="Time" value="0:18" />
-              <Mini label="Distance" value="4.2 mi" />
-              <Mini label="Purpose" value="Medical" />
-              <Mini label="ETA" value="0:09" />
-            </div>
-          </div>
-
           <div style={{ ...dCard, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
               <span className="serif" style={{ fontSize: 18 }}>Recent trips</span>
-              <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>Last 7 days · 34 trips</span>
+              <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '6px 18px', borderTop: '1px solid var(--a-line)', borderBottom: '1px solid var(--a-line)', background: 'var(--a-paper)', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               <span>When</span><span>Trip</span><span>Driver</span><span>Purpose</span><span style={{ textAlign: 'right' }}>Miles</span>
             </div>
-            {[
-              ['Today · 9:14a', 'willow', 'Willow → Walmart', 'Devon P.', 'Grocery', '3.8'],
-              ['Today · 8:02a', 'maple', 'Maple → Day program', 'Saira K.', 'Program', '6.1'],
-              ['Mon · 4:40p', 'oak', 'Oak → Dr. Patel', 'Aisha M.', 'Medical', '4.2'],
-              ['Mon · 11:20a', 'oak', 'Oak → Library', 'Jay B.', 'Activity', '1.6'],
-              ['Sun · 2:30p', 'cedar', 'Cedar → Park', 'Tomas R.', 'Activity', '5.4'],
-              ['Sun · 9:15a', 'maple', 'Maple → Church', 'Reni T.', 'Faith', '2.2'],
-            ].map((row, i) => {
-              const h = HOUSES.find(x => x.id === row[1])
+            {loading && <div style={{ padding: '24px 18px', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
+            {!loading && trips.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>Start a trip to record a resident transport.</div>
+              </div>
+            )}
+            {!loading && trips.map((t) => {
+              const color = t.houses?.color || 'var(--a-ink3)'
+              const route = `${t.houses?.name ? t.houses.name + ' → ' : ''}${t.destination}`
               return (
-                <div key={i} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
-                  <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{row[0]}</span>
+                <div key={t.id} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
+                  <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{fmtDate(t.trip_date)}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 3, height: 16, background: h.color, borderRadius: 2 }} />
-                    {row[2]}
+                    <span style={{ width: 3, height: 16, background: color, borderRadius: 2 }} />
+                    {route}
                   </span>
-                  <span style={{ color: 'var(--a-ink2)' }}>{row[3]}</span>
-                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{row[4]}</span>
-                  <span className="tnum" style={{ textAlign: 'right', fontWeight: 500 }}>{row[5]}<span style={{ color: 'var(--a-ink3)', fontWeight: 400, fontSize: 10 }}> mi</span></span>
+                  <span style={{ color: 'var(--a-ink2)' }}>{t.driver_name}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{t.purpose}</span>
+                  <span className="tnum" style={{ textAlign: 'right', fontWeight: 500 }}>{t.miles}<span style={{ color: 'var(--a-ink3)', fontWeight: 400, fontSize: 10 }}> mi</span></span>
                 </div>
               )
             })}
@@ -428,13 +445,13 @@ export function PageDrivingDesktop() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={dCard}>
-            <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>This pay period</div>
+            <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Logged miles</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-              <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>248.4</span>
-              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi · $<span className="tnum" style={{ fontWeight: 600, color: 'var(--a-ink)' }}>166.43</span></span>
+              <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>{totalMiles.toFixed(1)}</span>
+              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi</span>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--a-ink3)' }}>
-              <span>34 trips</span><span>·</span><span>6 days remaining</span>
+              <span>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
             </div>
             <svg viewBox="0 0 200 40" style={{ width: '100%', height: 40, marginTop: 10 }}>
               <polyline points="0,30 20,28 40,22 60,24 80,18 100,20 120,15 140,17 160,12 180,9 200,11" fill="none" stroke="var(--a-sage)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -444,9 +461,21 @@ export function PageDrivingDesktop() {
           <div style={dCard}>
             <span className="serif" style={{ fontSize: 18 }}>Vehicles</span>
             <div style={{ marginTop: 8 }}>
-              <VehicleRow name="Van #1 · Sienna '22" sub="Oak / Willow · 38,402 mi" status="ok" onClick={() => showToast('Van #1 — available')} />
-              <VehicleRow name="Van #2 · Sienna '21" sub="Aisha out · 51,108 mi" status="active" onClick={() => showToast('Van #2 — in use by Aisha')} />
-              <VehicleRow name="Van #3 · Odyssey '23" sub="Oil due 4/8" status="due" last onClick={() => showToast('Van #3 — service overdue')} />
+              {!loading && vehicles.length === 0 && (
+                <div style={{ fontSize: 13, color: 'var(--a-ink3)', padding: '12px 0' }}>No vehicles yet.</div>
+              )}
+              {vehicles.map((v, i) => {
+                const status = (Number(v.mileage) || 0) > 50000 ? 'due' : 'ok'
+                const sub = [
+                  v.mileage != null ? `${Number(v.mileage).toLocaleString()} mi` : null,
+                  v.plate || null,
+                ].filter(Boolean).join(' · ')
+                return (
+                  <VehicleRow key={v.id} name={v.name} sub={sub} status={status}
+                    last={i === vehicles.length - 1}
+                    onClick={() => showToast(`${v.name} — ${status === 'due' ? 'service due' : 'available'}`)} />
+                )
+              })}
             </div>
           </div>
         </div>
@@ -458,78 +487,18 @@ export function PageDrivingDesktop() {
 // ── Resources ─────────────────────────────────────────────────────────
 
 export function PageResourcesDesktop() {
-  const [dismissed, setDismissed] = useState(false)
   const [toast, showToast] = useToast()
   return (
     <>
       <Toast msg={toast} />
       <DTopBar title="Resources" sub="Spend insights · grocery · cross-house"
         actions={<button onClick={() => showToast('Generating list…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Generate list</button>} />
-      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-          <DStat label="Weekly avg" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
-          <DStat label="Per resident" value="$64" sub="↓ $4 vs Apr" tone="good" />
-          <DStat label="Highest house" value="Maple" sub="$1,250 · ↑ 8%" tone="warn" />
-          <DStat label="Lowest house" value="Willow" sub="$840 · steady" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 16 }}>
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 20 }}>Spend by house · May</span>
-            <div style={{ marginTop: 14 }}>
-              <HouseBar house={HOUSES[0]} value="$1,180" pct={0.94} />
-              <HouseBar house={HOUSES[1]} value="$840"   pct={0.66} />
-              <HouseBar house={HOUSES[2]} value="$1,250" pct={1}    />
-              <HouseBar house={HOUSES[3]} value="$910"   pct={0.72} last />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)', marginTop: 8 }}>
-              <span>0</span><span>$1,250</span>
-            </div>
-          </div>
-          {!dismissed ? (
-            <div style={{ background: '#f5e9d6', border: '1px solid #e7d289', borderRadius: 14, padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <IconFlag size={14} color="#a47012" sw={2} />
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#a47012', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Worth a look</span>
-              </div>
-              <div style={{ fontSize: 14, color: 'var(--a-ink2)', lineHeight: 1.45 }}>
-                <strong style={{ color: 'var(--a-ink)' }}>Maple Run</strong> spent <strong>34% more</strong> on snacks this month vs. last 3 months. Mostly chips and soda.
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button onClick={() => showToast('Message sent to Saira K.')} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500, fontFamily: 'Geist', cursor: 'pointer' }}>Send to Saira</button>
-                <button onClick={() => setDismissed(true)} style={{ background: 'transparent', color: 'var(--a-ink2)', border: 0, padding: '6px 12px', fontSize: 11.5, fontFamily: 'Geist', cursor: 'pointer' }}>Dismiss</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ ...dCard, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--a-ink3)', fontSize: 13 }}>
-              Coach card dismissed
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 20 }}>What you buy most</span>
-            <div style={{ marginTop: 8 }}>
-              <TopItem rank={1} name="Milk (gallon)"  qty="84 ct"     trend="steady" />
-              <TopItem rank={2} name="Bread"          qty="62 loaves" trend="up" />
-              <TopItem rank={3} name="Eggs (dozen)"   qty="48 ct"     trend="steady" />
-              <TopItem rank={4} name="Chicken breast" qty="44 lb"     trend="up" />
-              <TopItem rank={5} name="Paper towels"   qty="38 pk"     trend="down" last />
-            </div>
-          </div>
-          <div style={dCard}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span className="serif" style={{ fontSize: 20 }}>Cross-house swaps</span>
-              <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>save a shop run</span>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '12px 0' }} />
-              <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar overbought last week" />
-              <div style={{ height: 1, background: 'var(--a-line)', margin: '12px 0' }} />
-              <SwapRow from={HOUSES[0]} to={HOUSES[3]} item="Coffee · 1 bag" note="Oak overbought · Cedar low" />
-            </div>
+      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--a-ink3)', maxWidth: 320 }}>
+          <div style={{ fontSize: 32, marginBottom: 14 }}>📦</div>
+          <div className="serif" style={{ fontSize: 22, color: 'var(--a-ink)', marginBottom: 8 }}>No supply data yet</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+            Add supplies through the mobile app to see spending insights and cross-house swap suggestions here.
           </div>
         </div>
       </div>
@@ -539,22 +508,28 @@ export function PageResourcesDesktop() {
 
 // ── Staff ─────────────────────────────────────────────────────────────
 
-export function PageStaffDesktop({ user }) {
+export function PageStaffDesktop({ user, houses = [] }) {
   const [query, setQuery] = useState('')
   const [houseFilter, setHouseFilter] = useState('All')
-  const [staffList, setStaffList] = useState(STAFF_LIST)
+  const [staffList, setStaffList] = useState([])
+  const [loading, setLoading] = useState(true)
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [toast, showToast] = useToast()
 
   useEffect(() => {
     if (!user?.orgId) return
-    fetchStaff(user.orgId, null).then(data => {
-      if (data.length > 0) setStaffList(data)
+    const houseId = user.role === 'manager' ? user.houseId : null
+    setLoading(true)
+    fetchStaff(user.orgId, houseId).then(data => {
+      setStaffList(data)
+      setLoading(false)
     })
-  }, [user?.orgId])
+  }, [user?.orgId, user?.houseId, user?.role])
+
+  const houseFilterTabs = ['All', ...houses.map(h => h.name)]
 
   const filtered = staffList.filter(s => {
-    const matchHouse = houseFilter === 'All' || s.house === houseFilter.toLowerCase()
+    const matchHouse = houseFilter === 'All' || s.houseName === houseFilter || s.house === houseFilter.toLowerCase()
     const matchQuery = s.name.toLowerCase().includes(query.toLowerCase()) || s.role.toLowerCase().includes(query.toLowerCase())
     return matchHouse && matchQuery
   })
@@ -562,7 +537,7 @@ export function PageStaffDesktop({ user }) {
   return (
     <>
       <Toast msg={toast} />
-      <DTopBar title="Staff" sub="22 staff · 4 in onboarding"
+      <DTopBar title="Staff" sub={`${staffList.length} staff member${staffList.length === 1 ? '' : 's'}`}
         actions={<button onClick={() => showToast('Opening hiring flow…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Hire</button>}
         search={false} />
       <CenteredColumn width={820} side>
@@ -574,8 +549,8 @@ export function PageStaffDesktop({ user }) {
                 style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 12.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {['All', 'Oak', 'Willow', 'Maple', 'Cedar'].map(b => (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            {houseFilterTabs.map(b => (
               <button key={b} onClick={() => setHouseFilter(b)} style={{
                 border: b === houseFilter ? '0' : '1px solid var(--a-line)',
                 background: b === houseFilter ? 'var(--a-ink)' : 'transparent',
@@ -584,8 +559,16 @@ export function PageStaffDesktop({ user }) {
               }}>{b}</button>
             ))}
           </div>
-          {filtered.map((s, i) => <StaffCard key={i} {...s} onClick={() => setSelectedStaff(s)} />)}
-          {filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
+          {loading && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>Loading…</div>}
+          {!loading && staffList.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No staff yet</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Hire your first team member to get started.</div>
+            </div>
+          )}
+          {!loading && staffList.length > 0 && filtered.map((s) => <StaffCard key={s.id} {...s} onClick={() => setSelectedStaff(s)} />)}
+          {!loading && staffList.length > 0 && filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -598,9 +581,9 @@ export function PageStaffDesktop({ user }) {
                 <span className="serif" style={{ fontSize: 18 }}>{selectedStaff.name}</span>
               </div>
               <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: '50%', background: HOUSES.find(h => h.id === selectedStaff.house)?.color ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: selectedStaff.houseColor ?? '#888', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, margin: '0 auto 8px' }}>{selectedStaff.name.split(' ').map(n => n[0]).join('')}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedStaff.role}</div>
-                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{HOUSES.find(h => h.id === selectedStaff.house)?.name ?? 'All houses'} · {selectedStaff.tenure}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{selectedStaff.houseName ?? 'All houses'} · {selectedStaff.tenure}</div>
               </div>
               <div style={{ height: 6, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
                 <div style={{ width: `${selectedStaff.score}%`, height: '100%', background: selectedStaff.score >= 90 ? '#3f7050' : selectedStaff.score >= 80 ? '#a47012' : '#a93a25', borderRadius: 999 }} />
@@ -646,7 +629,7 @@ export function PageStaffDesktop({ user }) {
 // ── Orientation ───────────────────────────────────────────────────────
 
 function NewHireCard({ name, house, mentor, day, pct, next }) {
-  const h = HOUSES.find(x => x.id === house)
+  const h = HOUSES.find(x => x.id === house) || { color: '#888888', name: house }
   const initials = name.split(' ').map(n => n[0]).join('')
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px' }}>

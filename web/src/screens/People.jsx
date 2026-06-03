@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HOUSES } from '../data/constants'
-import { fetchStaff, inviteStaff, removeStaff } from '../lib/db'
+import { fetchStaff, inviteStaff, removeStaff, fetchHouses } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { Pill } from '../components/ui/Pill'
@@ -19,10 +18,9 @@ export function RingChart({ pct = 0.9, color = 'var(--a-sage)', size = 40 }) {
   )
 }
 
-export function StaffCard({ name, role, house, houseId, houseName, score, sub, highlight, onClick }) {
-  const hConst = house ? HOUSES.find(x => x.id === house) : null
-  const hColor = hConst?.color ?? '#888'
-  const hName = houseName || hConst?.name || 'Staff'
+export function StaffCard({ name, role, house, houseId, houseName, houseColor, score, sub, highlight, onClick }) {
+  const hColor = houseColor ?? '#888'
+  const hName = houseName || 'Staff'
   const initials = name.split(' ').map(n => n[0]).join('')
   const scoreColor = score >= 90 ? '#3f7050' : score >= 80 ? '#a47012' : '#a93a25'
   const flagMap = {
@@ -56,9 +54,8 @@ export function StaffCard({ name, role, house, houseId, houseName, score, sub, h
 }
 
 function StaffDetail({ staff, onBack, onRemove }) {
-  const hConst = staff.house ? HOUSES.find(x => x.id === staff.house) : null
-  const hColor = hConst?.color ?? '#888'
-  const hName = staff.houseName || hConst?.name || 'All houses'
+  const hColor = staff.houseColor ?? '#888'
+  const hName = staff.houseName || 'All houses'
   const initials = staff.name.split(' ').map(n => n[0]).join('')
   const scoreColor = staff.score >= 90 ? '#3f7050' : staff.score >= 80 ? '#a47012' : '#a93a25'
   return (
@@ -107,21 +104,32 @@ function StaffDetail({ staff, onBack, onRemove }) {
   )
 }
 
-function AddStaffModal({ user, onClose, onAdded }) {
+function AddStaffModal({ user, houses = [], onClose, onAdded }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('staff')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  // Supervisors choose which house the person belongs to; managers/staff are
+  // scoped to their own house already.
+  const isSupervisor = user?.role === 'supervisor'
+  const [houseId, setHouseId] = useState(isSupervisor ? (houses[0]?.id ?? '') : (user?.houseId || ''))
 
-  const houseId = user?.houseId || null
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   const submit = async (e) => {
     e.preventDefault()
     if (!name.trim() || !user?.orgId) return
+    const trimmedEmail = email.trim()
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    setError('')
     setSaving(true)
-    const member = await inviteStaff(user.orgId, houseId, {
+    const member = await inviteStaff(user.orgId, houseId || null, {
       name: name.trim(),
-      email: email.trim() || null,
+      email: trimmedEmail,
       role,
     })
     setSaving(false)
@@ -132,17 +140,29 @@ function AddStaffModal({ user, onClose, onAdded }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add staff</div>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 8 }}>Add staff</div>
+        <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginBottom: 14, lineHeight: 1.5 }}>
+          We can't verify this address. The person will be linked to this house when they sign up using this exact email.
+        </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input autoFocus placeholder="Full name" value={name} onChange={e => setName(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <input placeholder="Email (optional)" value={email} onChange={e => setEmail(e.target.value)} type="email"
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          <input placeholder="Email" value={email} onChange={e => { setEmail(e.target.value); if (error) setError('') }} type="email"
+            style={{ background: 'var(--a-card)', border: `1px solid ${error ? '#e0a99a' : 'var(--a-line)'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          {error && <div style={{ fontSize: 11.5, color: '#a93a25', marginTop: -4 }}>{error}</div>}
           <select value={role} onChange={e => setRole(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
             <option value="staff">DSP</option>
             <option value="manager">House Manager</option>
           </select>
+          {isSupervisor && (
+            <select value={houseId} onChange={e => setHouseId(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+              {houses.length === 0
+                ? <option value="">No houses yet — add one first</option>
+                : houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          )}
           <button type="submit" disabled={!name.trim() || saving}
             style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>
             {saving ? 'Saving…' : 'Add staff member'}
@@ -158,6 +178,7 @@ export function ScreenA_Staff({ user, onLogout }) {
   const [staffList, setStaffList] = useState([])
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [houses, setHouses] = useState([])
   const [toast, showToast] = useToast()
 
   useEffect(() => {
@@ -165,16 +186,21 @@ export function ScreenA_Staff({ user, onLogout }) {
     fetchStaff(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
       setStaffList(data)
     })
+    fetchHouses(user.orgId).then(setHouses)
   }, [user?.orgId, user?.houseId, user?.role])
 
   const handleAdded = (member) => {
+    const h = houses.find(x => x.id === member.house_id)
     setStaffList(prev => [...prev, {
       id: member.id,
       name: member.name,
       email: member.email ?? '',
       role: member.role === 'manager' ? 'House mgr' : 'DSP',
       rawRole: member.role,
-      house: null,
+      house: h?.slug ?? null,
+      houseId: member.house_id ?? null,
+      houseName: h?.name ?? null,
+      houseColor: h?.color ?? null,
       score: 85,
       sub: 'New',
       tenure: 'New',
@@ -249,7 +275,7 @@ export function ScreenA_Staff({ user, onLogout }) {
       <TabBar active="me" />
 
       {showAdd && user?.orgId && (
-        <AddStaffModal user={user} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
+        <AddStaffModal user={user} houses={houses} onClose={() => setShowAdd(false)} onAdded={handleAdded} />
       )}
     </div>
   )

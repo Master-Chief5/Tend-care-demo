@@ -1,4 +1,5 @@
-import { supabase } from './supabase'
+import { supabase, isDemoMode } from './supabase'
+import * as demo from './demoStore'
 
 // Returns the staff profile for the authenticated user.
 // Uses a SECURITY DEFINER RPC that bypasses RLS — safe for initial login bootstrap.
@@ -31,6 +32,7 @@ export async function fetchStaffProfile(authUserId, _email) {
 // Fetch all shifts for an org on a given date.
 // Pass houseId to limit to one house (managers/staff); null for all (supervisors).
 export async function fetchShifts(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchShifts(houseId, date)
   if (!supabase || !orgId) return []
   const dateStr = toDateStr(date)
 
@@ -56,8 +58,40 @@ export async function fetchShifts(orgId, houseId, date) {
   }))
 }
 
+// Fetch shifts for an entire week (inclusive date range).
+export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
+  if (isDemoMode) return demo.demoFetchShiftsWeek(houseId, weekStart, weekEnd)
+  if (!supabase || !orgId) return []
+  const startStr = toDateStr(weekStart)
+  const endStr = toDateStr(weekEnd)
+
+  let q = supabase
+    .from('shifts')
+    .select('*, houses(slug, color, name, short)')
+    .eq('org_id', orgId)
+    .gte('shift_date', startStr)
+    .lte('shift_date', endStr)
+
+  if (houseId) q = q.eq('house_id', houseId)
+
+  const { data, error } = await q
+  if (error) { console.error('fetchShiftsWeek:', error.message); return [] }
+
+  return (data || []).map(s => ({
+    id:     s.id,
+    house:  s.houses?.slug,
+    date:   s.shift_date,
+    start:  Number(s.start_hour),
+    end:    Number(s.end_hour),
+    person: s.person_name,
+    role:   s.role,
+    status: s.status,
+  }))
+}
+
 // Insert a new shift.
 export async function addShift(orgId, houseId, shift) {
+  if (isDemoMode) return demo.demoAddShift(houseId, shift)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('shifts')
@@ -80,6 +114,7 @@ export async function addShift(orgId, houseId, shift) {
 // Fetch staff list for an org.
 // Pass houseId to limit to one house; null for all staff in org.
 export async function fetchStaff(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchStaff(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -102,6 +137,7 @@ export async function fetchStaff(orgId, houseId) {
     house:     s.houses?.slug ?? null,
     houseId:   s.house_id ?? null,
     houseName: s.houses?.name ?? null,
+    houseColor: s.houses?.color ?? null,
     score:     s.quality_score ?? 85,
     sub:       s.tenure ?? '',
     highlight: s.highlight ?? null,
@@ -112,6 +148,7 @@ export async function fetchStaff(orgId, houseId) {
 
 // Insert a staff record (no auth invite yet — placeholder).
 export async function inviteStaff(orgId, houseId, member) {
+  if (isDemoMode) return demo.demoInviteStaff(houseId, member)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('staff')
@@ -130,6 +167,7 @@ export async function inviteStaff(orgId, houseId, member) {
 
 // Update a staff member's role or house.
 export async function updateStaffMember(id, updates) {
+  if (isDemoMode) return demo.demoUpdateStaff(id, updates)
   if (!supabase || !id) return null
   const { data, error } = await supabase
     .from('staff')
@@ -143,6 +181,7 @@ export async function updateStaffMember(id, updates) {
 
 // Remove a staff member.
 export async function removeStaff(id) {
+  if (isDemoMode) return demo.demoRemoveStaff(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('staff').delete().eq('id', id)
   if (error) console.error('removeStaff:', error.message)
@@ -150,6 +189,7 @@ export async function removeStaff(id) {
 
 // Fetch tasks for a staff member on a given date.
 export async function fetchTasks(staffId, date) {
+  if (isDemoMode) return demo.demoFetchTasks(staffId, date)
   if (!supabase || !staffId) return []
   const dateStr = toDateStr(date)
 
@@ -166,6 +206,7 @@ export async function fetchTasks(staffId, date) {
 
 // Toggle a task's done state.
 export async function toggleTask(taskId, done) {
+  if (isDemoMode) return demo.demoToggleTask(taskId, done)
   if (!supabase || !taskId) return
   const { error } = await supabase.from('tasks').update({ done }).eq('id', taskId)
   if (error) console.error('toggleTask:', error.message)
@@ -173,6 +214,7 @@ export async function toggleTask(taskId, done) {
 
 // Insert a task for today.
 export async function addTask(orgId, staffId, task) {
+  if (isDemoMode) return demo.demoAddTask(staffId, task)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('tasks')
@@ -193,6 +235,7 @@ export async function addTask(orgId, staffId, task) {
 
 // Fetch resources; houseId=null means all houses in org.
 export async function fetchResources(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchResources(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -210,6 +253,7 @@ export async function fetchResources(orgId, houseId) {
 
 // Insert a resource item.
 export async function addResource(orgId, houseId, item) {
+  if (isDemoMode) return demo.demoAddResource(houseId, item)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('resources')
@@ -230,6 +274,7 @@ export async function addResource(orgId, houseId, item) {
 
 // Delete a resource by id.
 export async function deleteResource(id) {
+  if (isDemoMode) return demo.demoDeleteResource(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('resources').delete().eq('id', id)
   if (error) console.error('deleteResource:', error.message)
@@ -237,6 +282,7 @@ export async function deleteResource(id) {
 
 // Delete a trip by id.
 export async function deleteTrip(id) {
+  if (isDemoMode) return demo.demoDeleteTrip(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('trips').delete().eq('id', id)
   if (error) console.error('deleteTrip:', error.message)
@@ -244,6 +290,7 @@ export async function deleteTrip(id) {
 
 // Fetch trips for a given date (or null for all). houseId=null means all houses.
 export async function fetchTrips(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchTrips(houseId, date)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -262,6 +309,7 @@ export async function fetchTrips(orgId, houseId, date) {
 
 // Insert a trip.
 export async function addTrip(orgId, trip) {
+  if (isDemoMode) return demo.demoAddTrip(trip)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('trips')
@@ -283,6 +331,7 @@ export async function addTrip(orgId, trip) {
 
 // Update a trip.
 export async function updateTrip(id, updates) {
+  if (isDemoMode) return demo.demoUpdateTrip(id, updates)
   if (!supabase || !id) return null
   const { data, error } = await supabase
     .from('trips')
@@ -300,18 +349,78 @@ export async function updateTrip(id, updates) {
   return data
 }
 
-// Fetch all houses in an org.
-export async function fetchHouses(orgId) {
+// ── Vehicles ──────────────────────────────────────────────────────────────
+// Fetch vehicles for an org (optionally scoped to one house).
+export async function fetchVehicles(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchVehicles(houseId)
   if (!supabase || !orgId) return []
-
-  const { data, error } = await supabase
-    .from('houses')
-    .select('*')
+  let q = supabase
+    .from('vehicles')
+    .select('*, houses(slug, name, color, short)')
     .eq('org_id', orgId)
     .order('name')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchVehicles:', error.message); return [] }
+  return data || []
+}
 
-  if (error) { console.error('fetchHouses:', error.message); return [] }
-  return (data || []).map(h => ({
+// Insert a vehicle.
+export async function addVehicle(orgId, vehicle) {
+  if (isDemoMode) return demo.demoAddVehicle(vehicle)
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('vehicles')
+    .insert({
+      org_id:       orgId,
+      house_id:     vehicle.houseId || null,
+      name:         vehicle.name,
+      plate:        vehicle.plate || null,
+      mileage:      vehicle.mileage || 0,
+      last_service: vehicle.lastService || null,
+    })
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('addVehicle:', error.message); return null }
+  return data
+}
+
+// Update a vehicle. (Requires a vehicles_update RLS policy to be in place.)
+export async function updateVehicle(id, updates) {
+  if (isDemoMode) return demo.demoUpdateVehicle(id, updates)
+  if (!supabase || !id) return null
+  const patch = {}
+  if (updates.name !== undefined)        patch.name         = updates.name
+  if (updates.plate !== undefined)       patch.plate        = updates.plate
+  if (updates.mileage !== undefined)     patch.mileage      = updates.mileage
+  if (updates.lastService !== undefined) patch.last_service = updates.lastService
+  const { data, error } = await supabase
+    .from('vehicles')
+    .update(patch)
+    .eq('id', id)
+    .select('*, houses(slug, name, color, short)')
+    .single()
+  if (error) { console.error('updateVehicle:', error.message); return null }
+  return data
+}
+
+// Delete a vehicle. (Requires a vehicles_delete RLS policy to be in place.)
+export async function deleteVehicle(id) {
+  if (isDemoMode) return demo.demoDeleteVehicle(id)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('vehicles').delete().eq('id', id)
+  if (error) console.error('deleteVehicle:', error.message)
+}
+
+// Fetch all houses in an org.
+// Tries the get_my_houses SECURITY DEFINER RPC first (bypasses RLS, works even
+// when the SELECT policy is missing). Falls back to a direct query for orgs that
+// haven't run migration_writes.sql yet.
+export async function fetchHouses(orgId) {
+  if (isDemoMode) return demo.demoFetchHouses()
+  if (!supabase || !orgId) return []
+
+  const normalizeRows = (rows) => (rows || []).map(h => ({
     id:             h.id,
     slug:           h.slug,
     name:           h.name,
@@ -322,11 +431,54 @@ export async function fetchHouses(orgId) {
     managerName:    h.manager_name ?? '',
     residentsCount: h.residents_count ?? 0,
   }))
+
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_my_houses')
+  if (!rpcErr) return normalizeRows(rpcData)
+
+  if (!/function.*get_my_houses.*does not exist/i.test(rpcErr.message)) {
+    console.error('fetchHouses (rpc):', rpcErr.message)
+  }
+
+  const { data, error } = await supabase
+    .from('houses')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('name')
+
+  if (error) { console.error('fetchHouses:', error.message); return [] }
+  return normalizeRows(data)
 }
 
-// Insert a house.
+// Insert a house. Returns { data, error } so the UI can surface the real reason
+// a save failed. Uses the create_house SECURITY DEFINER RPC, which derives the
+// caller's org server-side and bypasses RLS — so it works even if the per-table
+// INSERT policy wasn't created. Falls back to a direct insert if the RPC is
+// missing (older databases that haven't run migration_writes.sql).
 export async function addHouse(orgId, house) {
-  if (!supabase) return null
+  if (isDemoMode) return { data: demo.demoAddHouse(house), error: null }
+  if (!supabase) return { data: null, error: 'Not connected to database' }
+
+  const { data, error } = await supabase.rpc('create_house', {
+    p_name:         house.name,
+    p_slug:         house.slug || '',
+    p_short:        house.short || '',
+    p_address:      house.address || '',
+    p_branch:       house.branch || '',
+    p_color:        house.color || '',
+    p_manager_name: house.managerName || '',
+  })
+
+  // RPC not deployed yet → fall back to a direct insert so nothing regresses.
+  if (error && /function .*create_house.* does not exist/i.test(error.message)) {
+    return addHouseDirect(orgId, house)
+  }
+  if (error) { console.error('addHouse:', error.message); return { data: null, error: error.message } }
+  return { data, error: null }
+}
+
+// Direct-insert fallback (subject to RLS). Used only when create_house RPC isn't present.
+async function addHouseDirect(orgId, house) {
+  if (!orgId) return { data: null, error: 'Your account is not linked to an organization yet' }
   const { data, error } = await supabase
     .from('houses')
     .insert({
@@ -342,12 +494,13 @@ export async function addHouse(orgId, house) {
     })
     .select()
     .single()
-  if (error) { console.error('addHouse:', error.message); return null }
-  return data
+  if (error) { console.error('addHouseDirect:', error.message); return { data: null, error: error.message } }
+  return { data, error: null }
 }
 
 // Update a house.
 export async function updateHouse(id, updates) {
+  if (isDemoMode) return demo.demoUpdateHouse(id, updates)
   if (!supabase || !id) return null
   const dbUpdates = {}
   if (updates.name !== undefined)         dbUpdates.name           = updates.name
@@ -369,6 +522,7 @@ export async function updateHouse(id, updates) {
 
 // Delete a house.
 export async function deleteHouse(id) {
+  if (isDemoMode) return demo.demoDeleteHouse(id)
   if (!supabase || !id) return
   const { error } = await supabase.from('houses').delete().eq('id', id)
   if (error) console.error('deleteHouse:', error.message)
@@ -376,6 +530,7 @@ export async function deleteHouse(id) {
 
 // Fetch residents.
 export async function fetchResidents(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchResidents(houseId)
   if (!supabase || !orgId) return []
 
   let q = supabase
@@ -393,6 +548,7 @@ export async function fetchResidents(orgId, houseId) {
 
 // Insert a resident.
 export async function addResident(orgId, houseId, resident) {
+  if (isDemoMode) return demo.demoAddResident(houseId, resident)
   if (!supabase) return null
   const { data, error } = await supabase
     .from('residents')
@@ -410,6 +566,38 @@ export async function addResident(orgId, houseId, resident) {
   if (error) { console.error('addResident:', error.message); return null }
   return data
 }
+
+// Search organizations by name or slug — callable before the user is authenticated
+// (uses the search_organizations SECURITY DEFINER function which grants anon access).
+export async function searchOrganizations(query) {
+  if (!supabase || !query.trim()) return []
+  const { data, error } = await supabase.rpc('search_organizations', { query: query.trim() })
+  if (error) { console.error('searchOrganizations:', error.message); return [] }
+  return data || []
+}
+
+// Create a new organization and register the caller as its supervisor.
+// Returns { data, error } so callers can surface the actual DB error message.
+export async function createOrgAndSupervisor(orgName, orgSlug, name) {
+  if (!supabase) return { data: null, error: 'Not connected to database' }
+  const { data, error } = await supabase.rpc('create_org_and_supervisor', {
+    p_org_name: orgName,
+    p_org_slug: orgSlug,
+    p_name:     name,
+  })
+  if (error) { console.error('createOrgAndSupervisor:', error.message) }
+  return { data: error ? null : data, error: error?.message ?? null }
+}
+
+// Create or link a staff profile after sign-up.
+// Returns { data, error } so callers can surface the actual DB error message.
+export async function registerAsStaff(orgId, name) {
+  if (!supabase) return { data: null, error: 'Not connected to database' }
+  const { data, error } = await supabase.rpc('register_as_staff', { p_org_id: orgId, p_name: name })
+  if (error) { console.error('registerAsStaff:', error.message) }
+  return { data: error ? null : data, error: error?.message ?? null }
+}
+
 
 function toDateStr(date) {
   if (typeof date === 'string') return date

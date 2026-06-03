@@ -91,7 +91,7 @@ function HouseCard({ house, onEdit, onDelete }) {
   )
 }
 
-export function ScreenA_HouseSetup({ user }) {
+export function ScreenA_HouseSetup({ user, onHousesChanged, onHouseAdded }) {
   const [houses, setHouses] = useState([])
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -109,19 +109,22 @@ export function ScreenA_HouseSetup({ user }) {
   }, [user?.orgId])
 
   const handleAdd = async (data) => {
-    if (!user?.orgId) return
     setSaving(true)
-    const h = await addHouse(user.orgId, { ...data, slug: data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })
+    const { data: h, error } = await addHouse(user?.orgId, { ...data, slug: data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })
     setSaving(false)
-    if (h) {
-      setHouses(prev => [...prev, {
-        id: h.id, slug: h.slug, name: h.name, short: h.short,
-        address: h.address ?? '', branch: h.branch ?? '',
-        color: h.color, managerName: h.manager_name ?? '', residentsCount: 0,
-      }])
-      setShowAdd(false)
-      showToast('House created')
+    if (error || !h) {
+      showToast(error ? `Couldn't save: ${error}` : "Couldn't save house — please try again")
+      return
     }
+    setHouses(prev => [...prev, {
+      id: h.id, slug: h.slug, name: h.name, short: h.short,
+      address: h.address ?? '', branch: h.branch ?? '',
+      color: h.color, managerName: h.manager_name ?? '', residentsCount: 0,
+    }])
+    setShowAdd(false)
+    showToast('House created')
+    onHouseAdded?.(h)
+    onHousesChanged?.()
   }
 
   const handleEdit = async (data) => {
@@ -137,6 +140,7 @@ export function ScreenA_HouseSetup({ user }) {
       } : x))
       setEditHouse(null)
       showToast('House updated')
+      onHousesChanged?.()
     }
   }
 
@@ -144,31 +148,30 @@ export function ScreenA_HouseSetup({ user }) {
     await deleteHouse(id)
     setHouses(prev => prev.filter(h => h.id !== id))
     showToast('House deleted')
+    onHousesChanged?.()
   }
 
   return (
     <div className="phone-screen">
       <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div>
-            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Houses</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{houses.length} houses</div>
-          </div>
-          <button onClick={() => { setShowAdd(true); setEditHouse(null) }}
-            style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '8px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
-            <IconPlus size={14} sw={2.4} /> Add house
-          </button>
+        <div style={{ padding: '14px 22px 8px' }}>
+          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Houses</div>
+          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{houses.length} house{houses.length !== 1 ? 's' : ''}</div>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
 
           {!loading && houses.length === 0 && !showAdd && (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
+            <div style={{ textAlign: 'center', padding: '32px 20px 0', color: 'var(--a-ink3)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🏠</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No houses yet</div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add house" to create your first group home.</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: 'var(--a-ink)' }}>No houses yet</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>Add your first group home below.</div>
+              <button onClick={() => { setShowAdd(true); setEditHouse(null) }}
+                style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '12px 28px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                <IconPlus size={14} sw={2.4} style={{ verticalAlign: 'middle', marginRight: 6 }} /> Add house
+              </button>
             </div>
           )}
 
@@ -187,6 +190,13 @@ export function ScreenA_HouseSetup({ user }) {
           ) : (
             <HouseCard key={h.id} house={h} onEdit={setEditHouse} onDelete={handleDelete} />
           ))}
+
+          {!loading && houses.length > 0 && !showAdd && !editHouse && (
+            <button onClick={() => { setShowAdd(true); setEditHouse(null) }}
+              style={{ width: '100%', padding: '11px', background: 'transparent', border: '1.5px dashed var(--a-line)', borderRadius: 12, fontSize: 13, fontWeight: 500, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
+              <IconPlus size={13} sw={2.2} /> Add another house
+            </button>
+          )}
         </div>
       </div>
     </div>

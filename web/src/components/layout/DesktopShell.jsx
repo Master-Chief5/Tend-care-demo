@@ -1,14 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ROLES } from '../../data/constants'
+import { isDemoMode } from '../../lib/supabase'
+import { fetchHouses } from '../../lib/db'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
 import { ScreenA_MyDay } from '../../screens/Employee'
 import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Driving } from '../../screens/Driving'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { TendLogo } from '../ui/TendLogo'
-import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageDrivingDesktop, PageResourcesDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
+import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
+
+function normalizeHouse(h) {
+  return {
+    id:        h.slug,
+    _uuid:     h.id,
+    name:      h.name,
+    short:     h.short || h.name.slice(0, 4).toUpperCase(),
+    color:     h.color || '#888888',
+    addr:      h.address || '',
+    branch:    h.branch || '',
+    manager:   h.managerName || '',
+    residents: h.residentsCount || 0,
+  }
+}
 
 const ALL_TABS = [
   { id: 'today',       label: 'Today',       icon: IconHome,    roles: ['supervisor', 'manager'] },
@@ -23,24 +39,27 @@ const ALL_TABS = [
   { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'] },
 ]
 
-function DesktopPage({ tab, onHouseClick, user }) {
-  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} />
+function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses }) {
+  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
   if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
-  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} />
-  if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} /></div></div>
-  if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} />
+  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
+  if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
+  if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />
   if (tab === 'team')        return <PageTeamDesktop />
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
-  if (tab === 'staff')       return <PageStaffDesktop user={user} />
+  if (tab === 'staff')       return <PageStaffDesktop user={user} houses={houses} />
   if (tab === 'orientation') return <PageOrientationDesktop />
-  return <PageTodayDesktop onHouseClick={onHouseClick} />
+  return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
 }
 
-function DesktopRail({ tab, setTab, user, onLogout }) {
+function DesktopRail({ tab, setTab, user, onLogout, houses }) {
   const u = ROLES.find(r => r.id === user.role) || ROLES.find(r => r.id === user.id) || ROLES[0]
   const role = user.role ?? user.id
   const railTabs = ALL_TABS.filter(t => t.roles.includes(role))
+
+  const branches = [...new Set(houses.map(h => h.branch).filter(Boolean))]
+
   return (
     <div style={{ width: 240, background: 'var(--a-paper)', borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', padding: '20px 16px', flexShrink: 0, height: '100dvh', overflow: 'auto' }}>
       <TendLogo size={16} />
@@ -63,15 +82,19 @@ function DesktopRail({ tab, setTab, user, onLogout }) {
         })}
       </div>
       <div style={{ flex: 1 }} />
-      <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8, paddingLeft: 10 }}>Branches</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
-        {[{ name: 'North · Oak + Willow' }, { name: 'South · Maple + Cedar' }].map(b => (
-          <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', fontSize: 11.5, color: 'var(--a-ink2)', borderRadius: 6 }}>
-            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--a-sage)' }} />
-            {b.name}
+      {branches.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8, paddingLeft: 10 }}>Branches</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
+            {branches.map(b => (
+              <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', fontSize: 11.5, color: 'var(--a-ink2)', borderRadius: 6 }}>
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--a-sage)' }} />
+                {b} · {houses.filter(h => h.branch === b).map(h => h.short).join(' + ')}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
       <div onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer' }}>
         <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{u.initial}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -88,13 +111,25 @@ export function DesktopShell({ user, onLogout }) {
   const defaultTab = (user.role ?? user.id) === 'staff' ? 'myday' : 'today'
   const [tab, setTab] = useState(defaultTab)
   const [houseDetail, setHouseDetail] = useState(null)
+  const [houses, setHouses] = useState([])
+
+  useEffect(() => {
+    if (!user?.orgId) return
+    fetchHouses(user.orgId).then(rows => setHouses(rows.map(normalizeHouse)))
+  }, [user?.orgId])
+
+  const refreshHouses = () => {
+    if (!user?.orgId) return
+    fetchHouses(user.orgId).then(rows => setHouses(rows.map(normalizeHouse)))
+  }
+
   const switchTab = (t) => { setTab(t); setHouseDetail(null) }
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
-      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} />
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} houses={houses} refreshHouses={refreshHouses} />
       </div>
       {houseDetail && (
         <div
@@ -107,7 +142,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={houseDetail} onBack={() => setHouseDetail(null)} />
+            <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} houses={houses} />
           </div>
         </div>
       )}

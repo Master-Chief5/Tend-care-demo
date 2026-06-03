@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { HOUSES, TODAY_SHIFTS } from '../../data/constants'
+import { HOUSES } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
 import { useNowMinute } from '../../hooks/useNowMinute'
-import { fetchShifts } from '../../lib/db'
+import { fetchShifts, fetchShiftsWeek, addShift, fetchStaff } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 
@@ -96,7 +96,7 @@ function DskShiftBlock({ shift, houseColor }) {
   )
 }
 
-function DesktopTimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
+function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8 }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * DSK_HOUR_PX
@@ -152,16 +152,9 @@ function DesktopTimeGrid({ shifts, houses = HOUSES, nowFrac = 9.8 }) {
   )
 }
 
-function ScheduleRow({ house }) {
-  const dayShifts = [
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['7a–3p', 'Jay B.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'OPEN']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Aisha M.'], ['3p–11p', 'Carmen V.']],
-    [['7a–3p', 'Jay B.'], ['3p–11p', 'Aisha M.']],
-    [['7a–3p', 'Jay B.'], ['3p–11p', 'Aisha M.']],
-  ]
+const toDateStr = (d) => d.toISOString().split('T')[0]
+
+function ScheduleRow({ house, weekShifts, weekDates }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', borderBottom: '1px solid var(--a-line)', minHeight: 86 }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, borderRight: '1px solid var(--a-line)' }}>
@@ -171,27 +164,33 @@ function ScheduleRow({ house }) {
           <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{house.branch}</div>
         </div>
       </div>
-      {dayShifts.map((shifts, i) => (
-        <div key={i} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {shifts.map((s, j) => {
-            const open = s[1] === 'OPEN'
-            return (
-              <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
-                <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{s[0]}</div>
-                <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s[1]}</div>
-              </div>
-            )
-          })}
-        </div>
-      ))}
+      {weekDates.map((d, i) => {
+        const dateStr = toDateStr(d.date)
+        const dayShifts = weekShifts.filter(s => s.house === house.id && s.date === dateStr)
+        return (
+          <div key={i} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {dayShifts.length === 0 ? (
+              <div style={{ color: 'var(--a-ink3)', fontSize: 11, padding: '4px 4px', opacity: 0.45 }}>—</div>
+            ) : dayShifts.map((s, j) => {
+              const open = s.status === 'open'
+              return (
+                <div key={j} style={{ background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
+                  <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{fmtTime(s.start)}–{fmtTime(s.end)}</div>
+                  <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s.person}</div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts }) {
+function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = [], isManager = false }) {
   const week = buildWeek(new Date())
   const nowFrac = useNowMinute()
-  const visibleHouses = houseFilter === 'all' ? HOUSES : HOUSES.filter(h => h.id === houseFilter)
+  const visibleHouses = houseFilter === 'all' ? houses : houses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
 
   return (
@@ -220,8 +219,10 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
-        <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub={`${shifts.length} shifts`} />
-        {HOUSES.map(h => {
+        {!isManager && (
+          <DskHouseTab active={houseFilter === 'all'} onClick={() => setHouseFilter('all')} label="All houses" sub={`${shifts.length} shifts`} />
+        )}
+        {houses.map(h => {
           const count = shifts.filter(s => s.house === h.id).length
           return (
             <DskHouseTab key={h.id} active={houseFilter === h.id} onClick={() => setHouseFilter(h.id)}
@@ -247,10 +248,11 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
   )
 }
 
-function WeekScheduleView() {
+function WeekScheduleView({ houses = [], shifts = [] }) {
   const week = buildWeek(new Date())
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
+  const openCount = shifts.filter(s => s.status === 'open').length
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
@@ -258,7 +260,7 @@ function WeekScheduleView() {
         <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{weekLabel}</span>
         <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>3</strong></span>
+        {openCount > 0 && <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>{openCount}</strong></span>}
       </div>
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
@@ -270,47 +272,192 @@ function WeekScheduleView() {
             </div>
           ))}
         </div>
-        {HOUSES.map(h => <ScheduleRow key={h.id} house={h} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} />)}
       </div>
     </>
   )
 }
 
-export function PageScheduleDesktopExpanded({ user }) {
+function AddShiftModal({ user, houses, defaultHouseUuid, isManager, onClose, onAdded }) {
+  const initialHouse = isManager
+    ? (user?.houseId || houses[0]?._uuid || '')
+    : (defaultHouseUuid || houses[0]?._uuid || '')
+  const [houseUuid, setHouseUuid] = useState(initialHouse)
+  const [staff, setStaff] = useState([])
+  const [staffLoading, setStaffLoading] = useState(false)
+  const [personName, setPersonName] = useState('')
+  const [role, setRole] = useState('DSP')
+  const [startTime, setStartTime] = useState('07:00')
+  const [endTime, setEndTime] = useState('15:00')
+  const [saving, setSaving] = useState(false)
+
+  // Refetch the staff list whenever the selected house changes — the user may
+  // only pick a real current employee of that house.
+  useEffect(() => {
+    let cancelled = false
+    if (!user?.orgId || !houseUuid) { setStaff([]); return }
+    setStaffLoading(true)
+    fetchStaff(user.orgId, houseUuid).then(data => {
+      if (cancelled) return
+      setStaff(data)
+      setPersonName(prev => (data.some(s => s.name === prev) ? prev : (data[0]?.name ?? '')))
+      setStaffLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [user?.orgId, houseUuid])
+
+  const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!personName || !houseUuid || !user?.orgId || saving) return
+    setSaving(true)
+    const shift = await addShift(user.orgId, houseUuid, {
+      personName,
+      role,
+      startHour: timeToHour(startTime),
+      endHour: timeToHour(endTime),
+    })
+    setSaving(false)
+    if (shift) onAdded(shift, houseUuid)
+  }
+
+  const fieldStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const labelStyle = { fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }
+  const canSubmit = !!personName && !!houseUuid && !saving
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: 420, maxWidth: 'calc(100vw - 40px)', background: 'var(--a-bg)', border: '1px solid var(--a-line)', borderRadius: 16, padding: '22px 24px 26px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Add shift</div>
+          <button onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, fontFamily: 'Geist' }}>×</button>
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={labelStyle}>House</div>
+            <select value={houseUuid} onChange={e => setHouseUuid(e.target.value)} disabled={isManager} style={{ ...fieldStyle, opacity: isManager ? 0.7 : 1 }}>
+              {houses.map(h => <option key={h._uuid} value={h._uuid}>{h.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={labelStyle}>Staff member</div>
+            <select value={personName} onChange={e => setPersonName(e.target.value)} disabled={staffLoading || staff.length === 0} style={fieldStyle}>
+              {staffLoading
+                ? <option value="">Loading…</option>
+                : staff.length === 0
+                  ? <option value="">No staff in this house</option>
+                  : staff.map(s => <option key={s.id} value={s.name}>{s.name}{s.role ? ` · ${s.role}` : ''}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={labelStyle}>Role</div>
+            <select value={role} onChange={e => setRole(e.target.value)} style={fieldStyle}>
+              {['DSP', 'Lead', 'Mgr', 'PT', 'Awake OT'].map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div style={labelStyle}>Start time</div>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <div style={labelStyle}>End time</div>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={fieldStyle} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            <button type="button" onClick={onClose} style={{ ...dBtnGhost, flex: 1, justifyContent: 'center', padding: '11px' }}>Cancel</button>
+            <button type="submit" disabled={!canSubmit}
+              style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: canSubmit ? 'pointer' : 'default', opacity: canSubmit ? 1 : 0.5 }}>
+              {saving ? 'Saving…' : 'Add shift'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
+  const isManager = user?.role === 'manager'
+  const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
+
   const [view, setView] = useState('day')
   const [dayIdx, setDayIdx] = useState(() => {
     const w = buildWeek(new Date())
     const i = w.findIndex(d => d.today)
     return i >= 0 ? i : 0
   })
-  const [houseFilter, setHouseFilter] = useState('all')
-  const [shifts, setShifts] = useState(TODAY_SHIFTS)
+  const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
+  const [shifts, setShifts] = useState([])
+  const [weekShifts, setWeekShifts] = useState([])
+  const [showAdd, setShowAdd] = useState(false)
 
   useEffect(() => {
     if (!user?.orgId) return
-    fetchShifts(user.orgId, null, new Date()).then(data => {
+    const houseId = isManager ? (user.houseId || null) : null
+    fetchShifts(user.orgId, houseId, new Date()).then(data => {
       if (data.length > 0) setShifts(data)
     })
-  }, [user?.orgId])
+    const week = buildWeek(new Date())
+    fetchShiftsWeek(user.orgId, houseId, week[0].date, week[6].date).then(data => {
+      setWeekShifts(data)
+    })
+  }, [user?.orgId, user?.houseId, isManager])
+
+  // The grid renders shifts by `s.house === h.id`, where h.id is the house slug.
+  // addShift returns a raw DB row keyed by house UUID, so map it back to the slug.
+  const handleShiftAdded = (shift, houseUuid) => {
+    const slug = houses.find(h => h._uuid === houseUuid)?.id ?? houseUuid
+    const todayStr = toDateStr(new Date())
+    const rowDate = shift.shift_date || todayStr
+    const normalized = {
+      id: shift.id,
+      house: slug,
+      start: Number(shift.start_hour),
+      end: Number(shift.end_hour),
+      person: shift.person_name,
+      role: shift.role,
+      status: shift.status || 'scheduled',
+      date: rowDate,
+    }
+    if (rowDate === todayStr) setShifts(prev => [...prev, normalized])
+    setWeekShifts(prev => [...prev, normalized])
+    setShowAdd(false)
+  }
 
   return (
     <>
       <DTopBar
         title="Schedule"
         sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <IconKey size={12} sw={2} color="var(--a-sage)" /> You see all 4 houses · staff see only their own
+          <IconKey size={12} sw={2} color="var(--a-sage)" />
+          {isManager ? 'Your house schedule' : 'You see all houses · staff see only their own'}
         </span>}
         actions={<>
           <ViewToggleDesktop view={view} setView={setView} />
           <button style={dBtnGhost}><IconFilter size={13} sw={1.8} /> Filter</button>
-          <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
+          <button onClick={() => setShowAdd(true)} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
         </>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {view === 'day'
-          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} />
-          : <WeekScheduleView />}
+          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={shifts} houses={houses} isManager={isManager} />
+          : <WeekScheduleView houses={houses} shifts={weekShifts} />}
       </div>
+
+      {showAdd && (
+        <AddShiftModal
+          user={user}
+          houses={houses}
+          isManager={isManager}
+          defaultHouseUuid={houses.find(h => h.id === houseFilter)?._uuid}
+          onClose={() => setShowAdd(false)}
+          onAdded={handleShiftAdded}
+        />
+      )}
     </>
   )
 }
