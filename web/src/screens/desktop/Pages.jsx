@@ -314,7 +314,7 @@ function HouseCardWide({ house, urgent, staff, staffTotal, present, drives, need
   )
 }
 
-export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
+export function PageHousesDesktop({ onHouseClick, user, houses = [], onNavigate }) {
   const isManager = user?.role === 'manager'
   const { stats, alerts } = useHouseSnapshot(user, houses)
   const scoped = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
@@ -337,7 +337,7 @@ export function PageHousesDesktop({ onHouseClick, user, houses = [] }) {
   return (
     <>
       <DTopBar title="Houses" sub={subText}
-        actions={!isManager && <button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
+        actions={!isManager && <button onClick={() => onNavigate?.('setup')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add house</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {houseData.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--a-ink3)' }}>

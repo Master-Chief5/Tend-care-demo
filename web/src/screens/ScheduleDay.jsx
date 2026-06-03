@@ -251,12 +251,12 @@ function AddShiftModal({ user, houses, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add shift</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <select autoFocus value={personName} onChange={e => setPersonName(e.target.value)} style={inputStyle}>
-            <option value="" disabled>Select staff member</option>
-            {staff.length === 0
-              ? <option value="" disabled>No staff in this house — add staff first</option>
-              : staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-          </select>
+          <input list="mob-staff-options" autoFocus value={personName} onChange={e => setPersonName(e.target.value)}
+            placeholder={staff.length ? 'Staff member name' : 'Type a name (or add staff first)'}
+            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+          <datalist id="mob-staff-options">
+            {staff.map(s => <option key={s.id} value={s.name} />)}
+          </datalist>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Start time</div>
