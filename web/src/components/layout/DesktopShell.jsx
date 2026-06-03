@@ -39,10 +39,10 @@ const ALL_TABS = [
   { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'] },
 ]
 
-function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses }) {
-  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
+function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigate }) {
+  if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
-  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
+  if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />
   if (tab === 'team')        return <PageTeamDesktop />
@@ -129,7 +129,7 @@ export function DesktopShell({ user, onLogout }) {
     <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} houses={houses} refreshHouses={refreshHouses} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
       </div>
       {houseDetail && (
         <div

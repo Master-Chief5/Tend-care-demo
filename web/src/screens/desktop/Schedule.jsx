@@ -343,13 +343,12 @@ function AddShiftModal({ user, houses, defaultHouseUuid, isManager, onClose, onA
           </div>
           <div>
             <div style={labelStyle}>Staff member</div>
-            <select value={personName} onChange={e => setPersonName(e.target.value)} disabled={staffLoading || staff.length === 0} style={fieldStyle}>
-              {staffLoading
-                ? <option value="">Loading…</option>
-                : staff.length === 0
-                  ? <option value="">No staff in this house</option>
-                  : staff.map(s => <option key={s.id} value={s.name}>{s.name}{s.role ? ` · ${s.role}` : ''}</option>)}
-            </select>
+            <input list="dsk-staff-options" value={personName} onChange={e => setPersonName(e.target.value)}
+              placeholder={staffLoading ? 'Loading…' : staff.length ? 'Pick or type a name' : 'Type a name (or add staff first)'}
+              style={fieldStyle} />
+            <datalist id="dsk-staff-options">
+              {staff.map(s => <option key={s.id} value={s.name}>{s.role ? `${s.name} · ${s.role}` : s.name}</option>)}
+            </datalist>
           </div>
           <div>
             <div style={labelStyle}>Role</div>
