@@ -61,9 +61,9 @@ function Mini({ label, value }) {
 // Live per-house snapshot (shifts on today, staff total, drives today, alerts),
 // shared by the desktop Today + Houses pages. Mirrors the mobile Houses screen.
 function useHouseSnapshot(user, houses) {
-  const [snap, setSnap] = useState({ stats: {}, alerts: {} })
+  const [snap, setSnap] = useState({ stats: {}, alerts: {}, shifts: [], trips: [] })
   useEffect(() => {
-    if (!user?.orgId || !houses.length) { setSnap({ stats: {}, alerts: {} }); return }
+    if (!user?.orgId || !houses.length) { setSnap({ stats: {}, alerts: {}, shifts: [], trips: [] }); return }
     let alive = true
     const today = new Date()
     Promise.all([
@@ -81,11 +81,18 @@ function useHouseSnapshot(user, houses) {
           drivesToday: trips.filter(t => (t.houses?.slug ?? t.house_id) === h.id).length,
         }
       }
-      setSnap({ stats, alerts: alerts || {} })
+      setSnap({ stats, alerts: alerts || {}, shifts: shifts || [], trips: trips || [] })
     })
     return () => { alive = false }
   }, [user?.orgId, houses.length])
   return snap
+}
+
+// Map an alert kind to the badge style used in the "Needs attention" list.
+const NEED_TAG = {
+  grocery: { tag: 'Shop', tone: 'warn' }, med: { tag: 'Med', tone: 'bad' },
+  note: { tag: 'Note', tone: 'info' }, drive: { tag: 'Drive', tone: 'info' },
+  maint: { tag: 'Maint', tone: 'warn' },
 }
 
 function CenteredColumn({ children, width = 760, side }) {
@@ -114,7 +121,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
   const firstName = user?.name?.split(' ')[0] || 'there'
   const isManager = user?.role === 'manager'
 
-  const { stats, alerts } = useHouseSnapshot(user, houses)
+  const { stats, alerts, shifts, trips } = useHouseSnapshot(user, houses)
   const branches = ['All', ...new Set(houses.map(h => h.branch).filter(Boolean))]
   const scopedHouses = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
   const visibleCards = scopedHouses
@@ -134,6 +141,38 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
     })
   const totalNeeds = visibleCards.reduce((n, c) => n + c.urgent, 0)
 
+  // ── Real top-line metrics (computed from today's shifts + trips) ──────
+  const visibleIds = new Set(visibleCards.map(c => c.house.id))
+  const nameOf = (slug) => visibleCards.find(c => c.house.id === slug)?.house.name || slug
+  const vShifts = shifts.filter(s => visibleIds.has(s.house))
+  const vTrips  = trips.filter(t => visibleIds.has(t.houses?.slug ?? t.house_id))
+  const openShifts = vShifts.filter(s => s.status === 'open')
+  const coverage = vShifts.length ? Math.round((vShifts.length - openShifts.length) / vShifts.length * 100) : 100
+  const milesToday = vTrips.reduce((m, t) => m + Number(t.miles || 0), 0)
+  const reimbToday = milesToday * 0.67   // IRS-style $/mile
+  const residentsTotal = visibleCards.reduce((n, c) => n + (c.house.residents || 0), 0)
+
+  // ── Real "Needs attention" list (house alerts + unfilled shifts) ─────
+  const attention = []
+  for (const c of visibleCards) {
+    for (const a of (alerts[c.house.id] || [])) {
+      const t = NEED_TAG[a.kind] || { tag: 'Note', tone: 'info' }
+      attention.push({ tag: t.tag, tone: t.tone, who: c.house.name, why: a.text, hid: c.house.id })
+    }
+  }
+  for (const s of openShifts) {
+    attention.push({ tag: 'Open shift', tone: 'warn', who: nameOf(s.house), why: `${s.role || 'Shift'} — unfilled`, hid: s.house })
+  }
+  const attentionShown = attention.slice(0, 7)
+
+  // ── Real "Low on supplies" (Shop alerts across houses) ───────────────
+  const lowSupplies = []
+  for (const c of visibleCards) {
+    for (const a of (alerts[c.house.id] || [])) {
+      if (a.kind === 'grocery') lowSupplies.push({ house: c.house, text: a.text })
+    }
+  }
+
   return (
     <>
       <Toast msg={toast} />
@@ -144,10 +183,10 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-          <DStat label="Quality of care" value="92" sub="↑ 4 pts · May" tone="good" big />
-          <DStat label="Weekly spend" value="$1,034" sub="↓ 6% vs Apr" tone="good" />
-          <DStat label="Open shifts (7d)" value="3" sub="Wed Willow, Sat Maple ×2" tone="warn" />
-          <DStat label="Onboarding" value="4" sub="2 finishing this week" />
+          <DStat label="Shift coverage" value={`${coverage}%`} sub={openShifts.length > 0 ? `${openShifts.length} shift${openShifts.length === 1 ? '' : 's'} open` : 'fully staffed today'} tone={coverage >= 100 ? 'good' : 'warn'} big />
+          <DStat label="Open shifts" value={openShifts.length} sub="today · need filling" tone={openShifts.length > 0 ? 'warn' : 'good'} />
+          <DStat label="Drives today" value={vTrips.length} sub={`${milesToday.toFixed(0)} mi · ~$${reimbToday.toFixed(0)}`} />
+          <DStat label="Needs attention" value={totalNeeds} sub={totalNeeds > 0 ? 'across houses' : 'all clear'} tone={totalNeeds > 0 ? 'bad' : 'good'} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -176,38 +215,47 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 16 }}>
           <div style={dCard}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--a-clay)' }} />
-              <span className="serif" style={{ fontSize: 18 }}>Decisions for you</span>
-              <span style={{ fontSize: 10, color: 'var(--a-ink3)', background: 'var(--a-paper)', padding: '1px 7px', borderRadius: 999, marginLeft: 'auto' }}>5 open</span>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: attention.length ? 'var(--a-clay)' : 'var(--a-sage)' }} />
+              <span className="serif" style={{ fontSize: 18 }}>Needs attention</span>
+              <span style={{ fontSize: 10, color: 'var(--a-ink3)', background: 'var(--a-paper)', padding: '1px 7px', borderRadius: 999, marginLeft: 'auto' }}>{attention.length} open</span>
             </div>
-            <DDecision tag="Promote" tone="good" who="Aisha Mendez" why="2.1 yrs · 96 quality · 100% MAR · Lead-ready" cta="Approve" onCta={() => showToast('Approved — Aisha promoted to Lead')} />
-            <DDecision tag="Coach" tone="warn" who="Marcus Lewis" why="4 lates in 2 wks · 64 quality · 6mo" cta="Open scorecard" onCta={() => showToast('Opening scorecard…')} />
-            <DDecision tag="Hire" tone="info" who="3 candidates · DSP, Willow" why="Devon flagged 2 strong · open 3-11 shift Wed" cta="Review" onCta={() => showToast('Opening candidate review…')} />
-            <DDecision tag="Schedule conflict" tone="warn" who="Sat 5/31" why="Maple short 2 DSPs · Priya offered to swap" cta="Approve swap" last onCta={() => showToast('Swap approved')} />
+            {attention.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--a-ink3)' }}>
+                <div style={{ fontSize: 26, marginBottom: 6 }}>✓</div>
+                <div style={{ fontSize: 13.5, color: 'var(--a-ink2)', fontWeight: 500 }}>You're all caught up</div>
+                <div style={{ fontSize: 12, marginTop: 2 }}>No open supply, med, note or shift items today.</div>
+              </div>
+            ) : attentionShown.map((d, i) => (
+              <DDecision key={i} tag={d.tag} tone={d.tone} who={d.who} why={d.why} cta="Open"
+                last={i === attentionShown.length - 1}
+                onCta={() => onHouseClick && onHouseClick(d.hid)} />
+            ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={dCard}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span className="serif" style={{ fontSize: 18 }}>Spend trend</span>
-                <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>12 weeks</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span className="serif" style={{ fontSize: 18 }}>Driving today</span>
+                <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>all houses</span>
               </div>
-              <svg viewBox="0 0 240 80" style={{ width: '100%', height: 70 }}>
-                <polyline points="0,46 20,40 40,44 60,32 80,38 100,30 120,34 140,26 160,30 180,22 200,28 220,20 240,24" fill="none" stroke="var(--a-sage)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <polyline points="0,46 20,40 40,44 60,32 80,38 100,30 120,34 140,26 160,30 180,22 200,28 220,20 240,24 240,80 0,80" fill="var(--a-sage)" fillOpacity="0.08" stroke="none" />
-              </svg>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--a-ink3)' }}>
-                <span>Mar 1</span><span>Today · $1,034/wk</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <Mini label="Trips" value={vTrips.length} />
+                <Mini label="Miles" value={milesToday.toFixed(0)} />
+                <Mini label="Est. cost" value={`$${reimbToday.toFixed(0)}`} />
               </div>
+              <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 10 }}>Reimbursement estimated at $0.67 / mile.</div>
             </div>
-            {houses.length >= 4 && (
+            {lowSupplies.length > 0 && (
               <div style={dCard}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span className="serif" style={{ fontSize: 18 }}>Cross-house swaps</span>
-                  <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 500 }}>2 suggested</span>
+                  <span className="serif" style={{ fontSize: 18 }}>Low on supplies</span>
+                  <span style={{ fontSize: 11, color: 'var(--a-clay)', fontWeight: 500 }}>{lowSupplies.length} house{lowSupplies.length === 1 ? '' : 's'}</span>
                 </div>
-                <SwapRow from={HOUSES[1]} to={HOUSES[0]} item="Toilet paper · 12 rolls" note="Willow surplus → Oak out" />
-                <div style={{ height: 1, background: 'var(--a-line)', margin: '10px 0' }} />
-                <SwapRow from={HOUSES[3]} to={HOUSES[2]} item="Laundry pods · 1 box" note="Cedar over-bought" />
+                {lowSupplies.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', fontSize: 12.5, color: 'var(--a-ink2)' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: s.house.color, letterSpacing: '0.08em', background: `${s.house.color}1a`, padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{s.house.short}</span>
+                    <span>{s.text}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -734,20 +782,23 @@ function RootWeek({ num, title, items }) {
 }
 
 export function PageOrientationDesktop() {
+  const [toast, showToast] = useToast()
   return (
     <>
-      <DTopBar title="Orientation" sub="4 new hires in their first 30 days"
-        actions={<button style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
+      <Toast msg={toast} />
+      <DTopBar title="Orientation" sub="New-hire onboarding"
+        actions={<button onClick={() => showToast('Onboarding tracking is coming soon')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
-          <NewHireCard name="Carmen Vela"   house="oak"    mentor="Lina R."   day={6}  pct={0.20} next="Read: Resident profiles" />
-          <NewHireCard name="Theo Walker"   house="willow" mentor="Devon P."  day={12} pct={0.42} next="Shadow shift #2" />
-          <NewHireCard name="Iris Halloway" house="maple"  mentor="Saira K."  day={3}  pct={0.10} next="House walkthrough" />
-          <NewHireCard name="Mateo Ruiz"    house="cedar"  mentor="Tomas R."  day={22} pct={0.78} next="Solo shift signoff" />
+        <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '36px 20px', textAlign: 'center', color: 'var(--a-ink3)' }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>🌱</div>
+          <div className="serif" style={{ fontSize: 20, color: 'var(--a-ink)', marginBottom: 6 }}>No one is onboarding right now</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
+            When you add a new hire, they'll appear here with their 30-day progress against the plan below.
+          </div>
         </div>
         <div style={{ marginTop: 24 }}>
           <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>The Roots plan</span>
-          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 4, marginBottom: 14 }}>30 days, four weeks, mentor-led. Self-paced w/ Friday check-ins.</div>
+          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 4, marginBottom: 14 }}>A 30-day onboarding template — four weeks, mentor-led, self-paced with Friday check-ins.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             <RootWeek num={1} title="Find your footing" items={['Welcome video', 'Meet your mentor', 'House walkthrough', 'Resident profiles', 'Shadow shift #1']} />
             <RootWeek num={2} title="On the floor" items={['Daily routines', 'Documentation basics', 'Family intros', 'Shadow shift #2', 'Activity planning', 'Mid-week check-in']} />
