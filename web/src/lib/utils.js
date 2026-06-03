@@ -1,5 +1,28 @@
 // Date / time utilities
 
+const _dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+// Expand a repeating shift into concrete date strings.
+//   startStr  'YYYY-MM-DD' anchor date
+//   weekdays  array of weekday indexes (0=Sun … 6=Sat); empty = no repeat
+//   weeks     how many weeks to repeat across (including the start week)
+// Returns sorted, de-duplicated date strings on/after the start date.
+export function expandRepeatDates(startStr, weekdays = [], weeks = 1) {
+  if (!weekdays.length) return [startStr]
+  const start = new Date(startStr + 'T00:00:00')
+  const sunday = new Date(start)
+  sunday.setDate(start.getDate() - start.getDay())   // Sunday of the start week
+  const out = new Set()
+  for (let w = 0; w < Math.max(1, weeks); w++) {
+    for (const wd of weekdays) {
+      const d = new Date(sunday)
+      d.setDate(sunday.getDate() + w * 7 + wd)
+      if (d >= start) out.add(_dstr(d))
+    }
+  }
+  return [...out].sort()
+}
+
 export function buildWeek(today) {
   const dow = today.getDay()
   const monday = new Date(today)

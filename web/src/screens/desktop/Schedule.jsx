@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { HOUSES } from '../../data/constants'
-import { buildWeek, fmtDayLabel, fmtNow, fmtTime } from '../../lib/utils'
+import { buildWeek, fmtDayLabel, fmtNow, fmtTime, expandRepeatDates } from '../../lib/utils'
+
+const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../../hooks/useNowMinute'
 import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
@@ -94,6 +96,9 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.15, color: open ? houseColor : '#fff' }}>{person}</div>
       <div style={{ fontSize: 11, opacity: open ? 0.85 : 0.78, marginTop: 2, fontWeight: 500 }}>{role}</div>
+      {shift.note && height > 64 && (
+        <div style={{ fontSize: 10.5, opacity: open ? 0.85 : 0.82, marginTop: 4, lineHeight: 1.3, fontStyle: 'italic', overflow: 'hidden' }}>“{shift.note}”</div>
+      )}
       {(late || swap || here || open) && (
         <div style={{ marginTop: 'auto', paddingTop: 6, display: 'flex', gap: 4 }}>
           {here && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>● CLOCKED IN</span>}
@@ -308,7 +313,12 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
   const [date, setDate] = useState(editShift?.date || defaultDate || toDateStr(new Date()))
   const [startTime, setStartTime] = useState(editShift ? hourToTime(editShift.start) : '07:00')
   const [endTime, setEndTime] = useState(editShift ? hourToTime(editShift.end) : '15:00')
+  const [note, setNote] = useState(editShift?.note || '')
+  const [repeatDays, setRepeatDays] = useState([])   // weekday indexes; empty = no repeat
+  const [weeks, setWeeks] = useState(4)
   const [saving, setSaving] = useState(false)
+
+  const toggleDay = (d) => setRepeatDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort())
 
   useEffect(() => {
     let cancelled = false
@@ -324,15 +334,19 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
   const timeToHour = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60 }
   const sH = timeToHour(startTime), eH = timeToHour(endTime)
   const dur = Math.round((eH - sH) * 10) / 10
+  const repeatCount = editShift ? 1 : expandRepeatDates(date, repeatDays, weeks).length
 
   const submit = async (e) => {
     e.preventDefault()
     if (!personName.trim() || !houseUuid || !user?.orgId || saving) return
     setSaving(true)
     if (editShift) {
-      await updateShift(editShift.id, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+      await updateShift(editShift.id, { personName: personName.trim(), role, startHour: sH, endHour: eH, date, note: note.trim() })
     } else {
-      await addShift(user.orgId, houseUuid, { personName: personName.trim(), role, startHour: sH, endHour: eH, date })
+      const dates = expandRepeatDates(date, repeatDays, weeks)
+      for (const d of dates) {
+        await addShift(user.orgId, houseUuid, { personName: personName.trim(), role, startHour: sH, endHour: eH, date: d, note: note.trim() })
+      }
     }
     setSaving(false)
     onSaved()
@@ -402,6 +416,30 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
               ? <><strong>{hourLabel(sH)}</strong> → <strong>{hourLabel(eH)}</strong> · {dur}h{eH > 24 ? ' (overnight)' : ''}</>
               : 'End time must be after start time'}
           </div>
+          <div>
+            <div style={labelStyle}>Note (optional)</div>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Med pass at 8, cover lunch" style={fieldStyle} />
+          </div>
+          {!editShift && (
+            <div>
+              <div style={labelStyle}>Repeat</div>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {WEEKDAYS.map(([lbl, d]) => {
+                  const on = repeatDays.includes(d)
+                  return (
+                    <button key={d} type="button" onClick={() => toggleDay(d)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: on ? 'var(--a-ink)' : 'transparent', color: on ? 'var(--a-card)' : 'var(--a-ink2)', border: on ? 0 : '1px solid var(--a-line)' }}>{lbl}</button>
+                  )
+                })}
+              </div>
+              {repeatDays.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12.5, color: 'var(--a-ink2)' }}>
+                  <span>for</span>
+                  <input type="number" min={1} max={26} value={weeks} onChange={e => setWeeks(Math.max(1, Math.min(26, Number(e.target.value) || 1)))} style={{ ...fieldStyle, width: 64, padding: '6px 8px' }} />
+                  <span>weeks → creates <strong>{repeatCount}</strong> shift{repeatCount === 1 ? '' : 's'}</span>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
             {editShift && (
               <button type="button" onClick={remove} disabled={saving}
@@ -410,7 +448,7 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
             <button type="button" onClick={onClose} style={{ ...dBtnGhost, flex: 1, justifyContent: 'center', padding: '11px' }}>Cancel</button>
             <button type="submit" disabled={!canSubmit || dur <= 0}
               style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (canSubmit && dur > 0) ? 'pointer' : 'default', opacity: (canSubmit && dur > 0) ? 1 : 0.5 }}>
-              {saving ? 'Saving…' : editShift ? 'Save changes' : 'Add shift'}
+              {saving ? 'Saving…' : editShift ? 'Save changes' : repeatCount > 1 ? `Add ${repeatCount} shifts` : 'Add shift'}
             </button>
           </div>
         </form>
