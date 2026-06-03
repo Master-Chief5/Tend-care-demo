@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
+import { HouseItems } from '../components/HouseItems'
 import { Pill } from '../components/ui/Pill'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
@@ -182,6 +183,8 @@ export function ScreenA_MyDay({ user }) {
               <IconPlus size={14} sw={2} /> Add task
             </button>
           )}
+
+          {user?.houseId && <HouseItems user={user} houseUuid={user.houseId} houseColor="var(--a-sage)" />}
         </div>
       </div>
       <TabBar active="home" />

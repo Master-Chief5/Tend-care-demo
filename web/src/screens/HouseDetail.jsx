@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { fetchStaff, fetchResidents, fetchTrips } from '../lib/db'
-import { IconChev, IconDots, IconChat, IconPlus } from '../components/icons'
+import { IconChev, IconChat } from '../components/icons'
 import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
+import { HouseItems } from '../components/HouseItems'
 
 function Stat({ label, big, sub }) {
   return (
@@ -83,9 +84,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2 }}>{house.addr} · {house.branch} branch · mgr {house.manager}</div>
           </div>
-          <button style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink3)', cursor: 'pointer' }}>
-            <IconDots size={18} />
-          </button>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
@@ -142,14 +140,11 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => showToast('Team messaging coming soon')} style={{ flex: 1, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
-              <IconChat size={15} sw={1.7} /> Message
-            </button>
-            <button onClick={() => showToast('Log item coming soon')} style={{ flex: 1, padding: '11px 0', background: c, border: 0, borderRadius: 12, fontSize: 12.5, fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
-              <IconPlus size={14} sw={2.2} /> Log item
-            </button>
-          </div>
+          <HouseItems user={user} houseUuid={houseUuid} houseColor={c} />
+
+          <button onClick={() => showToast('Team messaging coming soon')} style={{ width: '100%', marginTop: 14, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <IconChat size={15} sw={1.7} /> Message
+          </button>
         </div>
       </div>
       <TabBar active="houses" />
