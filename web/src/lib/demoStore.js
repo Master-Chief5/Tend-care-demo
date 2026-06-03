@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [] }
 }
 
 function load() {
@@ -341,6 +341,45 @@ export function demoFetchResidents(houseId) {
   return store.residents
     .filter(r => !houseId || r.house_id === houseId)
     .map(r => ({ ...r, houses: houseJoin(r.house_id) }))
+}
+
+// ── Shared house items (cross-role to-do log) ────────────────────────────────
+export function demoFetchItems({ houseId = null, status = null } = {}) {
+  return store.items
+    .filter(it => (!houseId || it.house_id === houseId) && (!status || it.status === status))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(it => ({ ...it, houses: houseJoin(it.house_id) }))
+}
+
+export function demoAddItem(orgId, item) {
+  const row = {
+    id: uid('item'), house_id: item.houseId || null,
+    text: item.text, kind: item.kind || 'task', for_role: item.forRole || 'staff',
+    created_by_name: item.createdByName || null, created_by_role: item.createdByRole || null,
+    status: 'open', done_by_name: null, done_at: null, created_at: now(),
+  }
+  store.items.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoCompleteItem(id, doneByName) {
+  const it = store.items.find(x => x.id === id)
+  if (!it) return null
+  it.status = 'done'; it.done_by_name = doneByName || null; it.done_at = now()
+  persist()
+  return { ...it, houses: houseJoin(it.house_id) }
+}
+
+export function demoReopenItem(id) {
+  const it = store.items.find(x => x.id === id)
+  if (!it) return null
+  it.status = 'open'; it.done_by_name = null; it.done_at = null
+  persist()
+  return { ...it, houses: houseJoin(it.house_id) }
+}
+
+export function demoDeleteItem(id) {
+  store.items = store.items.filter(x => x.id !== id); persist()
 }
 
 export function demoAddResident(houseId, resident) {

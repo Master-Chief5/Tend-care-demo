@@ -133,6 +133,64 @@ export async function deleteShift(id) {
   if (error) console.error('deleteShift:', error.message)
 }
 
+// ── Shared house items (cross-role to-do log) ────────────────────────────────
+// A house-scoped list both supervisors and workers see. `for_role` says who must
+// act ('staff' = the house team, 'supervisor' = the boss); we track who created
+// each item (and their role) and who completed it.
+export async function fetchItems(orgId, { houseId = null, status = null } = {}) {
+  if (isDemoMode) return demo.demoFetchItems({ houseId, status })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('items').select('*, houses(slug, name, color, short)').eq('org_id', orgId).order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) { console.error('fetchItems:', error.message); return [] }
+  return data || []
+}
+
+export async function addItem(orgId, item) {
+  if (isDemoMode) return demo.demoAddItem(orgId, item)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('items').insert({
+    org_id: orgId,
+    house_id: item.houseId || null,
+    text: item.text,
+    kind: item.kind || 'task',
+    for_role: item.forRole || 'staff',
+    created_by_name: item.createdByName || null,
+    created_by_role: item.createdByRole || null,
+  }).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('addItem:', error.message); return null }
+  return data
+}
+
+export async function completeItem(id, doneByName) {
+  if (isDemoMode) return demo.demoCompleteItem(id, doneByName)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('items')
+    .update({ status: 'done', done_by_name: doneByName || null, done_at: new Date().toISOString() })
+    .eq('id', id).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('completeItem:', error.message); return null }
+  return data
+}
+
+export async function reopenItem(id) {
+  if (isDemoMode) return demo.demoReopenItem(id)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('items')
+    .update({ status: 'open', done_by_name: null, done_at: null })
+    .eq('id', id).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('reopenItem:', error.message); return null }
+  return data
+}
+
+export async function deleteItem(id) {
+  if (isDemoMode) return demo.demoDeleteItem(id)
+  if (!supabase) return
+  const { error } = await supabase.from('items').delete().eq('id', id)
+  if (error) console.error('deleteItem:', error.message)
+}
+
 // Fetch staff list for an org.
 // Pass houseId to limit to one house; null for all staff in org.
 export async function fetchStaff(orgId, houseId) {
