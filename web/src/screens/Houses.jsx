@@ -87,7 +87,7 @@ function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
   const staffOn    = stats?.staffOn    ?? 0
   const staffTotal = stats?.staffTotal ?? 0
   const drivesToday = stats?.drivesToday ?? 0
-  const shown = alerts.slice(0, 3)
+  const shown = alerts.slice(0, 2)
   const extra = alerts.length - shown.length
 
   return (

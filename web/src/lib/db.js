@@ -675,17 +675,23 @@ export async function fetchHouseAlerts(orgId) {
     ;(map[slug] ||= []).push(row)
   }
 
-  // Shop — group resource items per house into a single row.
+  // Shop — flag low/out supply items per house (qty 0 = out, 1–2 = low).
   const byHouseResources = {}
   for (const r of resources) {
     const slug = r.houses?.slug
     if (!slug) continue
-    ;(byHouseResources[slug] ||= []).push(r.name)
+    const q = Number(r.qty)
+    const bucket = q <= 0 ? 'out' : q <= 2 ? 'low' : null
+    if (!bucket) continue
+    ;(byHouseResources[slug] ||= { out: [], low: [] })[bucket].push(r.name)
   }
-  for (const [slug, names] of Object.entries(byHouseResources)) {
+  const joinNames = (names) => {
     const shown = names.slice(0, 3).join(', ')
-    const extra = names.length > 3 ? ` +${names.length - 3} more` : ''
-    push(slug, { kind: 'grocery', text: `Need: ${shown}${extra}` })
+    return names.length > 3 ? `${shown} +${names.length - 3} more` : shown
+  }
+  for (const [slug, b] of Object.entries(byHouseResources)) {
+    if (b.out.length) push(slug, { kind: 'grocery', text: `Out: ${joinNames(b.out)}` })
+    if (b.low.length) push(slug, { kind: 'grocery', text: `Low: ${joinNames(b.low)}` })
   }
 
   // Med — one row per open alert.
@@ -693,10 +699,11 @@ export async function fetchHouseAlerts(orgId) {
     push(m.houses?.slug, { kind: 'med', text: m.resident_name ? `${m.resident_name} — ${m.text}` : m.text })
   }
 
-  // Note — one row per note (unread flagged).
+  // Note — one row per note, with the time it was left (unread flagged).
   for (const n of notes) {
     const who = n.author_name ? `${n.author_name} ` : ''
-    push(n.houses?.slug, { kind: 'note', text: `${who}shift note${n.read ? '' : ' — unread'}` })
+    const t = n.created_at ? ` (${fmtClock(n.created_at)})` : ''
+    push(n.houses?.slug, { kind: 'note', text: `${who}shift note${t}${n.read ? '' : ' — unread'}` })
   }
 
   // Drive — one row per trip scheduled today.
@@ -743,4 +750,11 @@ export async function registerAsStaff(orgId, name) {
 function toDateStr(date) {
   if (typeof date === 'string') return date
   return date.toISOString().split('T')[0]
+}
+
+// Short clock label like "8:14a" / "2:05p" for alert timestamps.
+function fmtClock(iso) {
+  const d = new Date(iso)
+  const h = d.getHours(), m = d.getMinutes()
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`
 }
