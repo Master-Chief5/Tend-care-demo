@@ -54,6 +54,7 @@ export async function fetchShifts(orgId, houseId, date) {
     end:    Number(s.end_hour),
     person: s.person_name,
     role:   s.role,
+    note:   s.note ?? null,
     status: s.status,
   }))
 }
@@ -85,6 +86,7 @@ export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
     end:    Number(s.end_hour),
     person: s.person_name,
     role:   s.role,
+    note:   s.note ?? null,
     status: s.status,
   }))
 }
@@ -103,6 +105,7 @@ export async function addShift(orgId, houseId, shift) {
       start_hour:  shift.startHour,
       end_hour:    shift.endHour,
       shift_date:  shift.date || toDateStr(new Date()),
+      note:        shift.note || null,
       status:      'scheduled',
     })
     .select()
@@ -120,6 +123,7 @@ export async function updateShift(id, updates) {
   if (updates.startHour !== undefined)  patch.start_hour = updates.startHour
   if (updates.endHour !== undefined)    patch.end_hour = updates.endHour
   if (updates.date !== undefined)       patch.shift_date = updates.date
+  if (updates.note !== undefined)       patch.note = updates.note || null
   if (updates.status !== undefined)     patch.status = updates.status
   const { data, error } = await supabase.from('shifts').update(patch).eq('id', id).select().single()
   if (error) { console.error('updateShift:', error.message); return null }

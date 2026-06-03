@@ -97,7 +97,7 @@ export function demoFetchShifts(houseId, date) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, role: s.role, status: s.status,
+      person: s.person_name, role: s.role, note: s.note ?? null, status: s.status,
     }))
 }
 
@@ -108,7 +108,7 @@ export function demoFetchShiftsWeek(houseId, weekStart, weekEnd) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id, date: s.shift_date,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, role: s.role, status: s.status,
+      person: s.person_name, role: s.role, note: s.note ?? null, status: s.status,
     }))
 }
 
@@ -117,7 +117,7 @@ export function demoAddShift(houseId, shift) {
     id: uid('shift'), house_id: houseId,
     person_name: shift.personName, role: shift.role,
     start_hour: shift.startHour, end_hour: shift.endHour,
-    shift_date: shift.date || todayStr(), status: 'scheduled',
+    shift_date: shift.date || todayStr(), note: shift.note || null, status: 'scheduled',
   }
   store.shifts.push(row); persist()
   return row
@@ -131,6 +131,7 @@ export function demoUpdateShift(id, updates) {
   if (updates.startHour !== undefined)  s.start_hour = updates.startHour
   if (updates.endHour !== undefined)    s.end_hour = updates.endHour
   if (updates.date !== undefined)       s.shift_date = updates.date
+  if (updates.note !== undefined)       s.note = updates.note || null
   if (updates.status !== undefined)     s.status = updates.status
   persist()
   return s
