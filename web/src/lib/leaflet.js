@@ -1,6 +1,42 @@
 // Loads Leaflet (free, open-source map library) + its CSS from a CDN on demand.
-// Uses OpenStreetMap tiles — no API key, no billing. Resolves null if blocked.
+// Uses CARTO Voyager tiles (free, no API key) with a warm tone to match Tend.
+// Resolves null if blocked.
 let _p = null
+
+// Warm, low-key basemap. CARTO Voyager is a clean light style; the warm filter
+// (applied via the .tend-map class in globals.css) tints it toward Tend's cream
+// palette so colored pins and routes stay the focus.
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_ATTR = '© OpenStreetMap · © CARTO'
+
+// Add the Tend basemap to a map. Tags the map container so the warm CSS filter
+// applies. Pass { attribution: false } to hide the credit (small embeds).
+export function addBasemap(L, map, { attribution = true } = {}) {
+  const el = map.getContainer()
+  if (el) el.classList.add('tend-map')
+  return L.tileLayer(TILE_URL, {
+    maxZoom: 20,
+    detectRetina: true,
+    subdomains: 'abcd',
+    attribution: attribution ? TILE_ATTR : '',
+  }).addTo(map)
+}
+
+// A clean teardrop pin in a given color (white border + inner dot). Replaces
+// the generic blue Leaflet default so destinations read as on-brand.
+export function makePin(L, color = '#b8552f') {
+  const html =
+    `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">` +
+    `<path d="M15 39c0-1-9-12.5-11.4-19A12 12 0 1 1 26.4 20C24 26.5 15 38 15 39z" fill="${color}" stroke="#fff" stroke-width="2.2"/>` +
+    `<circle cx="15" cy="14" r="5.2" fill="#fff"/></svg>`
+  return L.divIcon({
+    html,
+    className: 'tend-pin',
+    iconSize: [30, 40],
+    iconAnchor: [15, 39],
+    popupAnchor: [0, -34],
+  })
+}
 
 export function loadLeaflet() {
   if (typeof window === 'undefined') return Promise.resolve(null)

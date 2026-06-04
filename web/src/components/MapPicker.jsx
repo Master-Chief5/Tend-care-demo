@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadLeaflet, reverseGeocode } from '../lib/leaflet'
+import { loadLeaflet, reverseGeocode, addBasemap, makePin } from '../lib/leaflet'
 
 // Interactive map: pan/zoom, tap or drag the pin to choose a place; reverse-
 // geocodes to an address. Free (Leaflet + OpenStreetMap). Degrades to a message
@@ -19,10 +19,10 @@ export function MapPicker({ onClose, onPick }) {
       if (cancelled) return
       if (!L || !elRef.current) { setFailed(true); return }
       const start = [40.7128, -74.006]
-      const map = L.map(elRef.current).setView(start, 12)
+      const map = L.map(elRef.current, { zoomControl: true }).setView(start, 12)
       mapRef.current = map
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map)
-      const marker = L.marker(start, { draggable: true }).addTo(map)
+      addBasemap(L, map)
+      const marker = L.marker(start, { draggable: true, icon: makePin(L, '#b8552f') }).addTo(map)
       markerRef.current = marker
 
       const choose = async (latlng) => {
