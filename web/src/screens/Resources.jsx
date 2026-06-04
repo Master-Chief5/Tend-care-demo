@@ -4,6 +4,7 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
 import { COMMON_SUPPLIES } from '../data/suggestions'
+import { SuggestInput } from '../components/SuggestInput'
 
 function BigStat({ label, value, sub, tone }) {
   return (
@@ -196,12 +197,9 @@ function AddItemModal({ user, houses, onClose, onAdded }) {
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add item</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input
-            autoFocus list="supply-suggestions" placeholder="Item name (e.g. Paper towels)" value={name} onChange={e => setName(e.target.value)}
-            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
-          <datalist id="supply-suggestions">
-            {COMMON_SUPPLIES.map(s => <option key={s} value={s} />)}
-          </datalist>
+          <SuggestInput
+            autoFocus options={COMMON_SUPPLIES} placeholder="Item name (e.g. Paper towels)" value={name} onChange={setName}
+            style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <input placeholder="Qty (e.g. 2)" value={qty} onChange={e => setQty(e.target.value)}
               style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />

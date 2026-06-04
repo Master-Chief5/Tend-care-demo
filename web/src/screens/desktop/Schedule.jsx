@@ -7,6 +7,7 @@ import { useNowMinute } from '../../hooks/useNowMinute'
 import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff } from '../../lib/db'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
+import { SuggestInput } from '../../components/SuggestInput'
 
 const DAY_START = 0
 const DAY_END = 24
@@ -459,12 +460,9 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
           </div>
           <div>
             <div style={labelStyle}>Staff member</div>
-            <input list="dsk-staff-options" value={personName} onChange={e => setPersonName(e.target.value)}
+            <SuggestInput options={staff.map(s => s.name)} value={personName} onChange={setPersonName}
               placeholder={staffLoading ? 'Loading…' : staff.length ? 'Pick or type a name' : 'Type a name (or add staff first)'}
               style={fieldStyle} />
-            <datalist id="dsk-staff-options">
-              {staff.map(s => <option key={s.id} value={s.name}>{s.role ? `${s.name} · ${s.role}` : s.name}</option>)}
-            </datalist>
           </div>
           <div>
             <div style={labelStyle}>Role</div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchItems, addItem, completeItem, reopenItem, deleteItem } from '../lib/db'
 import { IconPlus, IconCheck } from './icons'
 import { COMMON_SUPPLIES, COMMON_TASKS } from '../data/suggestions'
+import { SuggestInput } from './SuggestInput'
 
 // Shared, house-scoped to-do log. Supervisors and workers see the same list.
 // Supervisors log items for the team; workers can flag things back to the
@@ -62,9 +63,7 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
 
       {showAdd && (
         <form onSubmit={add} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: 12, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input autoFocus list={kind === 'supply' ? 'hi-supply' : kind === 'task' ? 'hi-task' : undefined} value={text} onChange={e => setText(e.target.value)} placeholder={kind === 'supply' ? 'Supply needed (e.g. Paper towels)' : 'What needs doing? (e.g. Restock paper towels)'} style={inputStyle} />
-          <datalist id="hi-supply">{COMMON_SUPPLIES.map(s => <option key={s} value={s} />)}</datalist>
-          <datalist id="hi-task">{COMMON_TASKS.map(s => <option key={s} value={s} />)}</datalist>
+          <SuggestInput autoFocus options={kind === 'supply' ? COMMON_SUPPLIES : kind === 'task' ? COMMON_TASKS : []} value={text} onChange={setText} placeholder={kind === 'supply' ? 'Supply needed (e.g. Paper towels)' : 'What needs doing? (e.g. Restock paper towels)'} style={inputStyle} />
           <div style={{ display: 'flex', gap: 6 }}>
             {Object.entries(KIND).map(([k, v]) => (
               <button key={k} type="button" onClick={() => setKind(k)} style={{ padding: '5px 11px', borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: kind === k ? v.bg : 'transparent', color: kind === k ? v.tc : 'var(--a-ink3)', border: `1px solid ${kind === k ? v.tc + '55' : 'var(--a-line)'}` }}>{v.label}</button>

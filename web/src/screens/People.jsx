@@ -5,6 +5,7 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconSearch, IconChev } from '../components/icons'
+import { SuggestInput } from '../components/SuggestInput'
 
 const CERT_SUGGESTIONS = ['CPR', 'First Aid', 'Medication Administration', 'CPI / Crisis Prevention', 'Bloodborne Pathogens', 'Abuse & Neglect Prevention', 'Fire Safety', 'Mandated Reporter']
 // Status of a certification by expiry date.
@@ -41,8 +42,7 @@ function CertSection({ certs = [], onChange }) {
       </div>
       {showAdd && (
         <form onSubmit={add} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: 12, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input autoFocus list="cert-suggestions" value={name} onChange={e => setName(e.target.value)} placeholder="Certification (e.g. CPR)" style={input} />
-          <datalist id="cert-suggestions">{CERT_SUGGESTIONS.map(c => <option key={c} value={c} />)}</datalist>
+          <SuggestInput autoFocus options={CERT_SUGGESTIONS} value={name} onChange={setName} placeholder="Certification (e.g. CPR)" style={input} />
           <div><div style={{ fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }}>Expires</div><input type="date" value={expires} onChange={e => setExpires(e.target.value)} style={input} /></div>
           <button type="submit" disabled={!name.trim()} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '10px', fontSize: 13.5, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>Add certification</button>
         </form>
