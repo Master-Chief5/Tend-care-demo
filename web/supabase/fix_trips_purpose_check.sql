@@ -1,0 +1,12 @@
+-- Fix: trips could never be started/logged from the app.
+-- The Driving screen was reframed as "Transport" with descriptive purpose
+-- labels (Medical appt, Day program, Pharmacy, Grocery, Outing, Other), but the
+-- original trips_purpose_check CHECK constraint still only allowed the old
+-- lowercase enum ('medical','grocery','activity','other'). Every insert with a
+-- new label violated the constraint, so startTrip()/addTrip() returned an error
+-- and the UI showed "Could not start trip — try again".
+--
+-- purpose is a free-form descriptive label chosen in the UI; enforcing a fixed
+-- enum at the DB just makes it break whenever the labels change. Drop the
+-- constraint. Applied live as migration "drop_trips_purpose_check".
+ALTER TABLE public.trips DROP CONSTRAINT IF EXISTS trips_purpose_check;
