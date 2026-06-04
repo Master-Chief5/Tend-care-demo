@@ -11,6 +11,27 @@ import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 const DAY_START = 0
 const DAY_END = 24
 
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate() + n); return d }
+const addMonths = (date, n) => { const d = new Date(date); d.setMonth(d.getMonth() + n); return d }
+
+// A 6-week (Mon-start) grid for the month containing `anchor`, trimmed of any
+// trailing week that's entirely in the next month.
+function buildMonthGrid(anchor) {
+  const y = anchor.getFullYear(), m = anchor.getMonth()
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7   // 0 = Monday
+  const gridStart = new Date(y, m, 1 - startDow)
+  const todayStr = toDateStr(new Date())
+  const cells = Array.from({ length: 42 }, (_, i) => {
+    const d = addDays(gridStart, i)
+    return { date: d, num: d.getDate(), inMonth: d.getMonth() === m, today: toDateStr(d) === todayStr }
+  })
+  const weeks = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  while (weeks.length > 4 && weeks[weeks.length - 1].every(c => !c.inMonth)) weeks.pop()
+  return { weeks, first: cells[0].date, last: weeks[weeks.length - 1][6].date, label: `${MONTHS_FULL[m]} ${y}` }
+}
+
 // "7:00 AM" style label from a decimal hour — used so AM/PM is always explicit.
 function hourLabel(h) {
   const total = Math.round(h * 60)
@@ -32,7 +53,7 @@ function fmtHourLong(h) {
 function ViewToggleDesktop({ view, setView }) {
   return (
     <div style={{ display: 'flex', background: 'var(--a-paper)', borderRadius: 999, padding: 3, border: '1px solid var(--a-line)' }}>
-      {['day', 'week'].map(v => (
+      {['day', 'week', 'month'].map(v => (
         <button key={v} onClick={() => setView(v)} style={{
           border: 0,
           background: v === view ? 'var(--a-ink)' : 'transparent',
@@ -202,21 +223,22 @@ function ScheduleRow({ house, weekShifts, weekDates, onShiftClick }) {
   )
 }
 
-function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shifts, houses = [], isManager = false, onShiftClick }) {
-  const week = buildWeek(new Date())
+function DayScheduleView({ week, selectedDate, onPickDay, onPrev, onNext, onToday, houseFilter, setHouseFilter, shifts, houses = [], isManager = false, onShiftClick }) {
   const nowFrac = useNowMinute()
   const visibleHouses = houseFilter === 'all' ? houses : houses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? shifts : shifts.filter(s => s.house === houseFilter)
+  const selDay = week.find(d => toDateStr(d.date) === selectedDate)?.date || week[0].date
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button onClick={onPrev} title="Previous week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+        <button onClick={onToday} style={{ ...dBtnGhost, padding: '6px 12px', fontSize: 12 }}>Today</button>
         <div style={{ display: 'flex', gap: 6, flex: 1 }}>
           {week.map((d, i) => {
-            const sel = i === dayIdx
+            const sel = toDateStr(d.date) === selectedDate
             return (
-              <button key={i} onClick={() => setDayIdx(i)} style={{
+              <button key={i} onClick={() => onPickDay(d.date)} style={{
                 flex: 1, padding: '10px 6px', textAlign: 'center', borderRadius: 10,
                 background: sel ? 'var(--a-ink)' : 'transparent',
                 color: sel ? 'var(--a-card)' : 'var(--a-ink)',
@@ -230,7 +252,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
             )
           })}
         </div>
-        <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
+        <button onClick={onNext} title="Next week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
@@ -247,7 +269,7 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{fmtDayLabel(week[dayIdx].date)}</span>
+        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{fmtDayLabel(selDay)}</span>
         <span style={{ fontSize: 12, color: 'var(--a-ink3)' }}>
           {`${filteredShifts.length} shifts · `}
           <strong style={{ color: 'var(--a-clay)' }}>{filteredShifts.filter(s => s.status === 'open').length} open</strong>
@@ -263,17 +285,17 @@ function DayScheduleView({ dayIdx, setDayIdx, houseFilter, setHouseFilter, shift
   )
 }
 
-function WeekScheduleView({ houses = [], shifts = [], onShiftClick }) {
-  const week = buildWeek(new Date())
+function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday }) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
   const openCount = shifts.filter(s => s.status === 'open').length
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-        <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button onClick={onPrev} title="Previous week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+        <button onClick={onToday} style={{ ...dBtnGhost, padding: '6px 12px', fontSize: 12 }}>Today</button>
+        <button onClick={onNext} title="Next week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{weekLabel}</span>
-        <button style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <div style={{ flex: 1 }} />
         {openCount > 0 && <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>{openCount}</strong></span>}
       </div>
@@ -288,6 +310,56 @@ function WeekScheduleView({ houses = [], shifts = [], onShiftClick }) {
           ))}
         </div>
         {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} />)}
+      </div>
+    </>
+  )
+}
+
+function MonthScheduleView({ anchorDate, shifts = [], houses = [], onPrev, onNext, onToday, onPickDay }) {
+  const grid = buildMonthGrid(anchorDate)
+  const colorFor = (slug) => houses.find(h => h.id === slug)?.color || 'var(--a-ink3)'
+  const byDate = {}
+  for (const s of shifts) (byDate[s.date] ||= []).push(s)
+  const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button onClick={onPrev} title="Previous month" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
+        <button onClick={onToday} style={{ ...dBtnGhost, padding: '6px 12px', fontSize: 12 }}>Today</button>
+        <button onClick={onNext} title="Next month" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
+        <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{grid.label}</span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>{shifts.length} shifts this month</span>
+      </div>
+      <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
+          {DOW.map(d => <div key={d} style={{ padding: '9px 0', textAlign: 'center', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>{d}</div>)}
+        </div>
+        {grid.weeks.map((wk, wi) => (
+          <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi === grid.weeks.length - 1 ? '' : '1px solid var(--a-line)' }}>
+            {wk.map((cell, ci) => {
+              const ds = toDateStr(cell.date)
+              const dayShifts = (byDate[ds] || []).slice().sort((a, b) => a.start - b.start)
+              return (
+                <div key={ci} onClick={() => onPickDay(cell.date)} title="Open this day"
+                  style={{ minHeight: 104, borderLeft: ci === 0 ? '' : '1px solid var(--a-line)', padding: '6px 7px', cursor: 'pointer', background: cell.today ? 'rgba(176, 92, 60, 0.06)' : 'transparent', opacity: cell.inMonth ? 1 : 0.4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <span className="tnum" style={{ fontSize: 12, fontWeight: cell.today ? 700 : 500, color: cell.today ? '#fff' : 'var(--a-ink2)', background: cell.today ? 'var(--a-clay)' : 'transparent', borderRadius: 999, minWidth: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{cell.num}</span>
+                  </div>
+                  {dayShifts.slice(0, 3).map((s, si) => {
+                    const open = s.status === 'open'
+                    return (
+                      <div key={s.id ?? si} style={{ display: 'flex', alignItems: 'center', gap: 4, background: open ? 'transparent' : colorFor(s.house), border: open ? `1px dashed ${colorFor(s.house)}` : 'none', color: open ? colorFor(s.house) : '#fff', borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 600, lineHeight: 1.35, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                        {fmtTime(s.start)} {s.person}
+                      </div>
+                    )
+                  })}
+                  {dayShifts.length > 3 && <div style={{ fontSize: 9.5, color: 'var(--a-ink3)', fontWeight: 600, paddingLeft: 2 }}>+{dayShifts.length - 3} more</div>}
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </>
   )
@@ -462,29 +534,36 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
 
   const [view, setView] = useState('day')
-  const week = buildWeek(new Date())
-  const [dayIdx, setDayIdx] = useState(() => {
-    const i = week.findIndex(d => d.today)
-    return i >= 0 ? i : 0
-  })
+  const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
   const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
-  const [weekShifts, setWeekShifts] = useState([])
+  const [rangeShifts, setRangeShifts] = useState([])
   const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', shift }
+
+  const week = buildWeek(anchorDate)
+  const selectedDate = toDateStr(anchorDate)
+
+  // Fetch the shifts that the current view needs: the visible week (day/week
+  // views) or the whole visible month grid (month view).
+  const [rangeStart, rangeEnd] = view === 'month'
+    ? (() => { const g = buildMonthGrid(anchorDate); return [g.first, g.last] })()
+    : [week[0].date, week[6].date]
+  const rangeKey = `${toDateStr(rangeStart)}:${toDateStr(rangeEnd)}`
 
   const reload = useCallback(() => {
     if (!user?.orgId) return
     const houseId = isManager ? (user.houseId || null) : null
-    const w = buildWeek(new Date())
-    fetchShiftsWeek(user.orgId, houseId, w[0].date, w[6].date).then(setWeekShifts)
-  }, [user?.orgId, user?.houseId, isManager])
+    fetchShiftsWeek(user.orgId, houseId, rangeStart, rangeEnd).then(setRangeShifts)
+  }, [user?.orgId, user?.houseId, isManager, rangeKey])
 
   useEffect(() => { reload() }, [reload])
 
-  // Each day shows ONLY its own shifts (filtered from the week by date).
-  const selectedDate = toDateStr(week[dayIdx].date)
-  const dayShifts = weekShifts.filter(s => s.date === selectedDate)
-
+  const dayShifts = rangeShifts.filter(s => s.date === selectedDate)
   const closeAndReload = () => { setModal(null); reload() }
+
+  // Navigation: a week step for day/week, a month step for month; Today resets.
+  const step = view === 'month' ? (n) => setAnchorDate(d => addMonths(d, n)) : (n) => setAnchorDate(d => addDays(d, n * 7))
+  const nav = { onPrev: () => step(-1), onNext: () => step(1), onToday: () => setAnchorDate(new Date()) }
+  const pickDay = (date) => { setAnchorDate(date); setView('day') }
 
   return (
     <>
@@ -500,9 +579,18 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         </>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        {view === 'day'
-          ? <DayScheduleView dayIdx={dayIdx} setDayIdx={setDayIdx} houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={dayShifts} houses={houses} isManager={isManager} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
-          : <WeekScheduleView houses={houses} shifts={weekShifts} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />}
+        {view === 'day' && (
+          <DayScheduleView week={week} selectedDate={selectedDate} onPickDay={setAnchorDate} {...nav}
+            houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={dayShifts} houses={houses} isManager={isManager}
+            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+        )}
+        {view === 'week' && (
+          <WeekScheduleView week={week} houses={houses} shifts={rangeShifts} {...nav}
+            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+        )}
+        {view === 'month' && (
+          <MonthScheduleView anchorDate={anchorDate} houses={houses} shifts={rangeShifts} {...nav} onPickDay={pickDay} />
+        )}
       </div>
 
       {modal && (
