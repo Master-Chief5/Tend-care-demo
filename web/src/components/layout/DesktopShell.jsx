@@ -33,7 +33,7 @@ const ALL_TABS = [
   { id: 'setup',       label: 'House setup', icon: IconPlus,    roles: ['supervisor'] },
   { id: 'schedule',    label: 'Schedule',    icon: IconCal,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'team',        label: 'Team chat',   icon: IconChat,    roles: ['supervisor', 'manager', 'staff'] },
-  { id: 'driving',     label: 'Driving',     icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'driving',     label: 'Transport',   icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager'] },
   { id: 'staff',       label: 'Staff',       icon: IconPeople,  roles: ['supervisor'] },
   { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'] },
