@@ -22,12 +22,12 @@ const DAY_END = 24
 function ViewToggle({ view, setView }) {
   return (
     <div style={{ display: 'flex', background: 'var(--a-paper)', borderRadius: 999, padding: 3, border: '1px solid var(--a-line)' }}>
-      {['day', 'week'].map(v => (
+      {['day', 'week', 'month'].map(v => (
         <button key={v} onClick={() => setView(v)} style={{
           border: 0,
           background: v === view ? 'var(--a-ink)' : 'transparent',
           color: v === view ? 'var(--a-card)' : 'var(--a-ink2)',
-          padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 500,
+          padding: '6px 11px', borderRadius: 999, fontSize: 11.5, fontWeight: 500,
           cursor: 'pointer', fontFamily: 'Geist', textTransform: 'capitalize',
         }}>{v}</button>
       ))}
@@ -35,13 +35,13 @@ function ViewToggle({ view, setView }) {
   )
 }
 
-function DayStrip({ week, dayIdx, setDayIdx }) {
+function DayStrip({ week, selectedDate, onPick }) {
   return (
     <div style={{ padding: '0 22px 12px', display: 'flex', gap: 4 }}>
       {week.map((d, i) => {
-        const sel = i === dayIdx
+        const sel = toDateStr(d.date) === selectedDate
         return (
-          <div key={i} onClick={() => setDayIdx(i)} style={{
+          <div key={i} onClick={() => onPick(d.date)} style={{
             flex: 1, padding: '7px 0', textAlign: 'center', borderRadius: 10, cursor: 'pointer',
             background: sel ? 'var(--a-ink)' : 'transparent',
             color: sel ? 'var(--a-card)' : 'var(--a-ink2)',
@@ -184,8 +184,7 @@ function WeekHouseRow({ house, weekDates = [], weekShifts = [] }) {
   )
 }
 
-function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = [] }) {
-  const week = buildWeek(new Date())
+function ScreenA_ScheduleWeek({ setView, houses, week, weekShifts = [], weekDates = [], onPrev, onNext, onToday }) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
   return (
@@ -198,6 +197,7 @@ function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = []
             <ViewToggle view="week" setView={setView} />
           </div>
         </div>
+        <div style={{ padding: '2px 16px 8px' }}><ScheduleNav onPrev={onPrev} onNext={onNext} onToday={onToday} /></div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 14px 24px' }}>
           {houses.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)', fontSize: 13 }}>No houses set up yet.</div>
@@ -219,6 +219,87 @@ function ScreenA_ScheduleWeek({ setView, houses, weekShifts = [], weekDates = []
 }
 
 const toDateStr = (d) => d.toISOString().split('T')[0]
+const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate() + n); return d }
+const addMonths = (date, n) => { const d = new Date(date); d.setMonth(d.getMonth() + n); return d }
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// A 6-week (Mon-start) grid for the month containing `anchor`, trimmed of any
+// trailing week that's entirely in the next month.
+function buildMonthGrid(anchor) {
+  const y = anchor.getFullYear(), m = anchor.getMonth()
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7   // 0 = Monday
+  const gridStart = new Date(y, m, 1 - startDow)
+  const todayStr = toDateStr(new Date())
+  const cells = Array.from({ length: 42 }, (_, i) => {
+    const d = addDays(gridStart, i)
+    return { date: d, num: d.getDate(), inMonth: d.getMonth() === m, today: toDateStr(d) === todayStr }
+  })
+  const weeks = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  while (weeks.length > 4 && weeks[weeks.length - 1].every(c => !c.inMonth)) weeks.pop()
+  return { weeks, first: cells[0].date, last: weeks[weeks.length - 1][6].date, label: `${MONTHS_FULL[m]} ${y}` }
+}
+
+// Prev / Today / Next pill row, shared by the day, week and month views.
+function ScheduleNav({ onPrev, onNext, onToday }) {
+  const btn = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 8, width: 32, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'Geist', color: 'var(--a-ink2)', fontSize: 17, lineHeight: 1 }
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <button onClick={onPrev} style={btn} aria-label="Previous">‹</button>
+      <button onClick={onToday} style={{ ...btn, width: 'auto', padding: '0 12px', fontSize: 12, fontWeight: 600 }}>Today</button>
+      <button onClick={onNext} style={btn} aria-label="Next">›</button>
+    </div>
+  )
+}
+
+function ScreenA_ScheduleMonth({ anchorDate, houses, shifts = [], setView, onPrev, onNext, onToday, onPickDay }) {
+  const grid = buildMonthGrid(anchorDate)
+  const colorFor = (slug) => houses.find(h => h.id === slug)?.color || 'var(--a-ink3)'
+  const byDate = {}
+  for (const s of shifts) (byDate[s.date] ||= []).push(s)
+  const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+  return (
+    <div className="phone-screen">
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '14px 22px 6px' }}>
+          <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{grid.label}</div>
+            <ViewToggle view="month" setView={setView} />
+          </div>
+        </div>
+        <div style={{ padding: '2px 16px 10px' }}><ScheduleNav onPrev={onPrev} onNext={onNext} onToday={onToday} /></div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
+          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
+              {DOW.map((d, i) => <div key={i} style={{ padding: '7px 0', textAlign: 'center', fontSize: 9.5, color: 'var(--a-ink3)', fontWeight: 700 }}>{d}</div>)}
+            </div>
+            {grid.weeks.map((wk, wi) => (
+              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi === grid.weeks.length - 1 ? '' : '1px solid var(--a-line)' }}>
+                {wk.map((cell, ci) => {
+                  const ss = (byDate[toDateStr(cell.date)] || [])
+                  return (
+                    <div key={ci} onClick={() => onPickDay(cell.date)}
+                      style={{ minHeight: 48, borderLeft: ci === 0 ? '' : '1px solid var(--a-line)', padding: '4px 2px 5px', textAlign: 'center', cursor: 'pointer', opacity: cell.inMonth ? 1 : 0.35, background: cell.today ? 'rgba(176, 92, 60, 0.08)' : 'transparent' }}>
+                      <div style={{ fontSize: 11.5, fontWeight: cell.today ? 700 : 500, color: cell.today ? 'var(--a-clay)' : 'var(--a-ink2)', fontVariantNumeric: 'tabular-nums' }}>{cell.num}</div>
+                      <div style={{ display: 'flex', gap: 2, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginTop: 3, minHeight: 6 }}>
+                        {ss.slice(0, 3).map((s, i) => (
+                          <span key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: s.status === 'open' ? 'transparent' : colorFor(s.house), border: s.status === 'open' ? `1px solid ${colorFor(s.house)}` : 'none' }} />
+                        ))}
+                        {ss.length > 3 && <span style={{ fontSize: 8, color: 'var(--a-ink3)', fontWeight: 700 }}>+{ss.length - 3}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <TabBar active="sched" />
+    </div>
+  )
+}
 
 function ShiftModal({ user, houses, defaultDate, editShift, onClose, onSaved, onDeleted }) {
   const hourToTime = (h) => {
@@ -361,12 +442,15 @@ function ShiftModal({ user, houses, defaultDate, editShift, onClose, onSaved, on
 export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
-  const [weekShifts, setWeekShifts] = useState([])
+  const [weekShifts, setWeekShifts] = useState([])   // holds the visible range (week, or month grid)
   const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
   const [modal, setModal] = useState(null)         // null | { mode:'add' } | { mode:'edit', shift }
-  const week = buildWeek(new Date())
-  const [dayIdx, setDayIdx] = useState(() => { const i = week.findIndex(d => d.today); return i >= 0 ? i : 0 })
+  const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
   const nowFrac = useNowMinute()
+
+  const week = buildWeek(anchorDate)
+  const selectedDate = toDateStr(anchorDate)
+  const weekDates = week.map(d => toDateStr(d.date))
 
   const isSupervisor = user?.role === 'supervisor'
 
@@ -376,24 +460,33 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   // Picker options use raw DB houses (UUID ids) so addShift inserts a valid house_id.
   const pickerHouses = isSupervisor ? houseList : houseList.filter(h => h.slug === user?.houseSlug)
 
-  const weekDates = week.map(d => toDateStr(d.date))
+  // Fetch the shifts the current view needs: the visible week, or — in month
+  // view — the whole visible month grid.
+  const [rangeStart, rangeEnd] = view === 'month'
+    ? (() => { const g = buildMonthGrid(anchorDate); return [g.first, g.last] })()
+    : [week[0].date, week[6].date]
+  const rangeKey = `${toDateStr(rangeStart)}:${toDateStr(rangeEnd)}`
 
   const reload = useCallback(() => {
     if (!user?.orgId) return
     const houseId = isSupervisor ? null : (user.houseId || null)
-    const w = buildWeek(new Date())
-    fetchShiftsWeek(user.orgId, houseId, toDateStr(w[0].date), toDateStr(w[6].date)).then(setWeekShifts)
+    fetchShiftsWeek(user.orgId, houseId, toDateStr(rangeStart), toDateStr(rangeEnd)).then(setWeekShifts)
     fetchHouses(user.orgId).then(setHouseList)
-  }, [user?.orgId, user?.houseId, isSupervisor])
+  }, [user?.orgId, user?.houseId, isSupervisor, rangeKey])
 
   useEffect(() => { reload() }, [reload])
 
   const closeAndReload = () => { setModal(null); reload() }
 
-  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} weekShifts={weekShifts} weekDates={weekDates} />
+  // Navigation: a week step for day/week, a month step for month; Today resets.
+  const step = view === 'month' ? (n) => setAnchorDate(d => addMonths(d, n)) : (n) => setAnchorDate(d => addDays(d, n * 7))
+  const nav = { onPrev: () => step(-1), onNext: () => step(1), onToday: () => setAnchorDate(new Date()) }
+  const pickDay = (date) => { setAnchorDate(date); setView('day') }
+
+  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} week={week} weekShifts={weekShifts} weekDates={weekDates} {...nav} />
+  if (view === 'month') return <ScreenA_ScheduleMonth anchorDate={anchorDate} houses={displayHouses} shifts={weekShifts} setView={setView} onPickDay={pickDay} {...nav} />
 
   // Each day shows ONLY its own shifts (filtered from the week by date).
-  const selectedDate = weekDates[dayIdx]
   const dayShifts = weekShifts.filter(s => s.date === selectedDate)
   const visibleHouses = houseFilter === 'all' ? displayHouses : displayHouses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? dayShifts : dayShifts.filter(s => s.house === houseFilter)
@@ -406,7 +499,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         <div style={{ padding: '14px 22px 6px' }}>
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(week[dayIdx].date)} · {dayShifts.length} shifts</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(anchorDate)} · {dayShifts.length} shifts</div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <ViewToggle view={view} setView={setView} />
               {canAddShift && (
@@ -427,7 +520,8 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           </div>
         )}
 
-        <DayStrip week={week} dayIdx={dayIdx} setDayIdx={setDayIdx} />
+        <div style={{ padding: '0 22px 8px' }}><ScheduleNav {...nav} /></div>
+        <DayStrip week={week} selectedDate={selectedDate} onPick={setAnchorDate} />
         <HouseFilterChips houses={displayHouses} active={houseFilter} setActive={setHouseFilter} />
 
         <div style={{ padding: '4px 22px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
