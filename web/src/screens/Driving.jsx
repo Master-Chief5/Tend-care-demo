@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation } from '../lib/db'
 import { AddressInput } from '../components/AddressInput'
+import { SuggestInput } from '../components/SuggestInput'
 // Best-effort current location (resolves {} if unavailable / denied).
 const getLoc = () => new Promise((resolve) => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve({})
@@ -66,14 +67,11 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <datalist id="dl-residents">{residentNames.map(n => <option key={n} value={n} />)}</datalist>
-      <datalist id="dl-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
-
-      <input placeholder="Resident name" value={residentName} onChange={e => setResidentName(e.target.value)}
-        list="dl-residents" autoFocus style={inputStyle} />
+      <SuggestInput placeholder="Resident name" value={residentName} onChange={setResidentName}
+        options={residentNames} autoFocus style={inputStyle} />
       <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={setDestination} style={inputStyle} />
-      <input placeholder="Driver name" value={driverName} onChange={e => setDriverName(e.target.value)}
-        list="dl-staff" style={inputStyle} />
+      <SuggestInput placeholder="Driver name" value={driverName} onChange={setDriverName}
+        options={staffNames} style={inputStyle} />
       <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
         {!hideMiles && <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />}
         <select value={purpose} onChange={e => setPurpose(e.target.value)} style={inputStyle}>

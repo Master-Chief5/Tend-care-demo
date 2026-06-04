@@ -14,6 +14,7 @@ function hourLabel(h) {
 }
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconKey } from '../components/icons'
+import { SuggestInput } from '../components/SuggestInput'
 
 const HOUR_PX = 56
 const DAY_START = 0
@@ -373,12 +374,9 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onCl
           {editShift && <button type="button" onClick={remove} style={{ border: 0, background: 'transparent', color: '#a93a25', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>}
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input list="mob-staff-options" autoFocus value={personName} onChange={e => setPersonName(e.target.value)}
+          <SuggestInput autoFocus options={staff.map(s => s.name)} value={personName} onChange={setPersonName}
             placeholder={staff.length ? 'Staff member name' : 'Type a name (or add staff first)'}
             style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
-          <datalist id="mob-staff-options">
-            {staff.map(s => <option key={s.id} value={s.name} />)}
-          </datalist>
           <div>
             <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Day</div>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
