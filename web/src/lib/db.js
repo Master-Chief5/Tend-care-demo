@@ -672,6 +672,40 @@ export async function deleteResident(id) {
   if (error) console.error('deleteResident:', error.message)
 }
 
+// ── Medications (eMAR) ──────────────────────────────────────────────────────
+// Demo mode is the live experience; real (Supabase) mode would need med/
+// med_admin tables — until those exist these no-op gracefully (empty/null).
+export async function fetchMeds(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchMeds(houseId)
+  return []
+}
+export async function addMed(orgId, med) {
+  if (isDemoMode) return demo.demoAddMed(med)
+  return null
+}
+export async function deleteMed(id) {
+  if (isDemoMode) return demo.demoDeleteMed(id)
+}
+export async function fetchMedPass(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchMedPass(houseId, toDateStr(date))
+  return []
+}
+export async function recordMed(medId, date, slot, status, by) {
+  if (isDemoMode) return demo.demoRecordMed(medId, toDateStr(date), slot, status, by)
+}
+export async function fetchPrnMeds(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchPrnMeds(houseId)
+  return []
+}
+export async function logPrn(orgId, entry) {
+  if (isDemoMode) return demo.demoLogPrn(entry)
+  return null
+}
+export async function fetchPrnLog(orgId, houseId, date) {
+  if (isDemoMode) return demo.demoFetchPrnLog(houseId, toDateStr(date))
+  return []
+}
+
 // ── Medication (MAR) alerts ─────────────────────────────────────────────────
 // Fetch open med alerts; houseId=null means all houses in org.
 export async function fetchMedAlerts(orgId, houseId) {

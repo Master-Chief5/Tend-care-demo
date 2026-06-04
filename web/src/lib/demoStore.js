@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [] }
 }
 
 function load() {
@@ -407,6 +407,81 @@ export function demoUpdateResident(id, updates) {
   }
   persist()
   return { ...r, houses: houseJoin(r.house_id) }
+}
+
+// ── Medications (eMAR) ───────────────────────────────────────────────────────
+const residentName = (id) => (store.residents.find(r => r.id === id) || {}).name || 'Resident'
+
+export function demoFetchMeds(houseId) {
+  return store.meds
+    .filter(m => (!houseId || m.house_id === houseId) && m.active !== false)
+    .map(m => ({ ...m, residentName: residentName(m.resident_id) }))
+}
+
+export function demoAddMed(med) {
+  const row = {
+    id: uid('med'), house_id: med.houseId || null, resident_id: med.residentId || null,
+    name: med.name, dose: med.dose || '', route: med.route || 'Oral',
+    times: med.times || [], prn: !!med.prn, prnReason: med.prnReason || '',
+    prescriber: med.prescriber || '', active: true, created_at: now(),
+  }
+  store.meds.push(row); persist()
+  return { ...row, residentName: residentName(row.resident_id) }
+}
+
+export function demoDeleteMed(id) {
+  store.meds = store.meds.filter(m => m.id !== id)
+  store.medAdmins = store.medAdmins.filter(a => a.med_id !== id)
+  persist()
+}
+
+// Today's scheduled doses for a house, merged with what's been recorded.
+export function demoFetchMedPass(houseId, dateStr) {
+  const doses = []
+  for (const m of store.meds.filter(m => m.house_id === houseId && !m.prn && m.active !== false)) {
+    for (const t of (m.times || [])) {
+      const adm = store.medAdmins.find(a => a.med_id === m.id && a.date === dateStr && a.slot === t)
+      doses.push({
+        key: `${m.id}|${t}`, medId: m.id, resident: residentName(m.resident_id), residentId: m.resident_id,
+        med: m.name, dose: m.dose, route: m.route, time: t,
+        status: adm?.status || 'due', by: adm?.by || null, at: adm?.at || null,
+      })
+    }
+  }
+  return doses.sort((a, b) => a.time.localeCompare(b.time) || a.resident.localeCompare(b.resident))
+}
+
+export function demoRecordMed(medId, dateStr, slot, status, by) {
+  const idx = store.medAdmins.findIndex(x => x.med_id === medId && x.date === dateStr && x.slot === slot)
+  if (status === 'due') {
+    if (idx >= 0) store.medAdmins.splice(idx, 1)
+  } else if (idx >= 0) {
+    store.medAdmins[idx] = { ...store.medAdmins[idx], status, by, at: now() }
+  } else {
+    store.medAdmins.push({ id: uid('adm'), med_id: medId, date: dateStr, slot, status, by, at: now() })
+  }
+  persist()
+}
+
+export function demoFetchPrnMeds(houseId) {
+  return store.meds
+    .filter(m => m.house_id === houseId && m.prn && m.active !== false)
+    .map(m => ({ ...m, residentName: residentName(m.resident_id) }))
+}
+
+export function demoLogPrn(entry) {
+  const row = {
+    id: uid('prn'), med_id: entry.medId, house_id: entry.houseId || null,
+    resident: residentName(entry.residentId), med: entry.medName || '',
+    reason: entry.reason || '', effect: entry.effect || '', by: entry.by || null, at: now(),
+    date: todayStr(),
+  }
+  store.prnLog.unshift(row); persist()
+  return row
+}
+
+export function demoFetchPrnLog(houseId, dateStr) {
+  return store.prnLog.filter(l => l.house_id === houseId && (!dateStr || l.date === dateStr))
 }
 
 export function demoDeleteResident(id) {
