@@ -1,0 +1,11 @@
+-- Fix: residents could not be saved in any state except "Home".
+-- The resident editor offers statuses Home/active, At appointment (appt),
+-- Day program (program), Hospital (hospital), Away (away) — but the original
+-- residents_status_check only allowed ('active','inactive'). Saving any other
+-- status violated the constraint, so addResident()/updateResident() errored and
+-- the save silently failed. Same class of bug as trips_purpose_check.
+--
+-- status is a transient "where is the resident now" label chosen in the UI;
+-- drop the brittle enum constraint. Applied live as migration
+-- "drop_residents_status_check".
+ALTER TABLE public.residents DROP CONSTRAINT IF EXISTS residents_status_check;
