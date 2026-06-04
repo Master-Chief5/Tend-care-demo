@@ -45,7 +45,7 @@ function StaffDetail({ staff, onBack, onRemove, onEdit }) {
           <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink2)', cursor: 'pointer' }}>
             <IconChev size={20} sw={2} style={{ transform: 'rotate(180deg)' }} />
           </button>
-          <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>Team</span>
+          <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>Staff</span>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '4px 22px 24px' }}>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 18, padding: '20px 18px', marginBottom: 14, textAlign: 'center' }}>
@@ -140,7 +140,7 @@ export function ScreenA_Staff({ user, onLogout }) {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
-            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Team</div>
+            <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Staff</div>
             <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{staffList.length} staff members</div>
           </div>
           <button onClick={() => setModal({ mode: 'add' })} style={{ background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink2)', borderRadius: 999, padding: '7px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>

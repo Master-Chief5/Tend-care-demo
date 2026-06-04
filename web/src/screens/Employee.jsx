@@ -4,7 +4,7 @@ import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { HouseItems } from '../components/HouseItems'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus } from '../components/icons'
+import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus, IconPeople } from '../components/icons'
 
 const kindMap = {
   med:   { label: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
@@ -202,10 +202,16 @@ export function ScreenA_Me({ user, onLogout, onNavigate }) {
     : user?.role === 'manager' ? `House Mgr · ${user.houseSlug || 'House'}`
     : `DSP Lead · ${user?.houseSlug || 'Oak House'}`
 
-  const navRows = [
+  const isAdmin = user?.role === 'supervisor' || user?.role === 'manager'
+  const navRows = isAdmin ? [
+    { Icon: IconPeople, label: 'Manage staff',  tab: 'staff' },
+    { Icon: IconPlus,   label: 'House setup',   tab: 'setup' },
+    { Icon: IconCal,    label: 'Schedule',      tab: 'sched' },
+    { Icon: IconChat,   label: 'Team chat',     tab: 'team' },
+  ] : [
     { Icon: IconCal,  label: 'My schedule', tab: 'sched' },
     { Icon: IconCar,  label: 'My trips',    tab: 'drive' },
-    { Icon: IconChat, label: 'Messages',    tab: null },
+    { Icon: IconChat, label: 'Messages',    tab: 'team' },
     { Icon: IconBook, label: 'Training',    tab: null },
   ]
 
