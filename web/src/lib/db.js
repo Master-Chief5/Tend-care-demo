@@ -263,6 +263,13 @@ export async function updateStaffMember(id, updates) {
   return data
 }
 
+// Set a staff member's certifications (CPR, First Aid, med-admin, etc.).
+// Demo-backed; real mode would need a certs column/table.
+export async function setStaffCerts(id, certs) {
+  if (isDemoMode) return demo.demoUpdateStaff(id, { certs })
+  return null
+}
+
 // Remove a staff member.
 export async function removeStaff(id) {
   if (isDemoMode) return demo.demoRemoveStaff(id)
