@@ -11,7 +11,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck } from '../icons'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart } from '../icons'
 
 function normalizeHouse(h) {
   return {
@@ -34,6 +34,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
       case 'team':  return <ScreenA_Chat user={user} />
       case 'drive': return <ScreenA_Driving user={user} />
+      case 'supply': return <ScreenA_Resources user={user} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
     }
   }
@@ -44,9 +45,8 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'team':   return <ScreenA_Chat user={user} />
     case 'drive':  return <ScreenA_Driving user={user} />
     case 'supply': return <ScreenA_Resources user={user} />
-    case 'me':     return role === 'supervisor'
-      ? <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
-      : <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
+    case 'staff':  return <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
+    case 'me':     return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
   }
   return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
 }
@@ -128,17 +128,19 @@ export function MobileShell({ user, onLogout }) {
   const isStaff = role === 'staff'
 
   const tabs = isStaff ? [
-    { id: 'home',  label: 'My Day',   icon: IconHome },
-    { id: 'sched', label: 'Schedule', icon: IconCal },
-    { id: 'team',  label: 'Team',     icon: IconChat },
-    { id: 'drive', label: 'Driving',  icon: IconCar },
-    { id: 'me',    label: 'Me',       icon: IconPeople },
+    { id: 'home',   label: 'My Day',   icon: IconHome },
+    { id: 'sched',  label: 'Schedule', icon: IconCal },
+    { id: 'team',   label: 'Team',     icon: IconChat },
+    { id: 'drive',  label: 'Driving',  icon: IconCar },
+    { id: 'supply', label: 'Supplies', icon: IconCart },
+    { id: 'me',     label: 'Me',       icon: IconPeople },
   ] : [
-    { id: 'home',  label: 'Houses',   icon: IconHome },
-    { id: 'sched', label: 'Schedule', icon: IconCal },
-    { id: 'team',  label: 'Team',     icon: IconChat },
-    { id: 'drive', label: 'Driving',  icon: IconCar },
-    { id: 'me',    label: 'Me',       icon: IconPeople },
+    { id: 'home',   label: 'Houses',   icon: IconHome },
+    { id: 'sched',  label: 'Schedule', icon: IconCal },
+    { id: 'team',   label: 'Team',     icon: IconChat },
+    { id: 'drive',  label: 'Driving',  icon: IconCar },
+    { id: 'supply', label: 'Supplies', icon: IconCart },
+    { id: 'me',     label: 'Me',       icon: IconPeople },
   ]
 
   const screen = houseDetail
@@ -151,7 +153,7 @@ export function MobileShell({ user, onLogout }) {
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}
       </div>
-      <div className="web-tab-bar">
+      <div className="web-tab-bar" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => switchTab(t.id)} className={tab === t.id && !houseDetail ? 'active' : ''}>
             <t.icon size={22} sw={1.7} />
