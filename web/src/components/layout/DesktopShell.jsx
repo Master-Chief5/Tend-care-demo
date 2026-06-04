@@ -50,8 +50,8 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
   if (tab === 'staff')       return <PageStaffDesktop user={user} houses={houses} />
-  if (tab === 'orientation') return <PageOrientationDesktop />
-  return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} />
+  if (tab === 'orientation') return <PageOrientationDesktop onNavigate={onNavigate} />
+  return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
 }
 
 function DesktopRail({ tab, setTab, user, onLogout, houses }) {

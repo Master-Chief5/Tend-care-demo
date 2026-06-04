@@ -8,13 +8,8 @@ import { useToast } from '../../hooks/useToast'
 import { Toast } from '../../components/ui/Toast'
 import { Pill } from '../../components/ui/Pill'
 import { StaffCard } from '../People'
-import { SwapRow, HouseBar, TopItem } from '../Resources'
-import { VehicleRow } from '../Driving'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
-import {
-  IconPlus, IconSearch, IconChev, IconChat, IconArrow,
-  IconCar, IconFlag, IconUp, IconDown,
-} from '../../components/icons'
+import { IconPlus, IconSearch, IconChev, IconChat, IconArrow } from '../../components/icons'
 
 // ── Local helpers ─────────────────────────────────────────────────────
 
@@ -114,7 +109,7 @@ function CenteredColumn({ children, width = 760, side }) {
 
 // ── Today ─────────────────────────────────────────────────────────────
 
-export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
+export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }) {
   const [toast, showToast] = useToast()
   const [branchFilter, setBranchFilter] = useState('All')
   const greeting = getGreeting()
@@ -180,7 +175,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [] }) {
       <DTopBar
         title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>{firstName}</em></>}
         sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'}{isManager ? ' · manager view' : totalNeeds > 0 ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{totalNeeds} {totalNeeds === 1 ? 'thing needs' : 'things need'} you</span></> : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all clear</span></>}</>}
-        actions={<button onClick={() => showToast('Opening new item…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New</button>}
+        actions={<button onClick={() => onNavigate?.('schedule')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
@@ -467,146 +462,6 @@ function PageTeamDesktop_OLD() {
   )
 }
 
-// ── Driving ───────────────────────────────────────────────────────────
-
-export function PageDrivingDesktop({ user }) {
-  const [toast, showToast] = useToast()
-  const [trips, setTrips] = useState([])
-  const [vehicles, setVehicles] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user?.orgId) return
-    const scopedHouseId = user.role === 'manager' ? user.houseId : null
-    setLoading(true)
-    Promise.all([
-      fetchTrips(user.orgId, scopedHouseId, null),
-      fetchVehicles(user.orgId, scopedHouseId),
-    ]).then(([tripsData, vehiclesData]) => {
-      setTrips(tripsData)
-      setVehicles(vehiclesData)
-      setLoading(false)
-    })
-  }, [user?.orgId, user?.houseId, user?.role])
-
-  const totalMiles = trips.reduce((sum, t) => sum + (Number(t.miles) || 0), 0)
-  const tripCount = trips.length
-
-  const fmtDate = (dateStr) => {
-    if (!dateStr) return ''
-    const d = new Date(dateStr)
-    const today = new Date()
-    const diff = Math.floor((today - d) / 86400000)
-    if (diff === 0) return 'Today'
-    if (diff === 1) return 'Yesterday'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  return (
-    <>
-      <Toast msg={toast} />
-      <DTopBar title="Driving" sub="Logs · mileage · vehicles"
-        actions={<button onClick={() => showToast('Opening trip form…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Start trip</button>} />
-      <CenteredColumn width={780} side>
-        <div>
-          <div style={{ ...dCard, padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <span className="serif" style={{ fontSize: 18 }}>Recent trips</span>
-              <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '6px 18px', borderTop: '1px solid var(--a-line)', borderBottom: '1px solid var(--a-line)', background: 'var(--a-paper)', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
-              <span>When</span><span>Trip</span><span>Driver</span><span>Purpose</span><span style={{ textAlign: 'right' }}>Miles</span>
-            </div>
-            {loading && <div style={{ padding: '24px 18px', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
-            {!loading && trips.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
-                <div style={{ fontSize: 13, lineHeight: 1.5 }}>Start a trip to record a resident transport.</div>
-              </div>
-            )}
-            {!loading && trips.map((t) => {
-              const color = t.houses?.color || 'var(--a-ink3)'
-              const route = `${t.houses?.name ? t.houses.name + ' → ' : ''}${t.destination}`
-              return (
-                <div key={t.id} onClick={() => showToast('Opening trip details…')} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 90px 80px', padding: '10px 18px', borderBottom: '1px solid var(--a-line)', fontSize: 12.5, alignItems: 'center', cursor: 'pointer' }}>
-                  <span style={{ color: 'var(--a-ink3)', fontSize: 11.5 }}>{fmtDate(t.trip_date)}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 3, height: 16, background: color, borderRadius: 2 }} />
-                    {route}
-                  </span>
-                  <span style={{ color: 'var(--a-ink2)' }}>{t.driver_name}</span>
-                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{t.purpose}</span>
-                  <span className="tnum" style={{ textAlign: 'right', fontWeight: 500 }}>{t.miles}<span style={{ color: 'var(--a-ink3)', fontWeight: 400, fontSize: 10 }}> mi</span></span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={dCard}>
-            <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Logged miles</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-              <span className="serif tnum" style={{ fontSize: 36, fontWeight: 500, letterSpacing: '-0.02em' }}>{totalMiles.toFixed(1)}</span>
-              <span style={{ fontSize: 13, color: 'var(--a-ink2)' }}>mi</span>
-            </div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: 'var(--a-ink3)' }}>
-              <span>{tripCount} {tripCount === 1 ? 'trip' : 'trips'}</span>
-            </div>
-            <svg viewBox="0 0 200 40" style={{ width: '100%', height: 40, marginTop: 10 }}>
-              <polyline points="0,30 20,28 40,22 60,24 80,18 100,20 120,15 140,17 160,12 180,9 200,11" fill="none" stroke="var(--a-sage)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="0,30 20,28 40,22 60,24 80,18 100,20 120,15 140,17 160,12 180,9 200,11 200,40 0,40" fill="var(--a-sage)" fillOpacity="0.08" stroke="none" />
-            </svg>
-          </div>
-          <div style={dCard}>
-            <span className="serif" style={{ fontSize: 18 }}>Vehicles</span>
-            <div style={{ marginTop: 8 }}>
-              {!loading && vehicles.length === 0 && (
-                <div style={{ fontSize: 13, color: 'var(--a-ink3)', padding: '12px 0' }}>No vehicles yet.</div>
-              )}
-              {vehicles.map((v, i) => {
-                const status = (Number(v.mileage) || 0) > 50000 ? 'due' : 'ok'
-                const sub = [
-                  v.mileage != null ? `${Number(v.mileage).toLocaleString()} mi` : null,
-                  v.plate || null,
-                ].filter(Boolean).join(' · ')
-                return (
-                  <VehicleRow key={v.id} name={v.name} sub={sub} status={status}
-                    last={i === vehicles.length - 1}
-                    onClick={() => showToast(`${v.name} — ${status === 'due' ? 'service due' : 'available'}`)} />
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </CenteredColumn>
-    </>
-  )
-}
-
-// ── Resources ─────────────────────────────────────────────────────────
-
-export function PageResourcesDesktop() {
-  const [toast, showToast] = useToast()
-  return (
-    <>
-      <Toast msg={toast} />
-      <DTopBar title="Resources" sub="Spend insights · grocery · cross-house"
-        actions={<button onClick={() => showToast('Generating list…')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Generate list</button>} />
-      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', color: 'var(--a-ink3)', maxWidth: 320 }}>
-          <div style={{ fontSize: 32, marginBottom: 14 }}>📦</div>
-          <div className="serif" style={{ fontSize: 22, color: 'var(--a-ink)', marginBottom: 8 }}>No supply data yet</div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-            Add supplies through the mobile app to see spending insights and cross-house swap suggestions here.
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ── Staff ─────────────────────────────────────────────────────────────
 
 export function PageStaffDesktop({ user, houses = [] }) {
@@ -787,13 +642,13 @@ function RootWeek({ num, title, items }) {
   )
 }
 
-export function PageOrientationDesktop() {
+export function PageOrientationDesktop({ onNavigate }) {
   const [toast, showToast] = useToast()
   return (
     <>
       <Toast msg={toast} />
       <DTopBar title="Orientation" sub="New-hire onboarding"
-        actions={<button onClick={() => showToast('Onboarding tracking is coming soon')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
+        actions={<button onClick={() => onNavigate?.('staff')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '36px 20px', textAlign: 'center', color: 'var(--a-ink3)' }}>
           <div style={{ fontSize: 30, marginBottom: 10 }}>🌱</div>
