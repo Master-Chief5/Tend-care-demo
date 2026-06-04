@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { loadLeaflet, addBasemap, makePin } from '../lib/leaflet'
+import { loadLeaflet, addBasemap, makePin, fetchRoute } from '../lib/leaflet'
 
 // Live map of in-progress trips: a dot for each worker's current location, a pin
-// for the destination, and a dashed line between. Free (Leaflet + OSM tiles).
+// for the destination, and a road-following route between them (free OSRM). Falls
+// back to a straight dashed line while the route loads or if routing is blocked.
 export function LiveTripsMap({ trips = [] }) {
   const elRef = useRef(null)
   const mapRef = useRef(null)
@@ -10,6 +11,22 @@ export function LiveTripsMap({ trips = [] }) {
   const Lref = useRef(null)
   const tripsRef = useRef(trips)
   tripsRef.current = trips
+  // Cache road routes by a coarse from→to key so we don't refetch on every redraw.
+  const routeCache = useRef(new Map())
+
+  // Key the route by ~3-decimal (≈100m) rounded endpoints so small GPS jitter
+  // doesn't trigger constant refetches but real movement does.
+  const routeKey = (a, b) => `${a.lat.toFixed(3)},${a.lng.toFixed(3)}>${b.lat.toFixed(3)},${b.lng.toFixed(3)}`
+
+  function ensureRoute(from, to) {
+    const key = routeKey(from, to)
+    if (routeCache.current.has(key)) return // pending or done
+    routeCache.current.set(key, null)        // mark pending
+    fetchRoute(from, to).then(res => {
+      routeCache.current.set(key, res || false) // false = failed, draw fallback
+      draw()
+    })
+  }
 
   function draw() {
     const L = Lref.current, map = mapRef.current, layer = layerRef.current
@@ -18,17 +35,34 @@ export function LiveTripsMap({ trips = [] }) {
     const pts = []
     for (const t of tripsRef.current) {
       const color = t.houses?.color || '#b8552f'
-      if (t.cur_lat != null) {
+      const hasCur = t.cur_lat != null
+      const hasDest = t.dest_lat != null
+
+      if (hasCur && hasDest) {
+        const from = { lat: t.cur_lat, lng: t.cur_lng }, to = { lat: t.dest_lat, lng: t.dest_lng }
+        const route = routeCache.current.get(routeKey(from, to))
+        if (route && route.coords) {
+          // Road-following route: a soft casing under a solid colored line.
+          L.polyline(route.coords, { color: '#fff', weight: 7, opacity: 0.7, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+          L.polyline(route.coords, { color, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+          route.coords.forEach(p => pts.push(p))
+        } else {
+          // Straight dashed fallback while the route loads (or if routing failed).
+          L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
+          ensureRoute(from, to)
+        }
+      }
+
+      if (hasCur) {
         // Soft halo under the worker dot so it reads as a "live" location.
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 15, color, weight: 0, fillColor: color, fillOpacity: 0.18, interactive: false }).addTo(layer)
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 8, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 })
           .bindPopup(`${t.driver_name || 'Worker'} → ${t.destination || ''}`).addTo(layer)
         pts.push([t.cur_lat, t.cur_lng])
       }
-      if (t.dest_lat != null) {
+      if (hasDest) {
         L.marker([t.dest_lat, t.dest_lng], { icon: makePin(L, color) }).bindPopup(`Destination: ${t.destination || ''}`).addTo(layer)
         pts.push([t.dest_lat, t.dest_lng])
-        if (t.cur_lat != null) L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
       }
     }
     if (pts.length === 1) map.setView(pts[0], 14)
