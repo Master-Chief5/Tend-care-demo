@@ -66,6 +66,108 @@ export function SwapRow({ from, to, item, note }) {
   )
 }
 
+// Compact, dependency-free overview rendered above the supplies list.
+// Shows a summary row (item count + total estimated cost) and a horizontal
+// SVG bar chart grouped by house. Charts estimated spend per house when cost
+// data exists; otherwise falls back to item count per house.
+function SuppliesOverview({ items }) {
+  // ── Summary row figures ──────────────────────────────────────────────────
+  const totalCost = items.reduce((sum, it) => {
+    const c = Number(it?.cost)
+    return sum + (Number.isFinite(c) ? c : 0)
+  }, 0)
+  const itemsWithCost = items.filter(it => Number.isFinite(Number(it?.cost)) && Number(it.cost) > 0).length
+
+  const fmtMoney = (n) =>
+    `$${(Number.isFinite(n) ? n : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  // ── Group by house ───────────────────────────────────────────────────────
+  // If at least a third of items carry a cost, chart spend; else chart counts.
+  const useSpend = itemsWithCost > 0 && itemsWithCost >= Math.ceil(items.length / 3)
+
+  const byHouse = {}
+  for (const it of items) {
+    const h = it?.houses
+    const key = it?.house_id || '__none__'
+    if (!byHouse[key]) {
+      byHouse[key] = {
+        name:  h?.name || 'Unassigned',
+        color: h?.color || 'var(--a-sage)',
+        spend: 0,
+        count: 0,
+      }
+    }
+    const c = Number(it?.cost)
+    byHouse[key].spend += Number.isFinite(c) ? c : 0
+    byHouse[key].count += 1
+  }
+
+  const rows = Object.values(byHouse)
+    .map(r => ({ ...r, value: useSpend ? r.spend : r.count }))
+    .filter(r => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  const maxValue = rows.reduce((m, r) => Math.max(m, r.value), 0)
+  const fmtVal = (v) => (useSpend ? fmtMoney(v) : `${v}`)
+
+  // ── SVG bar chart geometry (viewBox units; scales fluidly to container) ───
+  const W = 300
+  const labelW = 86       // left gutter for house name
+  const valueW = 64       // right gutter for value
+  const barH = 12
+  const gap = 12
+  const barAreaW = W - labelW - valueW
+  const H = rows.length > 0 ? rows.length * (barH + gap) - gap : 0
+
+  return (
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+      {/* Summary row */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: rows.length ? 14 : 0 }}>
+        <div>
+          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Items</div>
+          <div className="serif tnum" style={{ fontSize: 24, fontWeight: 500, marginTop: 2, letterSpacing: '-0.02em' }}>{items.length}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Est. cost</div>
+          <div className="serif tnum" style={{ fontSize: 24, fontWeight: 500, marginTop: 2, letterSpacing: '-0.02em' }}>{fmtMoney(totalCost)}</div>
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      {rows.length > 0 && (
+        <>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--a-ink2)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
+            {useSpend ? 'Estimated spend by house' : 'Items by house'}
+          </div>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', overflow: 'visible' }} preserveAspectRatio="xMidYMid meet" role="img"
+            aria-label={useSpend ? 'Estimated spend by house' : 'Item count by house'}>
+            {rows.map((r, i) => {
+              const y = i * (barH + gap)
+              const w = maxValue ? (r.value / maxValue) * barAreaW : 0
+              return (
+                <g key={i}>
+                  {/* House label */}
+                  <text x={0} y={y + barH - 1} fontSize="10" fontFamily="Geist" fontWeight="600" fill="var(--a-ink2)">
+                    {r.name.length > 12 ? r.name.slice(0, 11) + '…' : r.name}
+                  </text>
+                  {/* Track */}
+                  <rect x={labelW} y={y} width={barAreaW} height={barH} rx={barH / 2} fill="var(--a-paper)" />
+                  {/* Value bar */}
+                  <rect x={labelW} y={y} width={Math.max(w, 0)} height={barH} rx={barH / 2} fill={r.color} />
+                  {/* Value label */}
+                  <text x={W} y={y + barH - 1} fontSize="10.5" fontFamily="Geist" fontWeight="500" fill="var(--a-ink)" textAnchor="end">
+                    {fmtVal(r.value)}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AddItemModal({ user, houses, onClose, onAdded }) {
   const [name, setName] = useState('')
   const [qty, setQty] = useState('1')
@@ -187,6 +289,8 @@ export function ScreenA_Resources({ user }) {
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add item" to log a supply or resource needed.</div>
             </div>
           )}
+
+          {!loading && items.length > 0 && <SuppliesOverview items={items} />}
 
           {!loading && items.length > 0 && (
             <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>

@@ -245,6 +245,34 @@ export function demoAddTrip(trip) {
   return { ...row, houses: houseJoin(row.house_id) }
 }
 
+export function demoStartTrip(trip) {
+  const row = {
+    id: uid('trip'), house_id: trip.houseId || null,
+    driver_name: trip.driverName || 'Unknown', resident_name: trip.residentName,
+    destination: trip.destination, miles: trip.miles || 0, purpose: trip.purpose || 'Other',
+    trip_date: todayStr(), created_at: now(), status: 'active', started_at: now(),
+    start_lat: trip.lat ?? null, start_lng: trip.lng ?? null,
+  }
+  store.trips.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoEndTrip(id, patch = {}) {
+  const t = store.trips.find(x => x.id === id)
+  if (!t) return null
+  t.status = 'ended'; t.ended_at = now()
+  if (patch.miles != null) t.miles = patch.miles
+  if (patch.lat != null) t.end_lat = patch.lat
+  if (patch.lng != null) t.end_lng = patch.lng
+  persist()
+  return { ...t, houses: houseJoin(t.house_id) }
+}
+
+export function demoFetchActiveTrips(houseId) {
+  return store.trips.filter(t => t.status === 'active' && (!houseId || t.house_id === houseId))
+    .map(t => ({ ...t, houses: houseJoin(t.house_id) }))
+}
+
 export function demoUpdateTrip(id, updates) {
   const t = store.trips.find(x => x.id === id)
   if (!t) return null

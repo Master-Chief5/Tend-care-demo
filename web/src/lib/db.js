@@ -442,6 +442,46 @@ export async function updateTrip(id, updates) {
   return data
 }
 
+// ── Live trip tracking (start / end / active) ────────────────────────────────
+// Start a trip "now": status=active, started_at, optional start geolocation.
+export async function startTrip(orgId, trip) {
+  if (isDemoMode) return demo.demoStartTrip(trip)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('trips').insert({
+    org_id: orgId, house_id: trip.houseId || null,
+    driver_name: trip.driverName || 'Unknown', resident_name: trip.residentName,
+    destination: trip.destination, purpose: trip.purpose || 'Other', miles: trip.miles || 0,
+    trip_date: toDateStr(new Date()), status: 'active', started_at: new Date().toISOString(),
+    start_lat: trip.lat ?? null, start_lng: trip.lng ?? null,
+  }).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('startTrip:', error.message); return null }
+  return data
+}
+
+// End an active trip: status=ended, ended_at, optional miles + end geolocation.
+export async function endTrip(id, patch = {}) {
+  if (isDemoMode) return demo.demoEndTrip(id, patch)
+  if (!supabase || !id) return null
+  const upd = { status: 'ended', ended_at: new Date().toISOString() }
+  if (patch.miles != null) upd.miles = patch.miles
+  if (patch.lat != null) upd.end_lat = patch.lat
+  if (patch.lng != null) upd.end_lng = patch.lng
+  const { data, error } = await supabase.from('trips').update(upd).eq('id', id).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('endTrip:', error.message); return null }
+  return data
+}
+
+// Currently-active trips (in progress) — supervisors see all houses.
+export async function fetchActiveTrips(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchActiveTrips(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('trips').select('*, houses(slug, name, color, short)').eq('org_id', orgId).eq('status', 'active').order('started_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchActiveTrips:', error.message); return [] }
+  return data || []
+}
+
 // ── Vehicles ──────────────────────────────────────────────────────────────
 // Fetch vehicles for an org (optionally scoped to one house).
 export async function fetchVehicles(orgId, houseId) {
