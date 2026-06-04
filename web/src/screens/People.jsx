@@ -1,10 +1,71 @@
 import { useState, useEffect } from 'react'
-import { fetchStaff, removeStaff } from '../lib/db'
+import { fetchStaff, removeStaff, setStaffCerts } from '../lib/db'
 import { StaffFormModal, StaffStatus } from '../components/StaffFormModal'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
 import { IconPlus, IconSearch, IconChev } from '../components/icons'
+
+const CERT_SUGGESTIONS = ['CPR', 'First Aid', 'Medication Administration', 'CPI / Crisis Prevention', 'Bloodborne Pathogens', 'Abuse & Neglect Prevention', 'Fire Safety', 'Mandated Reporter']
+// Status of a certification by expiry date.
+function certStatus(expires) {
+  if (!expires) return { label: 'No date', bg: 'var(--a-paper)', tc: 'var(--a-ink3)', rank: 1 }
+  const days = Math.floor((new Date(expires).getTime() - Date.now()) / 86400000)
+  if (days < 0) return { label: `Expired`, bg: '#fadcd7', tc: '#a93a25', rank: 3 }
+  if (days <= 60) return { label: `${days}d left`, bg: '#f5e9d6', tc: '#a47012', rank: 2 }
+  return { label: 'Valid', bg: '#dee6df', tc: '#3f604d', rank: 0 }
+}
+// Worst cert status across a list — for the list-card warning dot.
+export function certWarning(certs = []) {
+  let worst = 0
+  for (const c of certs) worst = Math.max(worst, certStatus(c.expires).rank)
+  return worst   // 0 ok, 2 expiring, 3 expired
+}
+
+function CertSection({ certs = [], onChange }) {
+  const [showAdd, setShowAdd] = useState(false)
+  const [name, setName] = useState('')
+  const [expires, setExpires] = useState('')
+  const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '9px 11px', fontSize: 13.5, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const add = (e) => {
+    e.preventDefault(); if (!name.trim()) return
+    onChange([...certs, { name: name.trim(), expires }])
+    setName(''); setExpires(''); setShowAdd(false)
+  }
+  const sorted = [...certs].sort((a, b) => (a.expires || '9999').localeCompare(b.expires || '9999'))
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 8px 2px' }}>
+        <span style={{ fontSize: 11, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Certifications & training</span>
+        <button onClick={() => setShowAdd(s => !s)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}><IconPlus size={13} sw={2.2} /> Add</button>
+      </div>
+      {showAdd && (
+        <form onSubmit={add} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: 12, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input autoFocus list="cert-suggestions" value={name} onChange={e => setName(e.target.value)} placeholder="Certification (e.g. CPR)" style={input} />
+          <datalist id="cert-suggestions">{CERT_SUGGESTIONS.map(c => <option key={c} value={c} />)}</datalist>
+          <div><div style={{ fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }}>Expires</div><input type="date" value={expires} onChange={e => setExpires(e.target.value)} style={input} /></div>
+          <button type="submit" disabled={!name.trim()} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '10px', fontSize: 13.5, fontWeight: 600, fontFamily: 'Geist', cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5 }}>Add certification</button>
+        </form>
+      )}
+      <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+        {sorted.length === 0 && <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No certifications tracked.</div>}
+        {sorted.map((c, i) => {
+          const st = certStatus(c.expires)
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: i < sorted.length - 1 ? '1px solid var(--a-line)' : '' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{c.expires ? `Expires ${new Date(c.expires).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No expiry set'}</div>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: st.tc, background: st.bg, padding: '2px 8px', borderRadius: 999 }}>{st.label}</span>
+              <button onClick={() => onChange(certs.filter((_, j) => j !== certs.indexOf(c)))} aria-label="Remove" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>×</button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export function RingChart({ pct = 0.9, color = 'var(--a-sage)', size = 40 }) {
   const r = (size - 6) / 2
@@ -34,7 +95,7 @@ export function StaffCard({ name, role, houseName, houseColor, linked, onClick }
   )
 }
 
-function StaffDetail({ staff, onBack, onRemove, onEdit }) {
+function StaffDetail({ staff, onBack, onRemove, onEdit, onSetCerts }) {
   const hColor = staff.houseColor ?? '#888'
   const hName = staff.houseName || 'No house assigned'
   const initials = staff.name.split(' ').map(n => n[0]).join('')
@@ -65,6 +126,7 @@ function StaffDetail({ staff, onBack, onRemove, onEdit }) {
           <button onClick={() => onEdit(staff)} style={{ width: '100%', padding: '11px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 13, fontWeight: 600, color: 'var(--a-ink)', fontFamily: 'Geist', cursor: 'pointer', marginBottom: 14 }}>
             Edit details
           </button>
+          {onSetCerts && <CertSection certs={staff.certs || []} onChange={onSetCerts} />}
           {staff.notes && (
             <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 18px', marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Notes</div>
@@ -115,6 +177,13 @@ export function ScreenA_Staff({ user, onLogout }) {
     showToast('Staff member removed')
   }
 
+  const handleSetCerts = async (certs) => {
+    if (!selectedStaff?.id) return
+    await setStaffCerts(selectedStaff.id, certs)
+    const data = await reload()
+    setSelectedStaff(data.find(s => s.id === selectedStaff.id) || null)
+  }
+
   if (selectedStaff) return (
     <>
       <StaffDetail
@@ -122,6 +191,7 @@ export function ScreenA_Staff({ user, onLogout }) {
         onBack={() => setSelectedStaff(null)}
         onRemove={handleRemove}
         onEdit={(s) => setModal({ mode: 'edit', staff: s })}
+        onSetCerts={handleSetCerts}
       />
       {modal?.mode === 'edit' && (
         <StaffFormModal user={user} editStaff={modal.staff} onClose={() => setModal(null)} onSaved={handleSaved} />

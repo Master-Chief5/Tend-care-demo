@@ -154,6 +154,7 @@ export function demoFetchStaff(houseId) {
       houseColor: houseJoin(s.house_id)?.color ?? null,
       linked: !!s.auth_user_id, sub: s.tenure ?? '',
       highlight: s.highlight ?? null, tenure: s.tenure ?? '', notes: s.notes ?? '',
+      certs: s.certs ?? [],
     }))
 }
 
