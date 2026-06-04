@@ -74,7 +74,9 @@ export function LiveTripsMap({ trips = [] }) {
     loadLeaflet().then((L) => {
       if (cancelled || !L || !elRef.current || mapRef.current) return
       Lref.current = L
-      const map = L.map(elRef.current, { attributionControl: false, zoomControl: false }).setView([40, -74], 11)
+      // Big renderer padding so the route line / dots stay drawn while panning
+      // and zooming (default SVG padding clips long vectors mid-drag).
+      const map = L.map(elRef.current, { attributionControl: false, zoomControl: false, renderer: L.svg({ padding: 2 }) }).setView([40, -74], 11)
       mapRef.current = map
       addBasemap(L, map, { attribution: false })
       layerRef.current = L.layerGroup().addTo(map)
