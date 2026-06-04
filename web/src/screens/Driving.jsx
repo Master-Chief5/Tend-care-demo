@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips } from '../lib/db'
+import { AddressInput } from '../components/AddressInput'
+// Best-effort current location (resolves {} if unavailable / denied).
+const getLoc = () => new Promise((resolve) => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve({})
+  navigator.geolocation.getCurrentPosition(
+    (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+    () => resolve({}), { timeout: 8000, enableHighAccuracy: true })
+})
 // Local date key (not UTC) so pay-period / "today" math matches the wall clock.
 const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 import { useToast } from '../hooks/useToast'
@@ -41,7 +49,7 @@ const inputStyle = {
   padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box',
 }
 
-function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving, title }) {
+function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving, title, hideMiles = false }) {
   const [driverName, setDriverName]     = useState(initial?.driver_name || '')
   const [residentName, setResidentName] = useState(initial?.resident_name || '')
   const [destination, setDestination]   = useState(initial?.destination || '')
@@ -63,12 +71,11 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
 
       <input placeholder="Resident name" value={residentName} onChange={e => setResidentName(e.target.value)}
         list="dl-residents" autoFocus style={inputStyle} />
-      <input placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={e => setDestination(e.target.value)}
-        style={inputStyle} />
+      <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={setDestination} style={inputStyle} />
       <input placeholder="Driver name" value={driverName} onChange={e => setDriverName(e.target.value)}
         list="dl-staff" style={inputStyle} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
+        {!hideMiles && <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />}
         <select value={purpose} onChange={e => setPurpose(e.target.value)} style={inputStyle}>
           {purposeOpts.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
         </select>
@@ -87,7 +94,7 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
   )
 }
 
-function TripModal({ title, initial, staffNames, residentNames, onClose, onSave }) {
+function TripModal({ title, initial, staffNames, residentNames, onClose, onSave, hideMiles = false, hint }) {
   const [saving, setSaving] = useState(false)
   const handleSave = async (data) => {
     setSaving(true)
@@ -98,9 +105,10 @@ function TripModal({ title, initial, staffNames, residentNames, onClose, onSave 
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>{title}</div>
+        <div className="serif" style={{ fontSize: 22, marginBottom: hint ? 4 : 16 }}>{title}</div>
+        {hint && <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{hint}</div>}
         <TripForm initial={initial} staffNames={staffNames} residentNames={residentNames}
-          onSave={handleSave} onCancel={onClose} saving={saving} title={title} />
+          onSave={handleSave} onCancel={onClose} saving={saving} title={title} hideMiles={hideMiles} />
       </div>
     </div>
   )
@@ -162,16 +170,17 @@ function TripInProgress({ trip, onEnd }) {
   const timerRef = useRef(null)
 
   useEffect(() => {
-    const startedAt = trip._startedAt || Date.now()
-    const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000))
+    const startedAt = trip.started_at ? new Date(trip.started_at).getTime() : (trip._startedAt || Date.now())
+    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
     tick()
     timerRef.current = setInterval(tick, 1000)
     return () => clearInterval(timerRef.current)
-  }, [trip.id, trip._startedAt])
+  }, [trip.id, trip.started_at, trip._startedAt])
 
-  const mins = Math.floor(elapsed / 60)
+  const h = Math.floor(elapsed / 3600)
+  const mins = Math.floor((elapsed % 3600) / 60)
   const secs = elapsed % 60
-  const timeStr = `${mins}:${String(secs).padStart(2, '0')}`
+  const timeStr = h > 0 ? `${h}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${mins}:${String(secs).padStart(2, '0')}`
   const hColor = trip.houses?.color || '#3a7a5a'
   const dest = trip.destination?.length > 14 ? trip.destination.slice(0, 14) + '…' : trip.destination
 
@@ -314,34 +323,55 @@ export function ScreenA_Driving({ user }) {
   const [showLog, setShowLog]           = useState(false)
   const [editTrip, setEditTrip]         = useState(null)
   const [showAddVehicle, setShowAddVehicle] = useState(false)
+  const [showStart, setShowStart]       = useState(false)
   const [loading, setLoading]           = useState(false)
-  const [activeTrip, setActiveTrip]     = useState(null)
+  const [activeTrips, setActiveTrips]   = useState([])
   const [toast, showToast]              = useToast()
+
+  const houseScope = user?.role === 'manager' ? user.houseId : null
 
   useEffect(() => {
     if (!user?.orgId) return
     setLoading(true)
-    fetchTrips(user.orgId, user.houseId || null, null).then(data => {
-      setTrips(data)
-      setLoading(false)
-    })
-    fetchStaff(user.orgId, user.houseId || null).then(data => {
-      setStaffNames(data.map(s => s.name))
-    })
-    fetchResidents(user.orgId, user.houseId || null).then(data => {
-      setResidentNames(data.map(r => r.name))
-    })
-    fetchVehicles(user.orgId, user.role === 'manager' ? user.houseId : null).then(data => {
-      setVehicles(data)
-    })
-  }, [user?.orgId, user?.houseId, user?.role])
+    fetchTrips(user.orgId, houseScope, null).then(data => { setTrips(data); setLoading(false) })
+    fetchStaff(user.orgId, houseScope).then(data => setStaffNames(data.map(s => s.name)))
+    fetchResidents(user.orgId, houseScope).then(data => setResidentNames(data.map(r => r.name)))
+    fetchVehicles(user.orgId, houseScope).then(setVehicles)
+    const loadActive = () => fetchActiveTrips(user.orgId, houseScope).then(setActiveTrips)
+    loadActive()
+    // Poll so a supervisor sees trips start/end ~live without a refresh.
+    const iv = setInterval(loadActive, 25000)
+    return () => clearInterval(iv)
+  }, [user?.orgId, houseScope])
 
+  // Start a trip now (status=active) with current location captured.
+  const handleStart = async (data) => {
+    const loc = await getLoc()
+    const trip = await startTrip(user.orgId, { ...data, houseId: user.houseId || null, lat: loc.lat, lng: loc.lng })
+    if (trip) {
+      setActiveTrips(prev => [trip, ...prev])
+      setTrips(prev => [trip, ...prev])
+      setShowStart(false)
+      showToast('Trip started')
+    }
+  }
+
+  // End an in-progress trip; capture end location + timestamp.
+  const handleEnd = async (trip) => {
+    const loc = await getLoc()
+    const updated = await endTrip(trip.id, { lat: loc.lat, lng: loc.lng })
+    if (updated) {
+      setActiveTrips(prev => prev.filter(t => t.id !== trip.id))
+      setTrips(prev => prev.map(t => t.id === trip.id ? updated : t))
+      showToast('Trip ended')
+    }
+  }
+
+  // Log a completed (past) trip retrospectively.
   const handleAdd = async (data) => {
     const trip = await addTrip(user.orgId, { ...data, houseId: user.houseId || null })
     if (trip) {
-      const withTimer = { ...trip, _startedAt: Date.now() }
-      setTrips(prev => [withTimer, ...prev])
-      setActiveTrip(withTimer)
+      setTrips(prev => [trip, ...prev])
       setShowLog(false)
       showToast('Trip logged')
     }
@@ -351,7 +381,7 @@ export function ScreenA_Driving({ user }) {
     const trip = await updateTrip(editTrip.id, data)
     if (trip) {
       setTrips(prev => prev.map(t => t.id === editTrip.id ? trip : t))
-      if (activeTrip?.id === editTrip.id) setActiveTrip(null)
+      setActiveTrips(prev => prev.map(t => t.id === editTrip.id ? { ...t, ...trip } : t))
       setEditTrip(null)
       showToast('Trip updated')
     }
@@ -360,7 +390,7 @@ export function ScreenA_Driving({ user }) {
   const handleDelete = async (id) => {
     await deleteTrip(id)
     setTrips(prev => prev.filter(t => t.id !== id))
-    if (activeTrip?.id === id) setActiveTrip(null)
+    setActiveTrips(prev => prev.filter(t => t.id !== id))
     showToast('Trip removed')
   }
 
@@ -381,42 +411,51 @@ export function ScreenA_Driving({ user }) {
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Transportation</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
             <div style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Resident transport — appointments, day programs, outings · mileage</div>
-            <button onClick={() => setShowLog(true)}
-              style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
-              <IconPlus size={13} sw={2.4} /> Log trip
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowLog(true)}
+                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                Log past
+              </button>
+              <button onClick={() => setShowStart(true)}
+                style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+                <IconPlus size={13} sw={2.4} /> Start trip
+              </button>
+            </div>
           </div>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 22px 24px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
 
-          {!loading && activeTrip && (
-            <TripInProgress trip={activeTrip} onEnd={() => setActiveTrip(null)} />
-          )}
+          {activeTrips.map(t => (
+            <TripInProgress key={t.id} trip={t} onEnd={() => handleEnd(t)} />
+          ))}
 
           {!loading && trips.length > 0 && (
             <PayPeriodCard trips={trips} />
           )}
 
-          {!loading && trips.length === 0 && !activeTrip && (
+          {!loading && trips.length === 0 && activeTrips.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Log trip" to record a resident transport.</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Start trip" when leaving, or "Log past" to record a completed one.</div>
             </div>
           )}
 
-          {!loading && trips.length > 0 && (
-            <>
-              <SectionHeader title="Recent trips" />
-              <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
-                {trips.map((t, i) => (
-                  <TripRow key={t.id} trip={t} onEdit={setEditTrip} onDelete={handleDelete} isLast={i === trips.length - 1} />
-                ))}
-              </div>
-            </>
-          )}
+          {(() => {
+            const recent = trips.filter(t => t.status !== 'active')
+            return recent.length > 0 && (
+              <>
+                <SectionHeader title="Recent trips" />
+                <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
+                  {recent.map((t, i) => (
+                    <TripRow key={t.id} trip={t} onEdit={setEditTrip} onDelete={handleDelete} isLast={i === recent.length - 1} />
+                  ))}
+                </div>
+              </>
+            )
+          })()}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <SectionHeader title="Vehicles" />
@@ -444,8 +483,13 @@ export function ScreenA_Driving({ user }) {
 
       <TabBar active="drive" />
 
+      {showStart && (
+        <TripModal title="Start trip" hideMiles hint="Your location is captured at start and end so the team can see the trip is underway."
+          staffNames={staffNames} residentNames={residentNames}
+          onClose={() => setShowStart(false)} onSave={handleStart} />
+      )}
       {showLog && (
-        <TripModal title="Log trip" staffNames={staffNames} residentNames={residentNames}
+        <TripModal title="Log past trip" staffNames={staffNames} residentNames={residentNames}
           onClose={() => setShowLog(false)} onSave={handleAdd} />
       )}
       {editTrip && (
