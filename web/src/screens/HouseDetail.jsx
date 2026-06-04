@@ -5,6 +5,7 @@ import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { HouseItems } from '../components/HouseItems'
+import { MedPass } from '../components/MedPass'
 
 // Quick-reference safety flags surfaced on the resident's card (surveyors and
 // new staff scan these first).
@@ -281,6 +282,8 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
               )
             })}
           </div>
+
+          <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
 
           <HouseItems user={user} houseUuid={houseUuid} houseColor={c} />
 
