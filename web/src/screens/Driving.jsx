@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation, pingTrip, markArrived, setTripDest } from '../lib/db'
+import { forwardGeocode } from '../lib/leaflet'
 import { AddressInput } from '../components/AddressInput'
 import { SuggestInput } from '../components/SuggestInput'
 import { MapPicker } from '../components/MapPicker'
+import { LiveTripsMap } from '../components/LiveTripsMap'
+// Great-circle distance in metres.
+const distM = (a, b) => {
+  const R = 6371000, toR = (x) => x * Math.PI / 180
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng)
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
+const ARRIVE_M = 130   // arrival geofence radius (metres)
 // Best-effort current location (resolves {} if unavailable / denied).
 const getLoc = () => new Promise((resolve) => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve({})
@@ -58,13 +68,14 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
   const [miles, setMiles]               = useState(initial?.miles != null ? String(initial.miles) : '')
   const [purpose, setPurpose]           = useState(initial?.purpose || 'Medical appt')
   const [showMap, setShowMap]           = useState(false)
+  const [destCoords, setDestCoords]     = useState(null)
 
   const purposeOpts = ['Medical appt', 'Day program', 'Pharmacy', 'Grocery', 'Outing', 'Other']
 
   const submit = (e) => {
     e.preventDefault()
     if (!residentName.trim() || !destination.trim()) return
-    onSave({ driverName: driverName.trim() || 'Unknown', residentName: residentName.trim(), destination: destination.trim(), miles: parseFloat(miles) || 0, purpose })
+    onSave({ driverName: driverName.trim() || 'Unknown', residentName: residentName.trim(), destination: destination.trim(), miles: parseFloat(miles) || 0, purpose, destLat: destCoords?.lat, destLng: destCoords?.lng })
   }
 
   return (
@@ -72,14 +83,14 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
       <SuggestInput placeholder="Resident name" value={residentName} onChange={setResidentName}
         options={residentNames} autoFocus style={inputStyle} />
       <div>
-        <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={setDestination} style={inputStyle} />
+        <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={(v) => { setDestination(v); setDestCoords(null) }} style={inputStyle} />
         <button type="button" onClick={() => setShowMap(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', marginTop: 6, padding: '2px 2px' }}>
-          📍 Pick on map
+          📍 Pick on map{destCoords ? ' ✓' : ''}
         </button>
       </div>
       <SuggestInput placeholder="Driver name" value={driverName} onChange={setDriverName}
         options={staffNames} style={inputStyle} />
-      {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a) => { setDestination(a); setShowMap(false) }} />}
+      {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a, c) => { setDestination(a); setDestCoords(c || null); setShowMap(false) }} />}
       <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
         {!hideMiles && <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />}
         <select value={purpose} onChange={e => setPurpose(e.target.value)} style={inputStyle}>
@@ -335,6 +346,38 @@ export function ScreenA_Driving({ user }) {
   const [toast, showToast]              = useToast()
 
   const houseScope = user?.role === 'manager' ? user.houseId : null
+  const myTrips = useRef(new Set())   // trip ids this device is driving (live-tracked)
+  const watchId = useRef(null)
+  const activeRef = useRef([])
+  useEffect(() => { activeRef.current = activeTrips }, [activeTrips])
+
+  // Live tracking for trips started on this device: ping current position, and
+  // auto-end the trip when the worker enters the destination geofence.
+  const onPos = (pos) => {
+    const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+    for (const id of [...myTrips.current]) {
+      pingTrip(id, c)
+      const t = activeRef.current.find(x => x.id === id)
+      if (t && t.dest_lat != null && distM(c, { lat: t.dest_lat, lng: t.dest_lng }) < ARRIVE_M) {
+        myTrips.current.delete(id)
+        markArrived(id, c).then(updated => {
+          if (updated) {
+            setActiveTrips(prev => prev.filter(x => x.id !== id))
+            setTrips(prev => prev.map(x => x.id === id ? updated : x))
+            showToast('Arrived at destination — trip ended')
+          }
+        })
+      }
+    }
+    if (myTrips.current.size === 0 && watchId.current != null) {
+      navigator.geolocation.clearWatch(watchId.current); watchId.current = null
+    }
+  }
+  const ensureWatch = () => {
+    if (watchId.current != null || typeof navigator === 'undefined' || !navigator.geolocation) return
+    watchId.current = navigator.geolocation.watchPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 8000, timeout: 20000 })
+  }
+  useEffect(() => () => { if (watchId.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current) }, [])
 
   useEffect(() => {
     if (!user?.orgId) return
@@ -359,7 +402,15 @@ export function ScreenA_Driving({ user }) {
       setTrips(prev => [trip, ...prev])
       setShowStart(false)
       showToast('Trip started')
+      myTrips.current.add(trip.id); ensureWatch()
       getLoc().then(loc => { if (loc.lat != null) setTripLocation(trip.id, 'start', loc) })
+      // No destination coords yet (typed address) → geocode in the background so
+      // arrival can be auto-detected.
+      if (trip.dest_lat == null && data.destination) {
+        forwardGeocode(data.destination).then(c => {
+          if (c) { setTripDest(trip.id, c); setActiveTrips(prev => prev.map(t => t.id === trip.id ? { ...t, dest_lat: c.lat, dest_lng: c.lng } : t)) }
+        })
+      }
     } else {
       showToast('Could not start trip — try again')
     }
@@ -367,6 +418,7 @@ export function ScreenA_Driving({ user }) {
 
   // End an in-progress trip now; capture end location in the background.
   const handleEnd = async (trip) => {
+    myTrips.current.delete(trip.id)
     const updated = await endTrip(trip.id, {})
     if (updated) {
       setActiveTrips(prev => prev.filter(t => t.id !== trip.id))
@@ -435,6 +487,13 @@ export function ScreenA_Driving({ user }) {
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 22px 24px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
+
+          {activeTrips.some(t => t.cur_lat != null || t.dest_lat != null) && (
+            <div style={{ marginBottom: 14 }}>
+              <SectionHeader title={user?.role === 'supervisor' ? 'Live · workers in transit' : 'Live map'} />
+              <LiveTripsMap trips={activeTrips} />
+            </div>
+          )}
 
           {activeTrips.map(t => (
             <TripInProgress key={t.id} trip={t} onEnd={() => handleEnd(t)} />

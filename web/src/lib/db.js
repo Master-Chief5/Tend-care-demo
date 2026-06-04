@@ -453,8 +453,29 @@ export async function startTrip(orgId, trip) {
     destination: trip.destination, purpose: trip.purpose || 'Other', miles: trip.miles || 0,
     trip_date: toDateStr(new Date()), status: 'active', started_at: new Date().toISOString(),
     start_lat: trip.lat ?? null, start_lng: trip.lng ?? null,
+    dest_lat: trip.destLat ?? null, dest_lng: trip.destLng ?? null,
   }).select('*, houses(slug, name, color, short)').single()
   if (error) { console.error('startTrip:', error.message); return null }
+  return data
+}
+
+// Live location ping while a trip is active (worker's current position).
+export async function pingTrip(id, coords) {
+  if (!coords || coords.lat == null) return
+  if (isDemoMode) return demo.demoPingTrip(id, coords)
+  if (!supabase || !id) return
+  const { error } = await supabase.from('trips').update({ cur_lat: coords.lat, cur_lng: coords.lng, last_ping: new Date().toISOString() }).eq('id', id)
+  if (error) console.error('pingTrip:', error.message)
+}
+
+// Auto-arrival: worker reached the destination — end the trip + stamp arrival.
+export async function markArrived(id, coords) {
+  if (isDemoMode) return demo.demoMarkArrived(id, coords)
+  if (!supabase || !id) return null
+  const upd = { status: 'ended', ended_at: new Date().toISOString(), arrived_at: new Date().toISOString() }
+  if (coords?.lat != null) { upd.end_lat = coords.lat; upd.end_lng = coords.lng; upd.cur_lat = coords.lat; upd.cur_lng = coords.lng }
+  const { data, error } = await supabase.from('trips').update(upd).eq('id', id).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('markArrived:', error.message); return null }
   return data
 }
 
@@ -482,6 +503,14 @@ export async function setTripLocation(id, which, coords) {
     : { start_lat: coords.lat, start_lng: coords.lng }
   const { error } = await supabase.from('trips').update(upd).eq('id', id)
   if (error) console.error('setTripLocation:', error.message)
+}
+
+// Patch a trip's destination coordinates (e.g. after geocoding a typed address).
+export async function setTripDest(id, coords) {
+  if (!coords || coords.lat == null) return
+  if (isDemoMode) return demo.demoSetTripDest(id, coords)
+  if (!supabase || !id) return
+  await supabase.from('trips').update({ dest_lat: coords.lat, dest_lng: coords.lng }).eq('id', id)
 }
 
 // Currently-active trips (in progress) — supervisors see all houses.

@@ -252,6 +252,7 @@ export function demoStartTrip(trip) {
     destination: trip.destination, miles: trip.miles || 0, purpose: trip.purpose || 'Other',
     trip_date: todayStr(), created_at: now(), status: 'active', started_at: now(),
     start_lat: trip.lat ?? null, start_lng: trip.lng ?? null,
+    dest_lat: trip.destLat ?? null, dest_lng: trip.destLng ?? null,
   }
   store.trips.push(row); persist()
   return { ...row, houses: houseJoin(row.house_id) }
@@ -264,6 +265,27 @@ export function demoEndTrip(id, patch = {}) {
   if (patch.miles != null) t.miles = patch.miles
   if (patch.lat != null) t.end_lat = patch.lat
   if (patch.lng != null) t.end_lng = patch.lng
+  persist()
+  return { ...t, houses: houseJoin(t.house_id) }
+}
+
+export function demoSetTripDest(id, coords) {
+  const t = store.trips.find(x => x.id === id)
+  if (!t || !coords || coords.lat == null) return
+  t.dest_lat = coords.lat; t.dest_lng = coords.lng; persist()
+}
+
+export function demoPingTrip(id, coords) {
+  const t = store.trips.find(x => x.id === id)
+  if (!t || !coords || coords.lat == null) return
+  t.cur_lat = coords.lat; t.cur_lng = coords.lng; t.last_ping = now(); persist()
+}
+
+export function demoMarkArrived(id, coords) {
+  const t = store.trips.find(x => x.id === id)
+  if (!t) return null
+  t.status = 'ended'; t.ended_at = now(); t.arrived_at = now()
+  if (coords?.lat != null) { t.end_lat = coords.lat; t.end_lng = coords.lng; t.cur_lat = coords.lat; t.cur_lng = coords.lng }
   persist()
   return { ...t, houses: houseJoin(t.house_id) }
 }

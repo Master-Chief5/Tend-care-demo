@@ -38,6 +38,18 @@ export function loadLeaflet() {
   return _p
 }
 
+// Forward-geocode an address string to { lat, lng } via the free Photon service.
+export async function forwardGeocode(q) {
+  if (!q || !q.trim()) return null
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`)
+    if (!r.ok) return null
+    const j = await r.json()
+    const c = j.features?.[0]?.geometry?.coordinates // [lng, lat]
+    return Array.isArray(c) ? { lat: c[1], lng: c[0] } : null
+  } catch { return null }
+}
+
 // Reverse-geocode a point to a readable address via the free Photon service.
 export async function reverseGeocode(lat, lng) {
   const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
