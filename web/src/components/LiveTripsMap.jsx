@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { loadLeaflet } from '../lib/leaflet'
+import { loadLeaflet, addBasemap, makePin } from '../lib/leaflet'
 
 // Live map of in-progress trips: a dot for each worker's current location, a pin
 // for the destination, and a dashed line between. Free (Leaflet + OSM tiles).
@@ -19,14 +19,16 @@ export function LiveTripsMap({ trips = [] }) {
     for (const t of tripsRef.current) {
       const color = t.houses?.color || '#b8552f'
       if (t.cur_lat != null) {
-        L.circleMarker([t.cur_lat, t.cur_lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
+        // Soft halo under the worker dot so it reads as a "live" location.
+        L.circleMarker([t.cur_lat, t.cur_lng], { radius: 15, color, weight: 0, fillColor: color, fillOpacity: 0.18, interactive: false }).addTo(layer)
+        L.circleMarker([t.cur_lat, t.cur_lng], { radius: 8, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 })
           .bindPopup(`${t.driver_name || 'Worker'} → ${t.destination || ''}`).addTo(layer)
         pts.push([t.cur_lat, t.cur_lng])
       }
       if (t.dest_lat != null) {
-        L.marker([t.dest_lat, t.dest_lng]).bindPopup(`Destination: ${t.destination || ''}`).addTo(layer)
+        L.marker([t.dest_lat, t.dest_lng], { icon: makePin(L, color) }).bindPopup(`Destination: ${t.destination || ''}`).addTo(layer)
         pts.push([t.dest_lat, t.dest_lng])
-        if (t.cur_lat != null) L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 2, dashArray: '5,6', opacity: 0.6 }).addTo(layer)
+        if (t.cur_lat != null) L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
       }
     }
     if (pts.length === 1) map.setView(pts[0], 14)
@@ -38,9 +40,9 @@ export function LiveTripsMap({ trips = [] }) {
     loadLeaflet().then((L) => {
       if (cancelled || !L || !elRef.current || mapRef.current) return
       Lref.current = L
-      const map = L.map(elRef.current, { attributionControl: false }).setView([40, -74], 11)
+      const map = L.map(elRef.current, { attributionControl: false, zoomControl: false }).setView([40, -74], 11)
       mapRef.current = map
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+      addBasemap(L, map, { attribution: false })
       layerRef.current = L.layerGroup().addTo(map)
       setTimeout(() => { map.invalidateSize(); draw() }, 200)
     })

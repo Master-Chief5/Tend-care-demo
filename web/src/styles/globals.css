@@ -111,3 +111,34 @@ html, body, #root {
   color: var(--a-ink);
   overflow: hidden;
 }
+
+/* ── Maps (Leaflet) ─────────────────────────────────────────────────────────
+   Warm, low-key basemap that leans into Tend's cream palette. The tint is
+   applied only to the tile imagery, so pins, routes and labels stay crisp. */
+.tend-map { background: var(--a-paper); }
+.tend-map .leaflet-tile-pane {
+  filter: sepia(0.22) saturate(0.9) brightness(1.03) hue-rotate(-8deg);
+}
+.tend-pin { background: none; border: 0; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25)); }
+.leaflet-container { font-family: 'Geist', sans-serif; background: var(--a-paper); }
+
+/* Quieter, rounded zoom controls that match the app's chrome. */
+.leaflet-bar { border: 1px solid var(--a-line); box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-radius: 9px; overflow: hidden; }
+.leaflet-bar a {
+  background: var(--a-card); color: var(--a-ink2); border-bottom: 1px solid var(--a-line);
+  width: 30px; height: 30px; line-height: 30px; font-size: 17px;
+}
+.leaflet-bar a:hover { background: var(--a-paper); color: var(--a-ink); }
+.leaflet-control-attribution {
+  background: rgba(251,246,236,0.82) !important; color: var(--a-ink3) !important;
+  font: 400 9.5px 'Geist', sans-serif !important; border-radius: 6px 0 0 0; padding: 1px 6px !important;
+}
+.leaflet-control-attribution a { color: var(--a-ink2) !important; }
+
+/* Softer popups in the app's card style. */
+.leaflet-popup-content-wrapper {
+  background: var(--a-card); color: var(--a-ink); border: 1px solid var(--a-line);
+  border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.leaflet-popup-content { font: 500 12px 'Geist', sans-serif; margin: 8px 11px; }
+.leaflet-popup-tip { background: var(--a-card); border: 1px solid var(--a-line); }
