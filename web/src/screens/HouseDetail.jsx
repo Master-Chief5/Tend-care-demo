@@ -300,10 +300,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           </div>
 
           <HouseItems user={user} houseUuid={houseUuid} houseColor={c} />
-
-          <button onClick={() => showToast('Team messaging coming soon')} style={{ width: '100%', marginTop: 14, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
-            <IconChat size={15} sw={1.7} /> Message
-          </button>
           </>)}
 
           {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}

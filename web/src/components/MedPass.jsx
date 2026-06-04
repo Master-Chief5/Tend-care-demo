@@ -109,13 +109,13 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
     await recordMed(d.medId, today, d.time, d.status === status ? 'due' : status, user?.name || 'Staff')
     reload()
   }
-  const givenCount = doses.filter(d => d.status === 'given').length
+  const doneCount = doses.filter(d => d.status !== 'due').length
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 8px' }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Med pass · today{doses.length > 0 && <span style={{ color: 'var(--a-sage)', marginLeft: 6 }}>{givenCount}/{doses.length} given</span>}
+          Med pass · today{doses.length > 0 && <span style={{ color: doneCount === doses.length ? 'var(--a-sage)' : 'var(--a-clay)', marginLeft: 6 }}>{doneCount}/{doses.length} done</span>}
         </span>
         <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
           <IconPlus size={13} sw={2.2} /> Add medication

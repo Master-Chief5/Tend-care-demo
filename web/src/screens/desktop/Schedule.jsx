@@ -188,7 +188,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8, onShiftClick }) {
   )
 }
 
-const toDateStr = (d) => d.toISOString().split('T')[0]
+const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 function ScheduleRow({ house, weekShifts, weekDates, onShiftClick }) {
   return (

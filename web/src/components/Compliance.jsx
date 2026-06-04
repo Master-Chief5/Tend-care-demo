@@ -7,8 +7,11 @@ const SEVERITY = { Minor: { bg: '#dee6df', tc: '#3f604d' }, Moderate: { bg: '#f5
 const DRILL_TYPES = ['Fire', 'Tornado', 'Evacuation', 'Lockdown']
 const FIRE_INTERVAL_DAYS = 90
 
-const fmtDate = (d) => { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }
-const daysSince = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+// Parse 'YYYY-MM-DD' as LOCAL midnight (not UTC) to avoid off-by-one.
+const parseDate = (d) => new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d)
+const todayLocal = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}` }
+const fmtDate = (d) => { const x = parseDate(d); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }
+const daysSince = (d) => Math.floor((Date.now() - parseDate(d).getTime()) / 86400000)
 
 function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   const [type, setType] = useState('Injury')
@@ -61,7 +64,7 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
 
 function DrillForm({ user, houseUuid, onClose, onSaved }) {
   const [type, setType] = useState('Fire')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(todayLocal())
   const [evacTime, setEvacTime] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)

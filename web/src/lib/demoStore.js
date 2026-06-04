@@ -32,8 +32,10 @@ function persist() {
 
 function uid(prefix = 'd') { return `${prefix}_${Date.now().toString(36)}_${(seq++).toString(36)}` }
 function now() { return new Date().toISOString() }
-function todayStr() { return new Date().toISOString().split('T')[0] }
-function asDateStr(d) { return typeof d === 'string' ? d : d.toISOString().split('T')[0] }
+// Local date (not UTC) so "today" matches the user's wall clock.
+const _ds = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function todayStr() { return _ds(new Date()) }
+function asDateStr(d) { return typeof d === 'string' ? d : _ds(d) }
 
 // Build the `houses(...)` join object the screens expect on trips/resources/etc.
 function houseJoin(houseId) {

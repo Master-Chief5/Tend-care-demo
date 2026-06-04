@@ -125,11 +125,16 @@ export function DesktopShell({ user, onLogout }) {
 
   const switchTab = (t) => { setTab(t); setHouseDetail(null) }
 
+  // Manager/staff without a house assignment get scoped to the first house.
+  const effUser = (user.role && user.role !== 'supervisor' && !user.houseSlug && houses[0])
+    ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
+    : user
+
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
       </div>
       {houseDetail && (
         <div
@@ -142,7 +147,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} houses={houses} />
+            <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
           </div>
         </div>
       )}

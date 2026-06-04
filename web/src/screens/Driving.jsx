@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle } from '../lib/db'
+// Local date key (not UTC) so pay-period / "today" math matches the wall clock.
+const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
@@ -211,7 +213,7 @@ function PayPeriodCard({ trips }) {
   const today = new Date()
   const periodStart = new Date(today)
   periodStart.setDate(today.getDate() - 13)
-  const startStr = periodStart.toISOString().split('T')[0]
+  const startStr = dstr(periodStart)
 
   const periodTrips = trips.filter(t => (t.trip_date || '') >= startStr)
   const totalMiles = periodTrips.reduce((s, t) => s + (Number(t.miles) || 0), 0)
@@ -224,7 +226,7 @@ function PayPeriodCard({ trips }) {
   const dailyMiles = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today)
     d.setDate(today.getDate() - (6 - i))
-    const ds = d.toISOString().split('T')[0]
+    const ds = dstr(d)
     return trips.filter(t => t.trip_date === ds).reduce((s, t) => s + (Number(t.miles) || 0), 0)
   })
   const maxM = Math.max(...dailyMiles, 1)
@@ -269,7 +271,7 @@ function fmtShortTime(iso) {
 
 function fmtTripDate(dateStr) {
   if (!dateStr) return ''
-  const today = new Date().toISOString().split('T')[0]
+  const today = dstr(new Date())
   if (dateStr === today) return 'Today'
   const d = new Date(dateStr + 'T12:00:00')
   const diff = Math.floor((new Date() - d) / 86400000)

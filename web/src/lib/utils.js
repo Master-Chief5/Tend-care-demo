@@ -2,6 +2,11 @@
 
 const _dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+// Local-timezone "YYYY-MM-DD" for a Date (or pass-through if already a string).
+// Use this for all date keys/"today" comparisons so evening entries in negative
+// UTC offsets don't roll to the next calendar day (toISOString() is UTC).
+export const localDateStr = (d) => (typeof d === 'string' ? d : _dstr(new Date(d)))
+
 // Expand a repeating shift into concrete date strings.
 //   startStr  'YYYY-MM-DD' anchor date
 //   weekdays  array of weekday indexes (0=Sun … 6=Sat); empty = no repeat
