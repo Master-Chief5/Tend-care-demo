@@ -301,7 +301,7 @@ function ScreenA_ScheduleMonth({ anchorDate, houses, shifts = [], setView, onPre
   )
 }
 
-function ShiftModal({ user, houses, defaultDate, editShift, onClose, onSaved, onDeleted }) {
+function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onClose, onSaved, onDeleted }) {
   const hourToTime = (h) => {
     const total = Math.round((Number(h) || 0) * 60)
     const hh = Math.floor(total / 60) % 24, mm = total % 60
@@ -309,7 +309,7 @@ function ShiftModal({ user, houses, defaultDate, editShift, onClose, onSaved, on
   }
   const initialHouse = editShift
     ? (houses.find(h => h.slug === editShift.house)?.id || houses[0]?.id || '')
-    : (user?.houseId || houses[0]?.id || '')
+    : (defaultHouseId || user?.houseId || houses[0]?.id || '')
 
   const [personName, setPersonName] = useState(editShift?.person || '')
   const [role, setRole] = useState(editShift?.role || 'DSP')
@@ -551,6 +551,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           houses={pickerHouses}
           editShift={modal.mode === 'edit' ? modal.shift : null}
           defaultDate={selectedDate}
+          defaultHouseId={houseFilter !== 'all' ? (pickerHouses.find(h => h.id === houseFilter || h.slug === houseFilter)?.id) : undefined}
           onClose={() => setModal(null)}
           onSaved={closeAndReload}
           onDeleted={closeAndReload}
