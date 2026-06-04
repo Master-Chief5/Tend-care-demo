@@ -38,11 +38,15 @@ export function loadLeaflet() {
   return _p
 }
 
-// Forward-geocode an address string to { lat, lng } via the free Photon service.
-export async function forwardGeocode(q) {
+// Forward-geocode an address to { lat, lng } via free Photon. Pass `near`
+// ({lat,lng}) to bias results nearby — important so a vague address doesn't
+// resolve to another country (which would break arrival geofencing).
+export async function forwardGeocode(q, near) {
   if (!q || !q.trim()) return null
   try {
-    const r = await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`)
+    let url = `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`
+    if (near && near.lat != null) url += `&lat=${near.lat}&lon=${near.lng}`
+    const r = await fetch(url)
     if (!r.ok) return null
     const j = await r.json()
     const c = j.features?.[0]?.geometry?.coordinates // [lng, lat]

@@ -286,7 +286,7 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
       setHouseStats(stats)
     })
     fetchHouseAlerts(user.orgId).then(setHouseAlerts)
-  }, [user?.orgId, houses.length])
+  }, [user?.orgId, houses.map(h => h.id).join(',')])
 
   return (
     <div className="phone-screen">

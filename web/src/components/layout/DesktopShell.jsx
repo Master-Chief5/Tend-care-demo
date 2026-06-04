@@ -11,6 +11,7 @@ import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
+import { useTripTracking } from '../../hooks/useTripTracking'
 
 function normalizeHouse(h) {
   return {
@@ -129,6 +130,8 @@ export function DesktopShell({ user, onLogout }) {
   const effUser = (user.role && user.role !== 'supervisor' && !user.houseSlug && houses[0])
     ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
     : user
+
+  useTripTracking(effUser)
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
