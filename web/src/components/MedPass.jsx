@@ -106,7 +106,7 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
   useEffect(() => { reload() }, [reload])
 
   const record = async (d, status) => {
-    await recordMed(d.medId, today, d.time, d.status === status ? 'due' : status, user?.name || 'Staff')
+    await recordMed(user.orgId, houseUuid, d.medId, today, d.time, d.status === status ? 'due' : status, user?.name || 'Staff')
     reload()
   }
   const doneCount = doses.filter(d => d.status !== 'due').length
@@ -178,7 +178,7 @@ function PrnLogForm({ med, user, houseUuid, onClose, onSaved }) {
   const save = async (e) => {
     e.preventDefault(); if (!reason.trim() || saving) return
     setSaving(true)
-    await logPrn(user.orgId, { medId: med.id, houseId: houseUuid, residentId: med.resident_id, medName: med.name, reason: reason.trim(), effect: effect.trim(), by: user?.name || 'Staff' })
+    await logPrn(user.orgId, { medId: med.id, houseId: houseUuid, residentId: med.resident_id, residentName: med.residentName, medName: med.name, reason: reason.trim(), effect: effect.trim(), by: user?.name || 'Staff' })
     setSaving(false); onSaved()
   }
   return (

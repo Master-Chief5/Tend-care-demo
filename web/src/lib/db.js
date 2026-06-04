@@ -227,6 +227,7 @@ export async function fetchStaff(orgId, houseId) {
     highlight: s.highlight ?? null,
     tenure:    s.tenure ?? '',
     notes:     s.notes ?? '',
+    certs:     s.certs ?? [],
   }))
 }
 
@@ -264,10 +265,11 @@ export async function updateStaffMember(id, updates) {
 }
 
 // Set a staff member's certifications (CPR, First Aid, med-admin, etc.).
-// Demo-backed; real mode would need a certs column/table.
 export async function setStaffCerts(id, certs) {
   if (isDemoMode) return demo.demoUpdateStaff(id, { certs })
-  return null
+  if (!supabase || !id) return null
+  const { error } = await supabase.from('staff').update({ certs }).eq('id', id)
+  if (error) console.error('setStaffCerts:', error.message)
 }
 
 // Remove a staff member.
@@ -651,6 +653,12 @@ export async function addResident(orgId, houseId, resident) {
       dob:      resident.dob || null,
       status:   resident.status || 'active',
       notes:    resident.notes || null,
+      allergies: resident.allergies || null,
+      diagnoses: resident.diagnoses || null,
+      diet:      resident.diet || null,
+      guardian:  resident.guardian || null,
+      physician: resident.physician || null,
+      flags:     resident.flags || [],
     })
     .select()
     .single()
@@ -658,15 +666,15 @@ export async function addResident(orgId, houseId, resident) {
   return data
 }
 
-// Update a resident. (Demo mode keeps the full clinical profile; real-mode
-// updates only the columns that exist on the base residents table.)
+// Update a resident, including the clinical profile fields.
 export async function updateResident(id, updates) {
   if (isDemoMode) return demo.demoUpdateResident(id, updates)
   if (!supabase) return null
   const patch = {}
-  for (const k of ['name', 'room', 'dob', 'status', 'notes']) {
+  for (const k of ['name', 'room', 'dob', 'status', 'notes', 'allergies', 'diagnoses', 'diet', 'guardian', 'physician']) {
     if (updates[k] !== undefined) patch[k] = updates[k] || null
   }
+  if (updates.flags !== undefined) patch.flags = updates.flags || []
   const { data, error } = await supabase.from('residents').update(patch).eq('id', id).select().single()
   if (error) { console.error('updateResident:', error.message); return null }
   return data
@@ -680,70 +688,176 @@ export async function deleteResident(id) {
 }
 
 // ── Medications (eMAR) ──────────────────────────────────────────────────────
-// Demo mode is the live experience; real (Supabase) mode would need med/
-// med_admin tables — until those exist these no-op gracefully (empty/null).
 export async function fetchMeds(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchMeds(houseId)
-  return []
+  if (!supabase || !orgId) return []
+  let q = supabase.from('meds').select('*, residents(name)').eq('org_id', orgId).eq('active', true)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchMeds:', error.message); return [] }
+  return (data || []).map(m => ({ ...m, prnReason: m.prn_reason, residentName: m.residents?.name || 'Resident' }))
 }
 export async function addMed(orgId, med) {
   if (isDemoMode) return demo.demoAddMed(med)
-  return null
+  if (!supabase) return null
+  const { data, error } = await supabase.from('meds').insert({
+    org_id: orgId, house_id: med.houseId || null, resident_id: med.residentId || null,
+    name: med.name, dose: med.dose || null, route: med.route || 'Oral',
+    times: med.times || [], prn: !!med.prn, prn_reason: med.prnReason || null, prescriber: med.prescriber || null,
+  }).select().single()
+  if (error) { console.error('addMed:', error.message); return null }
+  return data
 }
 export async function deleteMed(id) {
   if (isDemoMode) return demo.demoDeleteMed(id)
+  if (!supabase) return
+  const { error } = await supabase.from('meds').update({ active: false }).eq('id', id)
+  if (error) console.error('deleteMed:', error.message)
 }
 export async function fetchMedPass(orgId, houseId, date) {
-  if (isDemoMode) return demo.demoFetchMedPass(houseId, toDateStr(date))
-  return []
+  const ds = toDateStr(date)
+  if (isDemoMode) return demo.demoFetchMedPass(houseId, ds)
+  if (!supabase || !orgId) return []
+  const medsQ = supabase.from('meds').select('*, residents(name)').eq('org_id', orgId).eq('active', true).eq('prn', false)
+  if (houseId) medsQ.eq('house_id', houseId)
+  const { data: meds, error: e1 } = await (houseId ? medsQ.eq('house_id', houseId) : medsQ)
+  if (e1) { console.error('fetchMedPass meds:', e1.message); return [] }
+  let admQ = supabase.from('med_administrations').select('*').eq('org_id', orgId).eq('admin_date', ds)
+  if (houseId) admQ = admQ.eq('house_id', houseId)
+  const { data: adms } = await admQ
+  const doses = []
+  for (const m of (meds || [])) {
+    const rname = m.residents?.name || 'Resident'
+    for (const t of (m.times || [])) {
+      const a = (adms || []).find(x => x.med_id === m.id && x.slot === t)
+      doses.push({ key: `${m.id}|${t}`, medId: m.id, resident: rname, residentId: m.resident_id,
+        med: m.name, dose: m.dose, route: m.route, time: t, status: a?.status || 'due', by: a?.recorded_by || null, at: a?.recorded_at || null })
+    }
+  }
+  return doses.sort((a, b) => a.time.localeCompare(b.time) || a.resident.localeCompare(b.resident))
 }
-export async function recordMed(medId, date, slot, status, by) {
-  if (isDemoMode) return demo.demoRecordMed(medId, toDateStr(date), slot, status, by)
+export async function recordMed(orgId, houseId, medId, date, slot, status, by) {
+  const ds = toDateStr(date)
+  if (isDemoMode) return demo.demoRecordMed(medId, ds, slot, status, by)
+  if (!supabase) return
+  if (status === 'due') {
+    const { error } = await supabase.from('med_administrations').delete().match({ med_id: medId, admin_date: ds, slot })
+    if (error) console.error('recordMed delete:', error.message)
+  } else {
+    const { error } = await supabase.from('med_administrations').upsert(
+      { org_id: orgId, house_id: houseId || null, med_id: medId, admin_date: ds, slot, status, recorded_by: by, recorded_at: new Date().toISOString() },
+      { onConflict: 'med_id,admin_date,slot' })
+    if (error) console.error('recordMed upsert:', error.message)
+  }
 }
 export async function fetchPrnMeds(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchPrnMeds(houseId)
-  return []
+  if (!supabase || !orgId) return []
+  let q = supabase.from('meds').select('*, residents(name)').eq('org_id', orgId).eq('active', true).eq('prn', true)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchPrnMeds:', error.message); return [] }
+  return (data || []).map(m => ({ ...m, prnReason: m.prn_reason, residentName: m.residents?.name || 'Resident' }))
 }
 export async function logPrn(orgId, entry) {
   if (isDemoMode) return demo.demoLogPrn(entry)
-  return null
+  if (!supabase) return null
+  const { data, error } = await supabase.from('prn_log').insert({
+    org_id: orgId, house_id: entry.houseId || null, med_id: entry.medId || null,
+    resident: entry.residentName || null, med: entry.medName || null,
+    reason: entry.reason || null, effect: entry.effect || null, recorded_by: entry.by || null,
+  }).select().single()
+  if (error) { console.error('logPrn:', error.message); return null }
+  return data
 }
 export async function fetchPrnLog(orgId, houseId, date) {
-  if (isDemoMode) return demo.demoFetchPrnLog(houseId, toDateStr(date))
-  return []
+  const ds = toDateStr(date)
+  if (isDemoMode) return demo.demoFetchPrnLog(houseId, ds)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('prn_log').select('*').eq('org_id', orgId).eq('log_date', ds)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchPrnLog:', error.message); return [] }
+  return (data || []).map(l => ({ ...l, by: l.recorded_by, at: l.recorded_at, date: l.log_date }))
 }
 
-// ── Daily log / Incidents / Drills (demo-backed; real mode returns empty) ────
+// ── Daily log / Incidents / Drills ───────────────────────────────────────────
 export async function fetchDailyLog(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchDailyLog(houseId)
-  return []
+  if (!supabase || !orgId) return []
+  let q = supabase.from('daily_log').select('*, residents(name)').eq('org_id', orgId).order('created_at', { ascending: false }).limit(40)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchDailyLog:', error.message); return [] }
+  return (data || []).map(l => ({ id: l.id, category: l.category, text: l.body, by: l.author_name, at: l.created_at, date: l.log_date, resident: l.residents?.name || null }))
 }
 export async function addDailyLog(orgId, entry) {
   if (isDemoMode) return demo.demoAddDailyLog(entry)
-  return null
+  if (!supabase) return null
+  const { data, error } = await supabase.from('daily_log').insert({
+    org_id: orgId, house_id: entry.houseId || null, resident_id: entry.residentId || null,
+    category: entry.category || 'General', body: entry.text, author_name: entry.by || null,
+  }).select().single()
+  if (error) { console.error('addDailyLog:', error.message); return null }
+  return data
 }
-export async function deleteDailyLog(id) { if (isDemoMode) return demo.demoDeleteDailyLog(id) }
+export async function deleteDailyLog(id) {
+  if (isDemoMode) return demo.demoDeleteDailyLog(id)
+  if (supabase) await supabase.from('daily_log').delete().eq('id', id)
+}
 
 export async function fetchIncidents(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchIncidents(houseId)
-  return []
+  if (!supabase || !orgId) return []
+  let q = supabase.from('incidents').select('*, residents(name)').eq('org_id', orgId).order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchIncidents:', error.message); return [] }
+  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at }))
 }
 export async function addIncident(orgId, inc) {
   if (isDemoMode) return demo.demoAddIncident(inc)
-  return null
+  if (!supabase) return null
+  const { data, error } = await supabase.from('incidents').insert({
+    org_id: orgId, house_id: inc.houseId || null, resident_id: inc.residentId || null,
+    type: inc.type || 'Other', severity: inc.severity || 'Minor', narrative: inc.text || '',
+    actions: inc.actions || null, notified: inc.notified || null, reported_by: inc.by || null,
+  }).select().single()
+  if (error) { console.error('addIncident:', error.message); return null }
+  return data
 }
-export async function reviewIncident(id, by) { if (isDemoMode) return demo.demoReviewIncident(id, by) }
-export async function deleteIncident(id) { if (isDemoMode) return demo.demoDeleteIncident(id) }
+export async function reviewIncident(id, by) {
+  if (isDemoMode) return demo.demoReviewIncident(id, by)
+  if (supabase) await supabase.from('incidents').update({ status: 'reviewed', reviewed_by: by, reviewed_at: new Date().toISOString() }).eq('id', id)
+}
+export async function deleteIncident(id) {
+  if (isDemoMode) return demo.demoDeleteIncident(id)
+  if (supabase) await supabase.from('incidents').delete().eq('id', id)
+}
 
 export async function fetchDrills(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchDrills(houseId)
-  return []
+  if (!supabase || !orgId) return []
+  let q = supabase.from('drills').select('*').eq('org_id', orgId).order('drill_date', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchDrills:', error.message); return [] }
+  return (data || []).map(d => ({ id: d.id, type: d.type, date: d.drill_date, evac_time: d.evac_time, notes: d.notes, by: d.logged_by }))
 }
 export async function addDrill(orgId, d) {
   if (isDemoMode) return demo.demoAddDrill(d)
-  return null
+  if (!supabase) return null
+  const { data, error } = await supabase.from('drills').insert({
+    org_id: orgId, house_id: d.houseId || null, type: d.type || 'Fire',
+    drill_date: d.date || toDateStr(new Date()), evac_time: d.evacTime || null, notes: d.notes || null, logged_by: d.by || null,
+  }).select().single()
+  if (error) { console.error('addDrill:', error.message); return null }
+  return data
 }
-export async function deleteDrill(id) { if (isDemoMode) return demo.demoDeleteDrill(id) }
+export async function deleteDrill(id) {
+  if (isDemoMode) return demo.demoDeleteDrill(id)
+  if (supabase) await supabase.from('drills').delete().eq('id', id)
+}
 
 // ── Medication (MAR) alerts ─────────────────────────────────────────────────
 // Fetch open med alerts; houseId=null means all houses in org.
