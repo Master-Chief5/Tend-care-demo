@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [] }
 }
 
 function load() {
@@ -482,6 +482,66 @@ export function demoLogPrn(entry) {
 
 export function demoFetchPrnLog(houseId, dateStr) {
   return store.prnLog.filter(l => l.house_id === houseId && (!dateStr || l.date === dateStr))
+}
+
+// ── Daily log (T-Log: routine shift documentation) ──────────────────────────
+export function demoAddDailyLog(entry) {
+  const row = {
+    id: uid('log'), house_id: entry.houseId || null, resident_id: entry.residentId || null,
+    resident: entry.residentId ? residentName(entry.residentId) : null,
+    category: entry.category || 'General', text: entry.text,
+    by: entry.by || null, at: now(), date: todayStr(),
+  }
+  store.dailyLog.unshift(row); persist()
+  return row
+}
+export function demoFetchDailyLog(houseId, limit = 40) {
+  return store.dailyLog.filter(l => !houseId || l.house_id === houseId).slice(0, limit)
+}
+export function demoDeleteDailyLog(id) {
+  store.dailyLog = store.dailyLog.filter(l => l.id !== id); persist()
+}
+
+// ── Incident reports ─────────────────────────────────────────────────────────
+export function demoAddIncident(inc) {
+  const row = {
+    id: uid('inc'), house_id: inc.houseId || null, resident_id: inc.residentId || null,
+    resident: inc.residentId ? residentName(inc.residentId) : null,
+    type: inc.type || 'Other', severity: inc.severity || 'Minor', text: inc.text || '',
+    actions: inc.actions || '', notified: inc.notified || '',
+    status: 'open', by: inc.by || null, at: now(), date: todayStr(),
+    reviewed_by: null, reviewed_at: null,
+  }
+  store.incidents.unshift(row); persist()
+  return row
+}
+export function demoFetchIncidents(houseId) {
+  return store.incidents.filter(i => !houseId || i.house_id === houseId)
+}
+export function demoReviewIncident(id, by) {
+  const i = store.incidents.find(x => x.id === id)
+  if (i) { i.status = 'reviewed'; i.reviewed_by = by; i.reviewed_at = now() }
+  persist(); return i
+}
+export function demoDeleteIncident(id) {
+  store.incidents = store.incidents.filter(i => i.id !== id); persist()
+}
+
+// ── Safety drills (fire, tornado, evacuation) ────────────────────────────────
+export function demoAddDrill(d) {
+  const row = {
+    id: uid('drill'), house_id: d.houseId || null, type: d.type || 'Fire',
+    date: d.date || todayStr(), evac_time: d.evacTime || '', notes: d.notes || '',
+    by: d.by || null, at: now(),
+  }
+  store.drills.unshift(row); persist()
+  return row
+}
+export function demoFetchDrills(houseId) {
+  return store.drills.filter(d => !houseId || d.house_id === houseId)
+}
+export function demoDeleteDrill(id) {
+  store.drills = store.drills.filter(d => d.id !== id); persist()
 }
 
 export function demoDeleteResident(id) {

@@ -706,6 +706,38 @@ export async function fetchPrnLog(orgId, houseId, date) {
   return []
 }
 
+// ── Daily log / Incidents / Drills (demo-backed; real mode returns empty) ────
+export async function fetchDailyLog(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchDailyLog(houseId)
+  return []
+}
+export async function addDailyLog(orgId, entry) {
+  if (isDemoMode) return demo.demoAddDailyLog(entry)
+  return null
+}
+export async function deleteDailyLog(id) { if (isDemoMode) return demo.demoDeleteDailyLog(id) }
+
+export async function fetchIncidents(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchIncidents(houseId)
+  return []
+}
+export async function addIncident(orgId, inc) {
+  if (isDemoMode) return demo.demoAddIncident(inc)
+  return null
+}
+export async function reviewIncident(id, by) { if (isDemoMode) return demo.demoReviewIncident(id, by) }
+export async function deleteIncident(id) { if (isDemoMode) return demo.demoDeleteIncident(id) }
+
+export async function fetchDrills(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchDrills(houseId)
+  return []
+}
+export async function addDrill(orgId, d) {
+  if (isDemoMode) return demo.demoAddDrill(d)
+  return null
+}
+export async function deleteDrill(id) { if (isDemoMode) return demo.demoDeleteDrill(id) }
+
 // ── Medication (MAR) alerts ─────────────────────────────────────────────────
 // Fetch open med alerts; houseId=null means all houses in org.
 export async function fetchMedAlerts(orgId, houseId) {
