@@ -13,6 +13,7 @@ import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
+import { useDutyTracking } from '../../hooks/useDutyTracking'
 
 function normalizeHouse(h) {
   return {
@@ -152,6 +153,8 @@ export function MobileShell({ user, onLogout }) {
 
   // App-level live trip tracking — runs regardless of which tab is open.
   useTripTracking(effUser)
+  // App-level on-duty location sharing (staff only; gated by the on-duty toggle).
+  useDutyTracking(effUser)
 
   const screen = houseDetail
     ? <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
