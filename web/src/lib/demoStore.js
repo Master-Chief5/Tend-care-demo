@@ -268,6 +268,14 @@ export function demoEndTrip(id, patch = {}) {
   return { ...t, houses: houseJoin(t.house_id) }
 }
 
+export function demoSetTripLocation(id, which, coords) {
+  const t = store.trips.find(x => x.id === id)
+  if (!t || !coords || coords.lat == null) return
+  if (which === 'end') { t.end_lat = coords.lat; t.end_lng = coords.lng }
+  else { t.start_lat = coords.lat; t.start_lng = coords.lng }
+  persist()
+}
+
 export function demoFetchActiveTrips(houseId) {
   return store.trips.filter(t => t.status === 'active' && (!houseId || t.house_id === houseId))
     .map(t => ({ ...t, houses: houseJoin(t.house_id) }))

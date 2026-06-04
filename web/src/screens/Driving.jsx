@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation } from '../lib/db'
 import { AddressInput } from '../components/AddressInput'
 // Best-effort current location (resolves {} if unavailable / denied).
 const getLoc = () => new Promise((resolve) => {
@@ -344,26 +344,29 @@ export function ScreenA_Driving({ user }) {
     return () => clearInterval(iv)
   }, [user?.orgId, houseScope])
 
-  // Start a trip now (status=active) with current location captured.
+  // Start a trip now (status=active). Created instantly; GPS is captured in the
+  // background so the trip never waits on the location-permission prompt.
   const handleStart = async (data) => {
-    const loc = await getLoc()
-    const trip = await startTrip(user.orgId, { ...data, houseId: user.houseId || null, lat: loc.lat, lng: loc.lng })
+    const trip = await startTrip(user.orgId, { ...data, houseId: user.houseId || null })
     if (trip) {
       setActiveTrips(prev => [trip, ...prev])
       setTrips(prev => [trip, ...prev])
       setShowStart(false)
       showToast('Trip started')
+      getLoc().then(loc => { if (loc.lat != null) setTripLocation(trip.id, 'start', loc) })
+    } else {
+      showToast('Could not start trip — try again')
     }
   }
 
-  // End an in-progress trip; capture end location + timestamp.
+  // End an in-progress trip now; capture end location in the background.
   const handleEnd = async (trip) => {
-    const loc = await getLoc()
-    const updated = await endTrip(trip.id, { lat: loc.lat, lng: loc.lng })
+    const updated = await endTrip(trip.id, {})
     if (updated) {
       setActiveTrips(prev => prev.filter(t => t.id !== trip.id))
       setTrips(prev => prev.map(t => t.id === trip.id ? updated : t))
       showToast('Trip ended')
+      getLoc().then(loc => { if (loc.lat != null) setTripLocation(trip.id, 'end', loc) })
     }
   }
 

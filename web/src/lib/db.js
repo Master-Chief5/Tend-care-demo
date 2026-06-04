@@ -471,6 +471,19 @@ export async function endTrip(id, patch = {}) {
   return data
 }
 
+// Attach a captured location to a trip after the fact (start/end), so trip
+// creation never blocks on the geolocation permission prompt.
+export async function setTripLocation(id, which, coords) {
+  if (!coords || coords.lat == null) return
+  if (isDemoMode) return demo.demoSetTripLocation(id, which, coords)
+  if (!supabase || !id) return
+  const upd = which === 'end'
+    ? { end_lat: coords.lat, end_lng: coords.lng }
+    : { start_lat: coords.lat, start_lng: coords.lng }
+  const { error } = await supabase.from('trips').update(upd).eq('id', id)
+  if (error) console.error('setTripLocation:', error.message)
+}
+
 // Currently-active trips (in progress) — supervisors see all houses.
 export async function fetchActiveTrips(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchActiveTrips(houseId)
