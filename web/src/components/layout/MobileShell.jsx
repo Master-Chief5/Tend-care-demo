@@ -143,9 +143,15 @@ export function MobileShell({ user, onLogout }) {
     { id: 'me',     label: 'Me',       icon: IconPeople },
   ]
 
+  // Demo manager/staff personas carry no house assignment; scope them to the
+  // first house so their schedule / resources / to-do aren't blank.
+  const effUser = (user.role && user.role !== 'supervisor' && !user.houseSlug && houses[0])
+    ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
+    : user
+
   const screen = houseDetail
-    ? <ScreenA_HouseDetail houseId={houseDetail} user={user} onBack={() => setHouseDetail(null)} houses={houses} />
-    : pickScreen(role, tab, user, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState)
+    ? <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
+    : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState)
 
   return (
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>

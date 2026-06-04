@@ -303,10 +303,6 @@ function HouseCardWide({ house, urgent, staff, staffTotal, present, drives, need
         </div>
       </div>
       <div style={{ display: 'flex', borderTop: '1px solid var(--a-line)' }}>
-        <button style={{ flex: 1, padding: '11px 0', background: 'transparent', border: 0, fontSize: 12.5, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', fontWeight: 500, cursor: 'pointer' }}>
-          <IconChat size={14} sw={1.7} /> Message
-        </button>
-        <div style={{ width: 1, background: 'var(--a-line)' }} />
         <button onClick={onOpen} style={{ flex: 1, padding: '11px 0', background: 'transparent', border: 0, fontSize: 12.5, fontWeight: 600, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
           Open house <IconArrow size={14} sw={2} />
         </button>

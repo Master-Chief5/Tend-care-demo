@@ -927,7 +927,8 @@ export async function registerAsStaff(orgId, name) {
 
 function toDateStr(date) {
   if (typeof date === 'string') return date
-  return date.toISOString().split('T')[0]
+  // Local date (not UTC) so evening entries don't roll to the next day.
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 // Short clock label like "8:14a" / "2:05p" for alert timestamps.

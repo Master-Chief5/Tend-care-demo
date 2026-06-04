@@ -218,7 +218,7 @@ function ScreenA_ScheduleWeek({ setView, houses, week, weekShifts = [], weekDate
   )
 }
 
-const toDateStr = (d) => d.toISOString().split('T')[0]
+const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate() + n); return d }
 const addMonths = (date, n) => { const d = new Date(date); d.setMonth(d.getMonth() + n); return d }
 const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']

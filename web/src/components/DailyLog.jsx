@@ -14,7 +14,7 @@ const CAT_COLOR = {
   Outing:  { bg: '#dee6df', tc: '#3f604d' },
 }
 const fmtWhen = (iso, date) => {
-  const d = new Date(iso); const today = new Date().toISOString().split('T')[0]
+  const d = new Date(iso); const n = new Date(); const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
   const t = isNaN(d) ? '' : `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`
   return date === today ? t : `${date} · ${t}`
 }
