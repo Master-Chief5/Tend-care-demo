@@ -388,10 +388,30 @@ export function demoAddResident(houseId, resident) {
     id: uid('resi'), house_id: houseId || null,
     name: resident.name, room: resident.room || null, dob: resident.dob || null,
     status: resident.status || 'active', notes: resident.notes || null,
+    allergies: resident.allergies || '', diagnoses: resident.diagnoses || '',
+    diet: resident.diet || '', flags: resident.flags || [],
+    guardian: resident.guardian || '', physician: resident.physician || '',
   }
   store.residents.push(row)
   const h = store.houses.find(x => x.id === houseId)
   if (h) h.residents_count = (h.residents_count ?? 0) + 1
   persist()
   return row
+}
+
+export function demoUpdateResident(id, updates) {
+  const r = store.residents.find(x => x.id === id)
+  if (!r) return null
+  for (const k of ['name', 'room', 'dob', 'status', 'notes', 'allergies', 'diagnoses', 'diet', 'flags', 'guardian', 'physician']) {
+    if (updates[k] !== undefined) r[k] = updates[k]
+  }
+  persist()
+  return { ...r, houses: houseJoin(r.house_id) }
+}
+
+export function demoDeleteResident(id) {
+  const r = store.residents.find(x => x.id === id)
+  store.residents = store.residents.filter(x => x.id !== id)
+  if (r) { const h = store.houses.find(x => x.id === r.house_id); if (h && h.residents_count > 0) h.residents_count -= 1 }
+  persist()
 }
