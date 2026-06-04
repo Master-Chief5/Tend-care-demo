@@ -5,6 +5,7 @@ import { AddressInput } from '../components/AddressInput'
 import { SuggestInput } from '../components/SuggestInput'
 import { MapPicker } from '../components/MapPicker'
 import { LiveTripsMap } from '../components/LiveTripsMap'
+import { TeamMap } from '../components/TeamMap'
 // Great-circle distance in metres.
 const distM = (a, b) => {
   const R = 6371000, toR = (x) => x * Math.PI / 180
@@ -472,6 +473,8 @@ export function ScreenA_Driving({ user }) {
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 22px 24px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
+
+          {(user?.role === 'supervisor' || user?.role === 'manager') && <TeamMap user={user} />}
 
           {activeTrips.some(t => t.cur_lat != null || t.dest_lat != null) && (
             <div style={{ marginBottom: 14 }}>

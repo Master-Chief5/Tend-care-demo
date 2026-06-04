@@ -12,6 +12,7 @@ import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop,
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
+import { useDutyTracking } from '../../hooks/useDutyTracking'
 
 function normalizeHouse(h) {
   return {
@@ -132,6 +133,7 @@ export function DesktopShell({ user, onLogout }) {
     : user
 
   useTripTracking(effUser)
+  useDutyTracking(effUser)
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>

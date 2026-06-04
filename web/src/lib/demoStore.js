@@ -182,6 +182,33 @@ export function demoRemoveStaff(id) {
   store.staff = store.staff.filter(s => s.id !== id); persist()
 }
 
+// ── Staff live location (on-duty sharing) ───────────────────────────────────
+export function demoSetStaffDuty(id, onDuty) {
+  const s = store.staff.find(x => x.id === id)
+  if (!s) return null
+  s.on_duty = !!onDuty
+  if (!onDuty) { s.cur_lat = null; s.cur_lng = null }
+  persist()
+  return s
+}
+
+export function demoPingStaffLocation(id, coords) {
+  const s = store.staff.find(x => x.id === id)
+  if (!s || !coords || coords.lat == null) return
+  s.cur_lat = coords.lat; s.cur_lng = coords.lng; s.last_seen_at = now(); s.on_duty = true
+  persist()
+}
+
+export function demoFetchTeamLocations(houseId) {
+  return store.staff
+    .filter(s => s.on_duty && s.cur_lat != null && (!houseId || s.house_id === houseId))
+    .map(s => ({
+      id: s.id, name: s.name, role: s.role,
+      lat: s.cur_lat, lng: s.cur_lng, lastSeen: s.last_seen_at,
+      color: houseJoin(s.house_id)?.color || '#4a6b56', houseName: houseJoin(s.house_id)?.name || null,
+    }))
+}
+
 // ── Tasks ───────────────────────────────────────────────────────────────────
 export function demoFetchTasks(staffId, date) {
   const dateStr = asDateStr(date)

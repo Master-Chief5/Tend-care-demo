@@ -231,6 +231,48 @@ export async function fetchStaff(orgId, houseId) {
   }))
 }
 
+// ── Staff live location (on-duty sharing) ───────────────────────────────────
+// A staff member shares their location only while "on duty"; supervisors see
+// on-duty staff on a live team map. Stored on the staff row (cur_lat/cur_lng/
+// last_seen_at/on_duty). Off-duty clears the coordinates.
+export async function setStaffDuty(staffId, onDuty) {
+  if (isDemoMode) return demo.demoSetStaffDuty(staffId, onDuty)
+  if (!supabase || !staffId) return null
+  const patch = onDuty
+    ? { on_duty: true }
+    : { on_duty: false, cur_lat: null, cur_lng: null }
+  const { data, error } = await supabase.from('staff').update(patch).eq('id', staffId).select().single()
+  if (error) { console.error('setStaffDuty:', error.message); return null }
+  return data
+}
+
+export async function pingStaffLocation(staffId, coords) {
+  if (!coords || coords.lat == null) return
+  if (isDemoMode) return demo.demoPingStaffLocation(staffId, coords)
+  if (!supabase || !staffId) return
+  const { error } = await supabase.from('staff')
+    .update({ cur_lat: coords.lat, cur_lng: coords.lng, last_seen_at: new Date().toISOString(), on_duty: true })
+    .eq('id', staffId)
+  if (error) console.error('pingStaffLocation:', error.message)
+}
+
+// On-duty staff with a recent location, for the supervisor's team map.
+export async function fetchTeamLocations(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchTeamLocations(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('staff')
+    .select('id, name, role, house_id, cur_lat, cur_lng, last_seen_at, on_duty, houses(slug, name, color)')
+    .eq('org_id', orgId).eq('on_duty', true).not('cur_lat', 'is', null)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchTeamLocations:', error.message); return [] }
+  return (data || []).map(s => ({
+    id: s.id, name: s.name, role: s.role,
+    lat: s.cur_lat, lng: s.cur_lng, lastSeen: s.last_seen_at,
+    color: s.houses?.color || '#4a6b56', houseName: s.houses?.name || null,
+  }))
+}
+
 // Insert a staff record (no auth invite yet — placeholder).
 export async function inviteStaff(orgId, houseId, member) {
   if (isDemoMode) return demo.demoInviteStaff(houseId, member)
