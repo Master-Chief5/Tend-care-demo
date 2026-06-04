@@ -6,6 +6,15 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { HouseItems } from '../components/HouseItems'
 import { MedPass } from '../components/MedPass'
+import { DailyLog } from '../components/DailyLog'
+import { Compliance } from '../components/Compliance'
+
+const HOUSE_SECTIONS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'meds', label: 'Meds' },
+  { id: 'log', label: 'Log' },
+  { id: 'compliance', label: 'Compliance' },
+]
 
 // Quick-reference safety flags surfaced on the resident's card (surveyors and
 // new staff scan these first).
@@ -175,6 +184,7 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
   const [residents, setResidents]   = useState([])
   const [drives, setDrives]         = useState(0)
   const [residentModal, setResidentModal] = useState(null) // null | {mode:'add'} | {mode:'view'|'edit', resident}
+  const [section, setSection] = useState('overview')
 
   // The house's real DB UUID comes through on the normalized house object as `_uuid`.
   const houseUuid = house._uuid
@@ -219,7 +229,13 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           </div>
         </div>
 
+        <div style={{ padding: '4px 16px 8px', display: 'flex', gap: 6, flexShrink: 0, overflowX: 'auto' }}>
+          {HOUSE_SECTIONS.map(s => (
+            <button key={s.id} onClick={() => setSection(s.id)} style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: section === s.id ? 'var(--a-ink)' : 'transparent', color: section === s.id ? 'var(--a-card)' : 'var(--a-ink2)', border: section === s.id ? 0 : '1px solid var(--a-line)' }}>{s.label}</button>
+          ))}
+        </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
+          {section === 'overview' && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
             <Stat label="Staff" big={onShift} sub={`${staffToday.length} total`} />
             <Stat label="Residents" big={residentsHome} sub={`${residents.length} total`} />
@@ -283,13 +299,16 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             })}
           </div>
 
-          <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
-
           <HouseItems user={user} houseUuid={houseUuid} houseColor={c} />
 
           <button onClick={() => showToast('Team messaging coming soon')} style={{ width: '100%', marginTop: 14, padding: '11px 0', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, fontSize: 12.5, fontWeight: 500, color: 'var(--a-ink2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'Geist', cursor: 'pointer' }}>
             <IconChat size={15} sw={1.7} /> Message
           </button>
+          </>)}
+
+          {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'log' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
         </div>
       </div>
       <TabBar active="houses" />
