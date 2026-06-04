@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation, pingTrip, markArrived, setTripDest } from '../lib/db'
+import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation, setTripDest } from '../lib/db'
 import { forwardGeocode } from '../lib/leaflet'
 import { AddressInput } from '../components/AddressInput'
 import { SuggestInput } from '../components/SuggestInput'
@@ -12,7 +12,11 @@ const distM = (a, b) => {
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2
   return 2 * R * Math.asin(Math.sqrt(s))
 }
-const ARRIVE_M = 130   // arrival geofence radius (metres)
+// Trip ids this device is actively driving, persisted so live tracking resumes
+// after a reload.
+const MY_TRIPS_KEY = 'tend-my-trips'
+const readMyTrips = () => { try { return new Set(JSON.parse(localStorage.getItem(MY_TRIPS_KEY) || '[]')) } catch { return new Set() } }
+const writeMyTrips = (set) => { try { localStorage.setItem(MY_TRIPS_KEY, JSON.stringify([...set])) } catch { /* ignore */ } }
 // Best-effort current location (resolves {} if unavailable / denied).
 const getLoc = () => new Promise((resolve) => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve({})
@@ -337,6 +341,7 @@ export function ScreenA_Driving({ user }) {
   const [vehicles, setVehicles]         = useState([])
   const [staffNames, setStaffNames]     = useState([])
   const [residentNames, setResidentNames] = useState([])
+  const [residentsFull, setResidentsFull] = useState([])
   const [showLog, setShowLog]           = useState(false)
   const [editTrip, setEditTrip]         = useState(null)
   const [showAddVehicle, setShowAddVehicle] = useState(false)
@@ -346,71 +351,51 @@ export function ScreenA_Driving({ user }) {
   const [toast, showToast]              = useToast()
 
   const houseScope = user?.role === 'manager' ? user.houseId : null
-  const myTrips = useRef(new Set())   // trip ids this device is driving (live-tracked)
-  const watchId = useRef(null)
-  const activeRef = useRef([])
-  useEffect(() => { activeRef.current = activeTrips }, [activeTrips])
-
-  // Live tracking for trips started on this device: ping current position, and
-  // auto-end the trip when the worker enters the destination geofence.
-  const onPos = (pos) => {
-    const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-    for (const id of [...myTrips.current]) {
-      pingTrip(id, c)
-      const t = activeRef.current.find(x => x.id === id)
-      if (t && t.dest_lat != null && distM(c, { lat: t.dest_lat, lng: t.dest_lng }) < ARRIVE_M) {
-        myTrips.current.delete(id)
-        markArrived(id, c).then(updated => {
-          if (updated) {
-            setActiveTrips(prev => prev.filter(x => x.id !== id))
-            setTrips(prev => prev.map(x => x.id === id ? updated : x))
-            showToast('Arrived at destination — trip ended')
-          }
-        })
-      }
-    }
-    if (myTrips.current.size === 0 && watchId.current != null) {
-      navigator.geolocation.clearWatch(watchId.current); watchId.current = null
-    }
-  }
-  const ensureWatch = () => {
-    if (watchId.current != null || typeof navigator === 'undefined' || !navigator.geolocation) return
-    watchId.current = navigator.geolocation.watchPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 8000, timeout: 20000 })
-  }
-  useEffect(() => () => { if (watchId.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current) }, [])
 
   useEffect(() => {
     if (!user?.orgId) return
     setLoading(true)
     fetchTrips(user.orgId, houseScope, null).then(data => { setTrips(data); setLoading(false) })
     fetchStaff(user.orgId, houseScope).then(data => setStaffNames(data.map(s => s.name)))
-    fetchResidents(user.orgId, houseScope).then(data => setResidentNames(data.map(r => r.name)))
+    fetchResidents(user.orgId, houseScope).then(data => { setResidentNames(data.map(r => r.name)); setResidentsFull(data) })
     fetchVehicles(user.orgId, houseScope).then(setVehicles)
     const loadActive = () => fetchActiveTrips(user.orgId, houseScope).then(setActiveTrips)
     loadActive()
-    // Poll so a supervisor sees trips start/end ~live without a refresh.
-    const iv = setInterval(loadActive, 25000)
+    // Poll so everyone sees trips start/end/move ~live (location is updated by
+    // the app-level tracking hook).
+    const iv = setInterval(loadActive, 18000)
     return () => clearInterval(iv)
   }, [user?.orgId, houseScope])
 
   // Start a trip now (status=active). Created instantly; GPS is captured in the
   // background so the trip never waits on the location-permission prompt.
   const handleStart = async (data) => {
-    const trip = await startTrip(user.orgId, { ...data, houseId: user.houseId || null })
+    // Scope the trip to the resident's house (so a supervisor's trip isn't orphaned).
+    const resHouse = residentsFull.find(r => r.name === data.residentName)?.house_id
+    const houseId = user.houseId || resHouse || null
+    const trip = await startTrip(user.orgId, { ...data, houseId })
     if (trip) {
       setActiveTrips(prev => [trip, ...prev])
       setTrips(prev => [trip, ...prev])
       setShowStart(false)
       showToast('Trip started')
-      myTrips.current.add(trip.id); ensureWatch()
-      getLoc().then(loc => { if (loc.lat != null) setTripLocation(trip.id, 'start', loc) })
-      // No destination coords yet (typed address) → geocode in the background so
-      // arrival can be auto-detected.
-      if (trip.dest_lat == null && data.destination) {
-        forwardGeocode(data.destination).then(c => {
-          if (c) { setTripDest(trip.id, c); setActiveTrips(prev => prev.map(t => t.id === trip.id ? { ...t, dest_lat: c.lat, dest_lng: c.lng } : t)) }
-        })
-      }
+      // Record that this device is driving this trip; the app-level tracking
+      // hook (runs on any tab) picks it up and reports location + arrival.
+      const my = readMyTrips(); my.add(trip.id); writeMyTrips(my); window.dispatchEvent(new Event('tend-trips-changed'))
+      getLoc().then(loc => {
+        if (loc.lat != null) setTripLocation(trip.id, 'start', loc)
+        // No destination coords yet (typed address) → geocode in the background
+        // (biased to the worker's location) so arrival can be auto-detected.
+        if (trip.dest_lat == null && data.destination) {
+          forwardGeocode(data.destination, loc.lat != null ? loc : null).then(c => {
+            if (!c) return
+            if (loc.lat != null && distM(loc, c) > 300000) return // ignore far/wrong match
+            setTripDest(trip.id, c)
+            setActiveTrips(prev => prev.map(t => t.id === trip.id ? { ...t, dest_lat: c.lat, dest_lng: c.lng } : t))
+            window.dispatchEvent(new Event('tend-trips-changed')) // let the tracker pick up the destination
+          })
+        }
+      })
     } else {
       showToast('Could not start trip — try again')
     }
@@ -418,7 +403,7 @@ export function ScreenA_Driving({ user }) {
 
   // End an in-progress trip now; capture end location in the background.
   const handleEnd = async (trip) => {
-    myTrips.current.delete(trip.id)
+    const my = readMyTrips(); my.delete(trip.id); writeMyTrips(my); window.dispatchEvent(new Event('tend-trips-changed'))
     const updated = await endTrip(trip.id, {})
     if (updated) {
       setActiveTrips(prev => prev.filter(t => t.id !== trip.id))

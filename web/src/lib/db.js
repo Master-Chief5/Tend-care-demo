@@ -806,7 +806,8 @@ export async function fetchMedPass(orgId, houseId, date) {
   if (e1) { console.error('fetchMedPass meds:', e1.message); return [] }
   let admQ = supabase.from('med_administrations').select('*').eq('org_id', orgId).eq('admin_date', ds)
   if (houseId) admQ = admQ.eq('house_id', houseId)
-  const { data: adms } = await admQ
+  const { data: adms, error: e2 } = await admQ
+  if (e2) console.error('fetchMedPass admins:', e2.message)
   const doses = []
   for (const m of (meds || [])) {
     const rname = m.residents?.name || 'Resident'
