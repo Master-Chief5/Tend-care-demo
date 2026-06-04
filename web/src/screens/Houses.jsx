@@ -81,8 +81,19 @@ function HouseStat({ label, big, sub }) {
   )
 }
 
+function MenuItem({ label, onClick, danger }) {
+  return (
+    <button onClick={(e) => { e.stopPropagation(); onClick() }} style={{
+      display: 'block', width: '100%', textAlign: 'left', border: 0, background: 'transparent',
+      padding: '10px 14px', fontSize: 13, fontFamily: 'Geist', cursor: 'pointer',
+      color: danger ? 'var(--a-clay)' : 'var(--a-ink)', borderBottom: '1px solid var(--a-line)',
+    }}>{label}</button>
+  )
+}
+
 function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
   const [toast, showToast] = useToast()
+  const [menuOpen, setMenuOpen] = useState(false)
   const c = house.color
   const staffOn    = stats?.staffOn    ?? 0
   const staffTotal = stats?.staffTotal ?? 0
@@ -102,9 +113,20 @@ function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
           {alerts.length > 0 && (
             <span style={{ background: '#d44e3a', color: '#fff', fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{alerts.length}</span>
           )}
-          <button onClick={() => showToast('Opening options…')} style={{ background: 'transparent', border: 0, padding: 2, color: 'var(--a-ink3)', cursor: 'pointer', display: 'flex' }} aria-label="House options">
-            <IconDots size={16} />
-          </button>
+          <div style={{ position: 'relative', display: 'flex' }}>
+            <button onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }} style={{ background: 'transparent', border: 0, padding: 2, color: 'var(--a-ink3)', cursor: 'pointer', display: 'flex' }} aria-label="House options">
+              <IconDots size={16} />
+            </button>
+            {menuOpen && (
+              <>
+                <div onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                <div style={{ position: 'absolute', top: 24, right: 0, zIndex: 41, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 150 }}>
+                  <MenuItem label="Open house" onClick={() => { setMenuOpen(false); onHouseClick?.(house.id) }} />
+                  {onTeamChat && <MenuItem label="Team chat" onClick={() => { setMenuOpen(false); onTeamChat() }} />}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* 3-stat strip */}
