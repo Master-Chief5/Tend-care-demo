@@ -90,6 +90,24 @@ export async function forwardGeocode(q, near) {
   } catch { return null }
 }
 
+// Road-following route between two points via the free OSRM demo server (no API
+// key). Returns { coords: [[lat,lng],…], distanceM, durationS } following actual
+// roads — the "Google Maps route" look — or null if unavailable (caller falls
+// back to a straight line).
+export async function fetchRoute(from, to) {
+  if (!from || !to || from.lat == null || to.lat == null) return null
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const j = await r.json()
+    const route = j.routes?.[0]
+    const line = route?.geometry?.coordinates // [[lng,lat],…]
+    if (!Array.isArray(line) || line.length < 2) return null
+    return { coords: line.map(c => [c[1], c[0]]), distanceM: route.distance, durationS: route.duration }
+  } catch { return null }
+}
+
 // Reverse-geocode a point to a readable address via the free Photon service.
 export async function reverseGeocode(lat, lng) {
   const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
