@@ -131,14 +131,14 @@ export function MobileShell({ user, onLogout }) {
     { id: 'home',   label: 'My Day',   icon: IconHome },
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'team',   label: 'Team',     icon: IconChat },
-    { id: 'drive',  label: 'Driving',  icon: IconCar },
+    { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
     { id: 'me',     label: 'Me',       icon: IconPeople },
   ] : [
     { id: 'home',   label: 'Houses',   icon: IconHome },
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'team',   label: 'Team',     icon: IconChat },
-    { id: 'drive',  label: 'Driving',  icon: IconCar },
+    { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
     { id: 'me',     label: 'Me',       icon: IconPeople },
   ]
