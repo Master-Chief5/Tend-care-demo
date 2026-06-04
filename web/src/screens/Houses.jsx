@@ -4,8 +4,8 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconChat, IconChev, IconPlus, IconDots } from '../components/icons'
-import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts } from '../lib/db'
+import { IconChat, IconChev, IconPlus, IconDots, IconArrow } from '../components/icons'
+import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts, fetchResidents, fetchMedPass, fetchIncidents, fetchDrills, fetchActiveTrips, fetchResources } from '../lib/db'
 
 // One "Needs attention" row — a tinted tag (Shop / Med / Note / Drive) + text.
 const NEED_KINDS = {
@@ -167,6 +167,90 @@ function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
   )
 }
 
+// Expanded, personalized dashboard for a house manager (one house): today's
+// med pass, open incidents, in-transit trips, fire-drill status, flagged residents.
+function MgrStat({ label, value, sub, tone, onClick }) {
+  return (
+    <div onClick={onClick} style={{ flex: 1, textAlign: 'center', cursor: onClick ? 'pointer' : 'default' }}>
+      <div style={{ fontSize: 9.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
+      <div className="serif tnum" style={{ fontSize: 22, fontWeight: 500, lineHeight: 1, marginTop: 3, color: tone === 'bad' ? '#a93a25' : 'var(--a-ink)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: tone === 'bad' ? '#a93a25' : 'var(--a-ink3)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function ManagerHomePanel({ user, house, onHouseClick }) {
+  const c = house.color
+  const [d, setD] = useState(null)
+  useEffect(() => {
+    const uuid = house._uuid
+    if (!user?.orgId || !uuid) return
+    let cancelled = false
+    const today = new Date()
+    Promise.all([
+      fetchResidents(user.orgId, uuid), fetchMedPass(user.orgId, uuid, today),
+      fetchIncidents(user.orgId, uuid), fetchDrills(user.orgId, uuid),
+      fetchActiveTrips(user.orgId, uuid), fetchShifts(user.orgId, uuid, today),
+      fetchResources(user.orgId, uuid),
+    ]).then(([residents, medpass, incidents, drills, active, shifts, resources]) => {
+      if (cancelled) return
+      const lastFire = drills.filter(x => x.type === 'Fire')[0]
+      const fireDue = lastFire ? (Date.now() - new Date((lastFire.date || '') + 'T00:00:00').getTime()) / 86400000 >= 90 : true
+      setD({
+        residents: residents.length,
+        flagged: residents.filter(r => (r.flags || []).length || r.allergies).length,
+        medDone: medpass.filter(x => x.status !== 'due').length, medTotal: medpass.length,
+        openIncidents: incidents.filter(i => i.status === 'open').length,
+        fireDue, active: active.length, onShift: shifts.length, supplies: resources.length,
+      })
+    })
+    return () => { cancelled = true }
+  }, [user?.orgId, house._uuid])
+
+  const open = () => onHouseClick?.(house.id)
+  const medPct = d && d.medTotal ? d.medDone / d.medTotal : 0
+  const Row = ({ label, value, tone, onClick }) => (
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderTop: '1px solid var(--a-line)', cursor: 'pointer' }}>
+      <span style={{ fontSize: 13, color: 'var(--a-ink2)', flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: tone === 'bad' ? '#a93a25' : tone === 'good' ? '#3f7050' : 'var(--a-ink)' }}>{value}</span>
+      <IconChev size={15} sw={2} color="var(--a-ink3)" />
+    </div>
+  )
+
+  return (
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 16, overflow: 'hidden', marginBottom: 12 }}>
+      <div style={{ height: 4, background: c }} />
+      <div style={{ padding: '14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: c, letterSpacing: '0.1em', background: `${c}1a`, padding: '2px 7px', borderRadius: 4 }}>{house.short}</span>
+          <span className="serif" style={{ fontSize: 19, fontWeight: 500, flex: 1, letterSpacing: '-0.01em' }}>{house.name}</span>
+          <button onClick={open} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: c, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Open <IconArrow size={13} sw={2} /></button>
+        </div>
+        <div style={{ display: 'flex', padding: '8px 0 12px' }}>
+          <MgrStat label="Residents" value={d?.residents ?? '–'} sub={d?.flagged ? `${d.flagged} flagged` : 'on file'} onClick={open} />
+          <MgrStat label="On shift" value={d?.onShift ?? '–'} sub="today" />
+          <MgrStat label="In transit" value={d?.active ?? '–'} sub={d?.active ? 'now' : 'none'} tone={d?.active ? 'bad' : undefined} />
+        </div>
+        {/* Med pass progress */}
+        <div style={{ marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 5 }}>
+            <span style={{ color: 'var(--a-ink2)', fontWeight: 600 }}>Med pass · today</span>
+            <span style={{ color: d && d.medTotal && d.medDone === d.medTotal ? '#3f7050' : 'var(--a-clay)', fontWeight: 700 }}>
+              {d ? (d.medTotal ? `${d.medDone}/${d.medTotal} done` : 'none scheduled') : '…'}
+            </span>
+          </div>
+          <div style={{ height: 7, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ width: `${medPct * 100}%`, height: '100%', background: medPct >= 1 ? '#3f7050' : c, borderRadius: 999 }} />
+          </div>
+        </div>
+      </div>
+      <Row label="Open incidents" value={d ? d.openIncidents : '…'} tone={d?.openIncidents ? 'bad' : 'good'} onClick={open} />
+      <Row label="Fire drill" value={d ? (d.fireDue ? 'Due' : 'OK') : '…'} tone={d?.fireDue ? 'bad' : 'good'} onClick={open} />
+      <Row label="Supplies to get" value={d ? d.supplies : '…'} tone={d?.supplies ? 'bad' : 'good'} onClick={open} />
+    </div>
+  )
+}
+
 export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, onAddHouse }) {
   const [branch, setBranch] = useState('All')
   const [houseStats, setHouseStats] = useState({})
@@ -231,7 +315,9 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
             </div>
           )}
           {visibleHouses.map(h => (
-            <HouseCard key={h.id} house={h} stats={houseStats[h.id]} alerts={houseAlerts[h.id]} onHouseClick={onHouseClick} onTeamChat={onTeamChat} />
+            isManager
+              ? <ManagerHomePanel key={h.id} user={user} house={h} onHouseClick={onHouseClick} />
+              : <HouseCard key={h.id} house={h} stats={houseStats[h.id]} alerts={houseAlerts[h.id]} onHouseClick={onHouseClick} onTeamChat={onTeamChat} />
           ))}
         </div>
       </div>
