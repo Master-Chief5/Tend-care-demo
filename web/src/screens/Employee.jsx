@@ -230,6 +230,9 @@ export function ScreenA_Me({ user, onLogout, onNavigate }) {
             <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 4 }}>{sub}</div>
           </div>
 
+          {/* Managers can share location while on-site too (staff have this on My Day). */}
+          {user?.role === 'manager' && user?.staffId && <OnDutyCard user={user} />}
+
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '4px 0', marginBottom: 14 }}>
             {navRows.map(({ Icon, label, tab }, i, arr) => {
               const active = !!tab && !!onNavigate
