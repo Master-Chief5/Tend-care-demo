@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchTrips, addTrip, updateTrip, deleteTrip, fetchStaff, fetchResidents, fetchVehicles, addVehicle, startTrip, endTrip, fetchActiveTrips, setTripLocation } from '../lib/db'
 import { AddressInput } from '../components/AddressInput'
 import { SuggestInput } from '../components/SuggestInput'
+import { MapPicker } from '../components/MapPicker'
 // Best-effort current location (resolves {} if unavailable / denied).
 const getLoc = () => new Promise((resolve) => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve({})
@@ -56,6 +57,7 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
   const [destination, setDestination]   = useState(initial?.destination || '')
   const [miles, setMiles]               = useState(initial?.miles != null ? String(initial.miles) : '')
   const [purpose, setPurpose]           = useState(initial?.purpose || 'Medical appt')
+  const [showMap, setShowMap]           = useState(false)
 
   const purposeOpts = ['Medical appt', 'Day program', 'Pharmacy', 'Grocery', 'Outing', 'Other']
 
@@ -69,9 +71,15 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <SuggestInput placeholder="Resident name" value={residentName} onChange={setResidentName}
         options={residentNames} autoFocus style={inputStyle} />
-      <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={setDestination} style={inputStyle} />
+      <div>
+        <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={setDestination} style={inputStyle} />
+        <button type="button" onClick={() => setShowMap(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', marginTop: 6, padding: '2px 2px' }}>
+          📍 Pick on map
+        </button>
+      </div>
       <SuggestInput placeholder="Driver name" value={driverName} onChange={setDriverName}
         options={staffNames} style={inputStyle} />
+      {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a) => { setDestination(a); setShowMap(false) }} />}
       <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
         {!hideMiles && <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />}
         <select value={purpose} onChange={e => setPurpose(e.target.value)} style={inputStyle}>
