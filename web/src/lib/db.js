@@ -758,9 +758,9 @@ export async function fetchMedPass(orgId, houseId, date) {
   const ds = toDateStr(date)
   if (isDemoMode) return demo.demoFetchMedPass(houseId, ds)
   if (!supabase || !orgId) return []
-  const medsQ = supabase.from('meds').select('*, residents(name)').eq('org_id', orgId).eq('active', true).eq('prn', false)
-  if (houseId) medsQ.eq('house_id', houseId)
-  const { data: meds, error: e1 } = await (houseId ? medsQ.eq('house_id', houseId) : medsQ)
+  let medsQ = supabase.from('meds').select('*, residents(name)').eq('org_id', orgId).eq('active', true).eq('prn', false)
+  if (houseId) medsQ = medsQ.eq('house_id', houseId)
+  const { data: meds, error: e1 } = await medsQ
   if (e1) { console.error('fetchMedPass meds:', e1.message); return [] }
   let admQ = supabase.from('med_administrations').select('*').eq('org_id', orgId).eq('admin_date', ds)
   if (houseId) admQ = admQ.eq('house_id', houseId)
