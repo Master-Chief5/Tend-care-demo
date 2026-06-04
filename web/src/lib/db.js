@@ -651,6 +651,27 @@ export async function addResident(orgId, houseId, resident) {
   return data
 }
 
+// Update a resident. (Demo mode keeps the full clinical profile; real-mode
+// updates only the columns that exist on the base residents table.)
+export async function updateResident(id, updates) {
+  if (isDemoMode) return demo.demoUpdateResident(id, updates)
+  if (!supabase) return null
+  const patch = {}
+  for (const k of ['name', 'room', 'dob', 'status', 'notes']) {
+    if (updates[k] !== undefined) patch[k] = updates[k] || null
+  }
+  const { data, error } = await supabase.from('residents').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateResident:', error.message); return null }
+  return data
+}
+
+export async function deleteResident(id) {
+  if (isDemoMode) return demo.demoDeleteResident(id)
+  if (!supabase) return
+  const { error } = await supabase.from('residents').delete().eq('id', id)
+  if (error) console.error('deleteResident:', error.message)
+}
+
 // ── Medication (MAR) alerts ─────────────────────────────────────────────────
 // Fetch open med alerts; houseId=null means all houses in org.
 export async function fetchMedAlerts(orgId, houseId) {
