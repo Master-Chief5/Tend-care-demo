@@ -126,7 +126,7 @@ export function DesktopShell({ user, onLogout }) {
   const switchTab = (t) => { setTab(t); setHouseDetail(null) }
 
   return (
-    <div className="web-app web-desktop" style={{ display: 'flex', position: 'relative' }}>
+    <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
         <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={user} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
