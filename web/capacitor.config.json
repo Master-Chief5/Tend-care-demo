@@ -1,0 +1,6 @@
+{
+  "appId": "com.tendcare.app",
+  "appName": "Tend",
+  "webDir": "dist",
+  "backgroundColor": "#f3ecdd"
+}

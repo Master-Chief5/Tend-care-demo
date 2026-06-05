@@ -1,0 +1,56 @@
+name: Build Android APK
+
+# Wraps the Tend web app as a native Android app with Capacitor and builds an
+# installable debug APK. Run it from the Actions tab → "Build Android APK" →
+# "Run workflow", then download the "tend-android-apk" artifact and install it
+# on a phone (you'll need to allow "install from unknown sources").
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install web dependencies
+        run: npm install
+
+      - name: Build the web app
+        run: npm run build
+
+      - name: Add Capacitor + Android platform
+        run: |
+          npm install -D @capacitor/core @capacitor/cli @capacitor/android
+          # Generate the native Android project from capacitor.config.json and
+          # copy the built web app (dist) into it.
+          npx cap add android
+          npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tend-android-apk
+          path: web/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
