@@ -265,14 +265,18 @@ export async function pingStaffLocation(staffId, coords) {
 // off duty) doesn't linger as a stale "ghost" at an old spot.
 export const LOCATION_FRESH_MS = 30 * 60 * 1000
 
-// On-duty staff with a RECENT location, for the supervisor's team map.
+// On-duty staff for the supervisor's team map + roster. Returns everyone who is
+// on duty (so the roster shows them even before their first GPS fix — lat/lng
+// may be null, shown as "locating…"); a STALE located worker (old last_seen) is
+// dropped so the map never shows a ghost dot at a place they left long ago.
 export async function fetchTeamLocations(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchTeamLocations(houseId)
   if (!supabase || !orgId) return []
   const cutoff = new Date(Date.now() - LOCATION_FRESH_MS).toISOString()
   let q = supabase.from('staff')
     .select('id, name, role, house_id, cur_lat, cur_lng, last_seen_at, on_duty, houses(slug, name, color)')
-    .eq('org_id', orgId).eq('on_duty', true).not('cur_lat', 'is', null).gte('last_seen_at', cutoff)
+    .eq('org_id', orgId).eq('on_duty', true)
+    .or(`last_seen_at.is.null,last_seen_at.gte.${cutoff}`)
   if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) { console.error('fetchTeamLocations:', error.message); return [] }
