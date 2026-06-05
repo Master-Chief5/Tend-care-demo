@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadLeaflet, addBasemap, makePin, fetchRoute } from '../lib/leaflet'
 
 // Live map of in-progress trips: a dot for each worker's current location, a pin
-// for the destination, and a road-following route between them (free OSRM). Falls
-// back to a straight dashed line while the route loads or if routing is blocked.
+// for the destination, and a road-following route between them (free OSRM). The
+// route updates live as the worker drives; the previous route stays on screen
+// while the next one loads (no flicker), and a "Loading route…" badge shows only
+// on the very first fetch.
 export function LiveTripsMap({ trips = [] }) {
   const elRef = useRef(null)
   const mapRef = useRef(null)
@@ -11,22 +13,26 @@ export function LiveTripsMap({ trips = [] }) {
   const Lref = useRef(null)
   const tripsRef = useRef(trips)
   tripsRef.current = trips
-  // Cache road routes by a coarse from→to key so we don't refetch on every redraw.
-  const routeCache = useRef(new Map())
+  const routeCache = useRef(new Map())   // key -> route | null(pending) | false(failed)
+  const lastRoute = useRef(new Map())    // tripId -> last good route coords
+  const fitted = useRef(false)
+  const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
 
-  // Coarse origin key (~1 km) so the route is fetched once and reused while the
-  // worker drives, instead of re-loading every time they move ~100 m. The
-  // straight-line fallback covers the small gap between fetches.
-  const routeKey = (a, b) => `${a.lat.toFixed(2)},${a.lng.toFixed(2)}>${b.lat.toFixed(3)},${b.lng.toFixed(3)}`
+  // Fine key (~110 m) so the route tracks the worker's movement.
+  const routeKey = (a, b) => `${a.lat.toFixed(3)},${a.lng.toFixed(3)}>${b.lat.toFixed(3)},${b.lng.toFixed(3)}`
 
   function ensureRoute(from, to) {
     const key = routeKey(from, to)
-    if (routeCache.current.has(key)) return // pending or done
-    routeCache.current.set(key, null)        // mark pending
-    fetchRoute(from, to).then(res => {
-      routeCache.current.set(key, res || false) // false = failed, draw fallback
-      draw()
-    })
+    if (routeCache.current.has(key)) return
+    routeCache.current.set(key, null)
+    fetchRoute(from, to).then(res => { routeCache.current.set(key, res || false); draw() })
+  }
+
+  function drawRoute(L, layer, coords, color, pts) {
+    L.polyline(coords, { color: '#fff', weight: 7, opacity: 0.7, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+    L.polyline(coords, { color, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+    coords.forEach(p => pts.push(p))
   }
 
   function draw() {
@@ -34,6 +40,7 @@ export function LiveTripsMap({ trips = [] }) {
     if (!L || !map || !layer) return
     layer.clearLayers()
     const pts = []
+    let firstLoad = false
     for (const t of tripsRef.current) {
       const color = t.houses?.color || '#b8552f'
       const hasCur = t.cur_lat != null
@@ -43,19 +50,23 @@ export function LiveTripsMap({ trips = [] }) {
         const from = { lat: t.cur_lat, lng: t.cur_lng }, to = { lat: t.dest_lat, lng: t.dest_lng }
         const route = routeCache.current.get(routeKey(from, to))
         if (route && route.coords) {
-          // Road-following route: a soft casing under a solid colored line.
-          L.polyline(route.coords, { color: '#fff', weight: 7, opacity: 0.7, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
-          L.polyline(route.coords, { color, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
-          route.coords.forEach(p => pts.push(p))
+          drawRoute(L, layer, route.coords, color, pts)
+          lastRoute.current.set(t.id, route.coords)
         } else {
-          // Straight dashed fallback while the route loads (or if routing failed).
-          L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
           ensureRoute(from, to)
+          const lr = lastRoute.current.get(t.id)
+          if (lr) {
+            // Keep the last good route on screen while the next one loads.
+            drawRoute(L, layer, lr, color, pts)
+          } else {
+            // First load for this trip — straight line + show "Loading route…".
+            L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
+            firstLoad = true
+          }
         }
       }
 
       if (hasCur) {
-        // Soft halo under the worker dot so it reads as a "live" location.
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 15, color, weight: 0, fillColor: color, fillOpacity: 0.18, interactive: false }).addTo(layer)
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 8, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 })
           .bindPopup(`${t.driver_name || 'Worker'} → ${t.destination || ''}`).addTo(layer)
@@ -66,8 +77,13 @@ export function LiveTripsMap({ trips = [] }) {
         pts.push([t.dest_lat, t.dest_lng])
       }
     }
-    if (pts.length === 1) map.setView(pts[0], 14)
-    else if (pts.length > 1) map.fitBounds(pts, { padding: [28, 28], maxZoom: 15 })
+    // Fit once; afterwards just keep the worker in view by panning, so the map
+    // doesn't jarringly re-zoom on every position update.
+    if (pts.length === 1) { if (!fitted.current) map.setView(pts[0], 14); else map.panTo(pts[0], { animate: true }) }
+    else if (pts.length > 1) { if (!fitted.current) map.fitBounds(pts, { padding: [28, 28], maxZoom: 15 }) }
+    if (pts.length) fitted.current = true
+
+    if (loadingRef.current !== firstLoad) { loadingRef.current = firstLoad; setLoading(firstLoad) }
   }
 
   useEffect(() => {
@@ -75,13 +91,12 @@ export function LiveTripsMap({ trips = [] }) {
     loadLeaflet().then((L) => {
       if (cancelled || !L || !elRef.current || mapRef.current) return
       Lref.current = L
-      // Big renderer padding so the route line / dots stay drawn while panning
-      // and zooming (default SVG padding clips long vectors mid-drag).
       const map = L.map(elRef.current, { attributionControl: false, zoomControl: false, renderer: L.svg({ padding: 2 }) }).setView([40, -74], 11)
       mapRef.current = map
       addBasemap(L, map, { attribution: false })
       layerRef.current = L.layerGroup().addTo(map)
-      setTimeout(() => { map.invalidateSize(); draw() }, 200)
+      map.whenReady(() => { map.invalidateSize(); draw() })
+      ;[200, 600].forEach(d => setTimeout(() => { if (!cancelled && mapRef.current) { mapRef.current.invalidateSize(); draw() } }, d))
     })
     return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,5 +104,15 @@ export function LiveTripsMap({ trips = [] }) {
 
   useEffect(() => { draw() }, [trips])
 
-  return <div ref={elRef} style={{ width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--a-line)', background: 'var(--a-paper)' }} />
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={elRef} style={{ width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--a-line)', background: 'var(--a-paper)' }} />
+      {loading && (
+        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 500, display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(251,246,236,0.94)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '5px 11px', boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}>
+          <span style={{ width: 9, height: 9, borderRadius: 999, border: '2px solid var(--a-line)', borderTopColor: 'var(--a-sage)', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink2)' }}>Loading route…</span>
+        </div>
+      )}
+    </div>
+  )
 }

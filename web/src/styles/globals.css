@@ -142,3 +142,6 @@ html, body, #root {
 }
 .leaflet-popup-content { font: 500 12px 'Geist', sans-serif; margin: 8px 11px; }
 .leaflet-popup-tip { background: var(--a-card); border: 1px solid var(--a-line); }
+
+/* Shared spinner keyframe */
+@keyframes spin { to { transform: rotate(360deg); } }
