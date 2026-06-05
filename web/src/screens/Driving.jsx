@@ -478,16 +478,16 @@ export function ScreenA_Driving({ user }) {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 22px 6px' }}>
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Transportation</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-            <div style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Resident transport — appointments, day programs, outings · mileage</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, gap: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--a-ink2)', flex: 1, minWidth: 0 }}>Resident transport — appointments, day programs, outings · mileage</div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button onClick={() => setShowLog(true)}
-                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 Log past
               </button>
               {canDrive && !myActive && (
                 <button onClick={() => setShowStart(true)}
-                  style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+                  style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   <IconPlus size={13} sw={2.4} /> Start trip
                 </button>
               )}
@@ -519,7 +519,7 @@ export function ScreenA_Driving({ user }) {
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Start trip" when leaving, or "Log past" to record a completed one.</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>{canDrive ? 'Tap "Start trip" when leaving, or "Log past" to record a completed one.' : 'Trips your team starts will appear here live. Use "Log past" to record a completed one.'}</div>
             </div>
           )}
 

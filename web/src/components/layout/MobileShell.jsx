@@ -56,7 +56,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
 function RoleSwitcher({ role, setRole, open, setOpen }) {
   const current = ROLES.find(r => r.id === role) || ROLES[0]
   return (
-    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 50 }}>
+    <div style={{ position: 'absolute', bottom: 14, left: 14, zIndex: 50 }}>
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: 6,
         background: 'rgba(251, 246, 236, 0.92)',
@@ -71,7 +71,7 @@ function RoleSwitcher({ role, setRole, open, setOpen }) {
       </button>
       {open && (
         <div style={{
-          position: 'absolute', top: 36, right: 0, background: 'var(--a-card)',
+          position: 'absolute', bottom: 38, left: 0, background: 'var(--a-card)',
           border: '1px solid var(--a-line)', borderRadius: 12, padding: 6, minWidth: 200,
           boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
         }}>
