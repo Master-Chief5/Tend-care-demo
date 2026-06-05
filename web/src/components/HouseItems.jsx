@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchItems, addItem, completeItem, reopenItem, deleteItem } from '../lib/db'
+import { fetchItems, addItem, completeItem, reopenItem, deleteItem, addResource } from '../lib/db'
 import { IconPlus, IconCheck } from './icons'
 import { COMMON_SUPPLIES, COMMON_TASKS } from '../data/suggestions'
 import { SuggestInput } from './SuggestInput'
@@ -52,6 +52,14 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
     reload()
   }
   const remove = async (it) => { await deleteItem(it.id); reload() }
+  // Marking a supply "bought" adds it to Resources (so it shows in supplies +
+  // spend) and checks it off the to-do — linking the two.
+  const [bought, setBought] = useState(null)
+  const markBought = async (it, { qty, cost }) => {
+    await addResource(user.orgId, houseUuid, { name: it.text, qty: qty || 1, unit: 'units', cost: cost ?? null })
+    await completeItem(it.id, user?.name || 'Someone')
+    setBought(null); reload()
+  }
 
   const open = items.filter(i => i.status === 'open')
   const done = items.filter(i => i.status === 'done').slice(0, 4)
@@ -110,6 +118,9 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
                   {ROLE_BADGE[it.created_by_role] && <span style={{ fontSize: 8.5, fontWeight: 700, color: ROLE_BADGE[it.created_by_role].tc, background: ROLE_BADGE[it.created_by_role].bg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.03em' }}>{ROLE_BADGE[it.created_by_role].label}</span>}
                 </div>
               </div>
+              {it.kind === 'supply' && (
+                <button onClick={() => setBought(it)} style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, color: 'var(--a-ink2)', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'Geist', padding: '4px 10px', flexShrink: 0 }}>Bought</button>
+              )}
               <button onClick={() => remove(it)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
             </div>
           )
@@ -126,6 +137,37 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
           </div>
         ))}
       </div>
+
+      {bought && <BoughtSheet item={bought} onClose={() => setBought(null)} onConfirm={markBought} />}
     </>
+  )
+}
+
+// Quick sheet to capture qty + cost when a supply is bought, then push it to
+// Resources. Cost is optional but feeds the "spent this month" graph.
+function BoughtSheet({ item, onClose, onConfirm }) {
+  const [qty, setQty] = useState('1')
+  const [cost, setCost] = useState('')
+  const [saving, setSaving] = useState(false)
+  const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const submit = async (e) => {
+    e.preventDefault(); if (saving) return
+    setSaving(true)
+    await onConfirm(item, { qty: parseFloat(qty) || 1, cost: cost ? parseFloat(cost) : null })
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 2 }}>Mark bought</div>
+        <div style={{ fontSize: 12.5, color: 'var(--a-ink3)', marginBottom: 14 }}>“{item.text}” will be added to Resources and checked off.</div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><div style={{ fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }}>Quantity</div><input value={qty} onChange={e => setQty(e.target.value)} style={input} /></div>
+            <div><div style={{ fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }}>Cost ($)</div><input value={cost} onChange={e => setCost(e.target.value)} placeholder="e.g. 12.99" style={input} /></div>
+          </div>
+          <button type="submit" disabled={saving} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>{saving ? 'Saving…' : 'Mark bought → Resources'}</button>
+        </form>
+      </div>
+    </div>
   )
 }
