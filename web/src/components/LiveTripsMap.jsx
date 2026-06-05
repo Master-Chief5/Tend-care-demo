@@ -64,6 +64,11 @@ export function LiveTripsMap({ trips = [] }) {
             firstLoad = true
           }
         }
+      } else if (hasCur && t.destination && t.started_at && (Date.now() - new Date(t.started_at).getTime() < 30000)) {
+        // Just-started trip whose destination is still being located (geocoded)
+        // — show the loading state now rather than a silent wait. Capped at 30s
+        // so a destination that can't be mapped doesn't spin forever.
+        firstLoad = true
       }
 
       if (hasCur) {
