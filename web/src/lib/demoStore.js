@@ -99,7 +99,7 @@ export function demoFetchShifts(houseId, date) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, role: s.role, note: s.note ?? null, status: s.status,
+      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
     }))
 }
 
@@ -110,14 +110,14 @@ export function demoFetchShiftsWeek(houseId, weekStart, weekEnd) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id, date: s.shift_date,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, role: s.role, note: s.note ?? null, status: s.status,
+      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
     }))
 }
 
 export function demoAddShift(houseId, shift) {
   const row = {
     id: uid('shift'), house_id: houseId,
-    person_name: shift.personName, role: shift.role,
+    person_name: shift.personName, staff_id: shift.staffId || null, role: shift.role,
     start_hour: shift.startHour, end_hour: shift.endHour,
     shift_date: shift.date || todayStr(), note: shift.note || null, status: 'scheduled',
   }
@@ -129,6 +129,7 @@ export function demoUpdateShift(id, updates) {
   const s = store.shifts.find(x => x.id === id)
   if (!s) return null
   if (updates.personName !== undefined) s.person_name = updates.personName
+  if (updates.staffId !== undefined)    s.staff_id = updates.staffId || null
   if (updates.role !== undefined)       s.role = updates.role
   if (updates.startHour !== undefined)  s.start_hour = updates.startHour
   if (updates.endHour !== undefined)    s.end_hour = updates.endHour
@@ -200,8 +201,10 @@ export function demoPingStaffLocation(id, coords) {
 }
 
 export function demoFetchTeamLocations(houseId) {
+  const cutoff = Date.now() - 30 * 60 * 1000
   return store.staff
-    .filter(s => s.on_duty && s.cur_lat != null && (!houseId || s.house_id === houseId))
+    .filter(s => s.on_duty && s.cur_lat != null && (!houseId || s.house_id === houseId)
+      && (!s.last_seen_at || new Date(s.last_seen_at).getTime() >= cutoff))
     .map(s => ({
       id: s.id, name: s.name, role: s.role,
       lat: s.cur_lat, lng: s.cur_lng, lastSeen: s.last_seen_at,
