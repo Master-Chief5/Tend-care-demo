@@ -941,6 +941,90 @@ export async function deleteDailyLog(id) {
   if (supabase) await supabase.from('daily_log').delete().eq('id', id)
 }
 
+// ── ISP goals + daily goal data ─────────────────────────────────────────────
+export async function fetchGoals(orgId, houseId) {
+  if (isDemoMode) return demo.demoFetchGoals(houseId)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('goals').select('*, residents(name)').eq('org_id', orgId).order('created_at', { ascending: true })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchGoals:', error.message); return [] }
+  return (data || []).map(g => ({ id: g.id, residentId: g.resident_id, resident: g.residents?.name || null, title: g.title, description: g.description, method: g.method, target: g.target, active: g.active }))
+}
+export async function addGoal(orgId, goal) {
+  if (isDemoMode) return demo.demoAddGoal(goal)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('goals').insert({
+    org_id: orgId, house_id: goal.houseId || null, resident_id: goal.residentId || null,
+    title: goal.title, description: goal.description || null, method: goal.method || null, target: goal.target || null,
+  }).select('*, residents(name)').single()
+  if (error) { console.error('addGoal:', error.message); return null }
+  return data
+}
+export async function updateGoal(id, updates) {
+  if (isDemoMode) return demo.demoUpdateGoal(id, updates)
+  if (!supabase || !id) return null
+  const patch = {}
+  if (updates.title !== undefined)       patch.title = updates.title
+  if (updates.description !== undefined) patch.description = updates.description || null
+  if (updates.method !== undefined)      patch.method = updates.method || null
+  if (updates.target !== undefined)      patch.target = updates.target || null
+  if (updates.active !== undefined)      patch.active = updates.active
+  const { error } = await supabase.from('goals').update(patch).eq('id', id)
+  if (error) console.error('updateGoal:', error.message)
+}
+export async function deleteGoal(id) {
+  if (isDemoMode) return demo.demoDeleteGoal(id)
+  if (supabase) await supabase.from('goals').delete().eq('id', id)
+}
+export async function recordGoalData(orgId, entry) {
+  if (isDemoMode) return demo.demoRecordGoalData(entry)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('goal_data').insert({
+    org_id: orgId, house_id: entry.houseId || null, goal_id: entry.goalId, resident_id: entry.residentId || null,
+    log_date: entry.date || toDateStr(new Date()), result: entry.result || null, value: entry.value ?? null,
+    note: entry.note || null, recorded_by: entry.by || null,
+  }).select().single()
+  if (error) { console.error('recordGoalData:', error.message); return null }
+  return data
+}
+// Recent data points for a goal (newest first), for the mini trend.
+export async function fetchGoalData(orgId, goalId, limit = 30) {
+  if (isDemoMode) return demo.demoFetchGoalData(goalId, limit)
+  if (!supabase || !orgId || !goalId) return []
+  const { data, error } = await supabase.from('goal_data').select('*').eq('org_id', orgId).eq('goal_id', goalId)
+    .order('recorded_at', { ascending: false }).limit(limit)
+  if (error) { console.error('fetchGoalData:', error.message); return [] }
+  return (data || []).map(d => ({ id: d.id, date: d.log_date, result: d.result, value: d.value, note: d.note, by: d.recorded_by, at: d.recorded_at }))
+}
+
+// ── Resident health logs (BM, seizure, sleep, meals, vitals, behavior…) ──────
+export async function fetchHealthLogs(orgId, houseId, kind = null, limit = 60) {
+  if (isDemoMode) return demo.demoFetchHealthLogs(houseId, kind, limit)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('health_logs').select('*, residents(name)').eq('org_id', orgId).order('occurred_at', { ascending: false }).limit(limit)
+  if (houseId) q = q.eq('house_id', houseId)
+  if (kind) q = q.eq('kind', kind)
+  const { data, error } = await q
+  if (error) { console.error('fetchHealthLogs:', error.message); return [] }
+  return (data || []).map(h => ({ id: h.id, residentId: h.resident_id, resident: h.residents?.name || null, kind: h.kind, amount: h.amount, detail: h.detail || {}, note: h.note, date: h.log_date, occurredAt: h.occurred_at, by: h.recorded_by }))
+}
+export async function addHealthLog(orgId, entry) {
+  if (isDemoMode) return demo.demoAddHealthLog(entry)
+  if (!supabase) return null
+  const { data, error } = await supabase.from('health_logs').insert({
+    org_id: orgId, house_id: entry.houseId || null, resident_id: entry.residentId || null,
+    kind: entry.kind, amount: entry.amount ?? null, detail: entry.detail || {}, note: entry.note || null,
+    occurred_at: entry.occurredAt || new Date().toISOString(), recorded_by: entry.by || null,
+  }).select('*, residents(name)').single()
+  if (error) { console.error('addHealthLog:', error.message); return null }
+  return data
+}
+export async function deleteHealthLog(id) {
+  if (isDemoMode) return demo.demoDeleteHealthLog(id)
+  if (supabase) await supabase.from('health_logs').delete().eq('id', id)
+}
+
 export async function fetchIncidents(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchIncidents(houseId)
   if (!supabase || !orgId) return []
@@ -948,7 +1032,7 @@ export async function fetchIncidents(orgId, houseId) {
   if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) { console.error('fetchIncidents:', error.message); return [] }
-  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at }))
+  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at, reportable: i.reportable, notified_at: i.notified_at, corrective_action: i.corrective_action, follow_up_due: i.follow_up_due }))
 }
 export async function addIncident(orgId, inc) {
   if (isDemoMode) return demo.demoAddIncident(inc)
@@ -957,8 +1041,26 @@ export async function addIncident(orgId, inc) {
     org_id: orgId, house_id: inc.houseId || null, resident_id: inc.residentId || null,
     type: inc.type || 'Other', severity: inc.severity || 'Minor', narrative: inc.text || '',
     actions: inc.actions || null, notified: inc.notified || null, reported_by: inc.by || null,
+    reportable: inc.reportable || false, corrective_action: inc.correctiveAction || null,
+    follow_up_due: inc.followUpDue || null,
   }).select().single()
   if (error) { console.error('addIncident:', error.message); return null }
+  return data
+}
+// Update a reportable incident's follow-through (mark agency notified, add a
+// corrective action, set/clear the follow-up date, change status).
+export async function updateIncident(id, updates) {
+  if (isDemoMode) return demo.demoUpdateIncident(id, updates)
+  if (!supabase || !id) return null
+  const patch = {}
+  if (updates.status !== undefined)           patch.status = updates.status
+  if (updates.reportable !== undefined)        patch.reportable = updates.reportable
+  if (updates.notified !== undefined)          patch.notified = updates.notified
+  if (updates.markNotifiedNow)                 patch.notified_at = new Date().toISOString()
+  if (updates.correctiveAction !== undefined)  patch.corrective_action = updates.correctiveAction
+  if (updates.followUpDue !== undefined)       patch.follow_up_due = updates.followUpDue || null
+  const { data, error } = await supabase.from('incidents').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateIncident:', error.message); return null }
   return data
 }
 export async function reviewIncident(id, by) {
