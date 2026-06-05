@@ -169,6 +169,70 @@ function SuppliesOverview({ items }) {
   )
 }
 
+const inThisMonth = (iso) => {
+  if (!iso) return false
+  const d = new Date(iso), n = new Date()
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth()
+}
+const MONTHS_F = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// "Spent this month" trend: total spend for the current month + a weekly bar
+// chart, built from each item's cost and purchase date (created_at).
+function MonthSpendGraph({ items }) {
+  const now = new Date()
+  const withCost = items.filter(it => Number(it?.cost) > 0)
+  const monthItems = withCost.filter(it => inThisMonth(it.created_at))
+  const total = monthItems.reduce((s, it) => s + Number(it.cost), 0)
+  const lastMonthTotal = withCost.filter(it => {
+    if (!it.created_at) return false
+    const d = new Date(it.created_at)
+    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth()
+  }).reduce((s, it) => s + Number(it.cost), 0)
+
+  // Weekly buckets of the current month (week 1 = days 1–7, etc.).
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const weekCount = Math.ceil(daysInMonth / 7)
+  const weeks = Array.from({ length: weekCount }, () => 0)
+  for (const it of monthItems) {
+    const day = new Date(it.created_at).getDate()
+    weeks[Math.min(weekCount - 1, Math.floor((day - 1) / 7))] += Number(it.cost)
+  }
+  const maxW = Math.max(...weeks, 1)
+  const fmt = (n) => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const delta = total - lastMonthTotal
+  const curWeek = Math.min(weekCount - 1, Math.floor((now.getDate() - 1) / 7))
+
+  return (
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Spent · {MONTHS_F[now.getMonth()]}</div>
+        {lastMonthTotal > 0 && (
+          <div style={{ fontSize: 11, fontWeight: 600, color: delta > 0 ? '#a93a25' : '#3f7050' }}>
+            {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs last mo
+          </div>
+        )}
+      </div>
+      <div className="serif tnum" style={{ fontSize: 30, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 12 }}>{fmt(total)}</div>
+      {total > 0 ? (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 72 }}>
+          {weeks.map((v, i) => (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 9, color: 'var(--a-ink3)', fontWeight: 600 }}>{v > 0 ? `$${Math.round(v)}` : ''}</div>
+              <div style={{ width: '100%', height: 48, display: 'flex', alignItems: 'flex-end' }}>
+                <div style={{ width: '100%', height: `${Math.max((v / maxW) * 100, v > 0 ? 6 : 0)}%`, background: i === curWeek ? 'var(--a-sage)' : 'var(--a-sage-dim)', borderRadius: '4px 4px 0 0', minHeight: v > 0 ? 4 : 0, transition: 'height 0.3s' }} />
+              </div>
+              <div style={{ fontSize: 9, color: i === curWeek ? 'var(--a-ink2)' : 'var(--a-ink3)', fontWeight: i === curWeek ? 700 : 500 }}>W{i + 1}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--a-ink3)', paddingBottom: 4 }}>No purchases logged this month yet. Add an item with a cost (or mark a supply “bought”) to track spend.</div>
+      )}
+    </div>
+  )
+}
+
 function AddItemModal({ user, houses, onClose, onAdded }) {
   const [name, setName] = useState('')
   const [qty, setQty] = useState('1')
@@ -288,6 +352,7 @@ export function ScreenA_Resources({ user }) {
             </div>
           )}
 
+          {!loading && items.length > 0 && <MonthSpendGraph items={items} />}
           {!loading && items.length > 0 && <SuppliesOverview items={items} />}
 
           {!loading && items.length > 0 && (
@@ -316,7 +381,7 @@ export function ScreenA_Resources({ user }) {
             // Group real fetched items by house and sum cost (null cost counts as 0).
             const byHouse = {}
             for (const item of items) {
-              if (!item.house_id) continue
+              if (!item.house_id || !inThisMonth(item.created_at)) continue
               const h = item.houses
               const key = item.house_id
               if (!byHouse[key]) {
