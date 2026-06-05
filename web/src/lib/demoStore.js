@@ -91,6 +91,18 @@ export function demoDeleteHouse(id) {
   persist()
 }
 
+export function demoSetHouseGeofence(id, { lat, lng, radiusM }) {
+  const h = store.houses.find(x => x.id === id)
+  if (!h) return null
+  if (lat != null) h.lat = lat
+  if (lng != null) h.lng = lng
+  if (radiusM != null) h.geofence_m = Math.round(radiusM)
+  persist(); return true
+}
+export function demoFetchHouseGeofences() {
+  return store.houses.map(h => ({ id: h.id, name: h.name, color: h.color, lat: h.lat ?? null, lng: h.lng ?? null, radiusM: h.geofence_m || 200 }))
+}
+
 // ── Shifts ──────────────────────────────────────────────────────────────────
 export function demoFetchShifts(houseId, date) {
   const dateStr = asDateStr(date)
@@ -206,7 +218,7 @@ export function demoFetchTeamLocations(houseId) {
     .filter(s => s.on_duty && (!houseId || s.house_id === houseId)
       && (!s.last_seen_at || new Date(s.last_seen_at).getTime() >= cutoff))
     .map(s => ({
-      id: s.id, name: s.name, role: s.role,
+      id: s.id, name: s.name, role: s.role, houseId: s.house_id || null,
       lat: s.cur_lat, lng: s.cur_lng, lastSeen: s.last_seen_at,
       color: houseJoin(s.house_id)?.color || '#4a6b56', houseName: houseJoin(s.house_id)?.name || null,
     }))

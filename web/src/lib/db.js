@@ -281,7 +281,7 @@ export async function fetchTeamLocations(orgId, houseId) {
   const { data, error } = await q
   if (error) { console.error('fetchTeamLocations:', error.message); return [] }
   return (data || []).map(s => ({
-    id: s.id, name: s.name, role: s.role,
+    id: s.id, name: s.name, role: s.role, houseId: s.house_id || null,
     lat: s.cur_lat, lng: s.cur_lng, lastSeen: s.last_seen_at,
     color: s.houses?.color || '#4a6b56', houseName: s.houses?.name || null,
   }))
@@ -751,6 +751,28 @@ export async function updateHouse(id, updates) {
     .single()
   if (error) { console.error('updateHouse:', error.message); return null }
   return data
+}
+
+// ── House geofence (location pin + radius) ──────────────────────────────────
+// Stored on the house. Used to flag on-duty staff who leave the perimeter.
+// Read directly (not via the get_my_houses RPC, which doesn't return these).
+export async function setHouseGeofence(houseId, { lat, lng, radiusM }) {
+  if (isDemoMode) return demo.demoSetHouseGeofence(houseId, { lat, lng, radiusM })
+  if (!supabase || !houseId) return null
+  const patch = {}
+  if (lat != null) patch.lat = lat
+  if (lng != null) patch.lng = lng
+  if (radiusM != null) patch.geofence_m = Math.round(radiusM)
+  const { error } = await supabase.from('houses').update(patch).eq('id', houseId)
+  if (error) { console.error('setHouseGeofence:', error.message); return null }
+  return true
+}
+export async function fetchHouseGeofences(orgId) {
+  if (isDemoMode) return demo.demoFetchHouseGeofences()
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase.from('houses').select('id, name, color, lat, lng, geofence_m').eq('org_id', orgId)
+  if (error) { console.error('fetchHouseGeofences:', error.message); return [] }
+  return (data || []).map(h => ({ id: h.id, name: h.name, color: h.color, lat: h.lat, lng: h.lng, radiusM: h.geofence_m || 200 }))
 }
 
 // Delete a house.
