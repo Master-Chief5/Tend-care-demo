@@ -3,6 +3,7 @@ import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { HouseItems } from '../components/HouseItems'
 import { OnDutyCard } from '../components/OnDutyCard'
+import { MedPass } from '../components/MedPass'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
 import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus, IconPeople } from '../components/icons'
@@ -196,6 +197,10 @@ export function ScreenA_MyDay({ user }) {
               <IconPlus size={14} sw={2} /> Add task
             </button>
           )}
+
+          {/* Recurring duties pushed to the worker: today's med pass for their
+              house (record given / some / prompted / refused / held inline). */}
+          {user?.houseId && <div style={{ marginTop: 8 }}><MedPass user={user} houseUuid={user.houseId} houseColor="var(--a-sage)" canAdd={false} /></div>}
 
           {user?.houseId && <HouseItems user={user} houseUuid={user.houseId} houseColor="var(--a-sage)" />}
         </div>

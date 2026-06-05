@@ -17,9 +17,11 @@ const TIME_PRESETS = [
 ]
 const ROUTES = ['Oral', 'Topical', 'Injection', 'Inhaled', 'Other']
 const STATUS = {
-  given:   { label: 'Given',   bg: '#dee6df', tc: '#3f604d' },
-  refused: { label: 'Refused', bg: '#fadcd7', tc: '#a93a25' },
-  held:    { label: 'Held',    bg: '#f5e9d6', tc: '#a47012' },
+  given:    { label: 'Given',   bg: '#dee6df', tc: '#3f604d' },
+  some:     { label: 'Some',    bg: '#e7eddf', tc: '#5a7042' },
+  prompted: { label: 'Prompt',  bg: '#dde6f0', tc: '#3c5887' },
+  refused:  { label: 'Refused', bg: '#fadcd7', tc: '#a93a25' },
+  held:     { label: 'Held',    bg: '#f5e9d6', tc: '#a47012' },
 }
 
 function AddMedForm({ residents, houseUuid, user, onClose, onSaved }) {
@@ -89,7 +91,7 @@ function AddMedForm({ residents, houseUuid, user, onClose, onSaved }) {
   )
 }
 
-export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', residents = [] }) {
+export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', residents = [], canAdd = true }) {
   const [doses, setDoses] = useState([])
   const [prnMeds, setPrnMeds] = useState([])
   const [prnLog, setPrnLog] = useState([])
@@ -117,14 +119,16 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Med pass · today{doses.length > 0 && <span style={{ color: doneCount === doses.length ? 'var(--a-sage)' : 'var(--a-clay)', marginLeft: 6 }}>{doneCount}/{doses.length} done</span>}
         </span>
-        <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
-          <IconPlus size={13} sw={2.2} /> Add medication
-        </button>
+        {canAdd && (
+          <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <IconPlus size={13} sw={2.2} /> Add medication
+          </button>
+        )}
       </div>
 
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: prnMeds.length ? 10 : 14 }}>
         {doses.length === 0 && (
-          <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No scheduled meds today. Tap “Add medication”.</div>
+          <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No scheduled meds today.{canAdd ? ' Tap “Add medication”.' : ''}</div>
         )}
         {doses.map((d, i) => (
           <div key={d.key} style={{ padding: '10px 14px', borderBottom: i < doses.length - 1 ? '1px solid var(--a-line)' : '' }}>
@@ -135,10 +139,10 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
                 <div style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>{d.med}{d.dose ? ` · ${d.dose}` : ''}{d.route ? ` · ${d.route}` : ''}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
               {Object.entries(STATUS).map(([k, v]) => {
                 const on = d.status === k
-                return <button key={k} onClick={() => record(d, k)} style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: on ? v.bg : 'transparent', color: on ? v.tc : 'var(--a-ink3)', border: `1px solid ${on ? v.tc + '55' : 'var(--a-line)'}` }}>{on && <IconCheck size={10} sw={3} style={{ marginRight: 3 }} />}{v.label}</button>
+                return <button key={k} onClick={() => record(d, k)} style={{ flex: '1 1 28%', padding: '6px 4px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: on ? v.bg : 'transparent', color: on ? v.tc : 'var(--a-ink3)', border: `1px solid ${on ? v.tc + '55' : 'var(--a-line)'}`, whiteSpace: 'nowrap' }}>{on && <IconCheck size={10} sw={3} style={{ marginRight: 3 }} />}{v.label}</button>
               })}
             </div>
             {d.status !== 'due' && d.by && <div style={{ fontSize: 10, color: 'var(--a-ink3)', marginTop: 4 }}>{STATUS[d.status].label} by {d.by}</div>}
@@ -164,7 +168,7 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
         </div>
       )}
 
-      {showAdd && <AddMedForm residents={residents} houseUuid={houseUuid} user={user} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); reload() }} />}
+      {showAdd && canAdd && <AddMedForm residents={residents} houseUuid={houseUuid} user={user} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); reload() }} />}
       {prnFor && <PrnLogForm med={prnFor} user={user} houseUuid={houseUuid} onClose={() => setPrnFor(null)} onSaved={() => { setPrnFor(null); reload() }} />}
     </>
   )
