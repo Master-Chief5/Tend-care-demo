@@ -336,6 +336,22 @@ export async function removeStaff(id) {
   if (error) console.error('removeStaff:', error.message)
 }
 
+// ── Org settings: monthly supply budget ─────────────────────────────────────
+export async function fetchSupplyBudget(orgId) {
+  if (isDemoMode) return demo.demoFetchSupplyBudget()
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('org_settings').select('supply_budget').eq('org_id', orgId).maybeSingle()
+  if (error) { console.error('fetchSupplyBudget:', error.message); return null }
+  return data?.supply_budget ?? null
+}
+export async function setSupplyBudget(orgId, amount) {
+  if (isDemoMode) return demo.demoSetSupplyBudget(amount)
+  if (!supabase || !orgId) return null
+  const { error } = await supabase.from('org_settings').upsert({ org_id: orgId, supply_budget: amount, updated_at: new Date().toISOString() }, { onConflict: 'org_id' })
+  if (error) { console.error('setSupplyBudget:', error.message); return null }
+  return amount
+}
+
 // Fetch tasks for a staff member on a given date.
 export async function fetchTasks(staffId, date) {
   if (isDemoMode) return demo.demoFetchTasks(staffId, date)

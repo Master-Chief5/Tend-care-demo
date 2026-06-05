@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], settings: {} }
 }
 
 function load() {
@@ -99,6 +99,9 @@ export function demoSetHouseGeofence(id, { lat, lng, radiusM }) {
   if (radiusM != null) h.geofence_m = Math.round(radiusM)
   persist(); return true
 }
+export function demoFetchSupplyBudget() { return store.settings?.supply_budget ?? null }
+export function demoSetSupplyBudget(amount) { store.settings = { ...(store.settings || {}), supply_budget: amount }; persist(); return amount }
+
 export function demoFetchHouseGeofences() {
   return store.houses.map(h => ({ id: h.id, name: h.name, color: h.color, lat: h.lat ?? null, lng: h.lng ?? null, radiusM: h.geofence_m || 200 }))
 }

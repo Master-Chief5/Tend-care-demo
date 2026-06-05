@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchResources, addResource, deleteResource, fetchHouses } from '../lib/db'
+import { fetchResources, addResource, deleteResource, fetchHouses, fetchSupplyBudget, setSupplyBudget } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
@@ -178,56 +178,97 @@ const MONTHS_F = ['January', 'February', 'March', 'April', 'May', 'June', 'July'
 
 // "Spent this month" trend: total spend for the current month + a weekly bar
 // chart, built from each item's cost and purchase date (created_at).
-function MonthSpendGraph({ items }) {
-  const now = new Date()
-  const withCost = items.filter(it => Number(it?.cost) > 0)
-  const monthItems = withCost.filter(it => inThisMonth(it.created_at))
-  const total = monthItems.reduce((s, it) => s + Number(it.cost), 0)
-  const lastMonthTotal = withCost.filter(it => {
-    if (!it.created_at) return false
-    const d = new Date(it.created_at)
-    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth()
-  }).reduce((s, it) => s + Number(it.cost), 0)
+const MONTHS_S = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const money = (n) => `$${(Number.isFinite(n) ? n : 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
 
-  // Weekly buckets of the current month (week 1 = days 1–7, etc.).
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const weekCount = Math.ceil(daysInMonth / 7)
-  const weeks = Array.from({ length: weekCount }, () => 0)
-  for (const it of monthItems) {
-    const day = new Date(it.created_at).getDate()
-    weeks[Math.min(weekCount - 1, Math.floor((day - 1) / 7))] += Number(it.cost)
+// Build a spend time-series for the chosen range from items' cost + purchase date.
+function buildSeries(range, items) {
+  const now = new Date()
+  const costed = items.filter(it => Number(it?.cost) > 0 && it.created_at).map(it => ({ d: new Date(it.created_at), c: Number(it.cost) }))
+  const out = []
+  const add = (label, match) => out.push({ label, value: costed.filter(x => match(x.d)).reduce((s, x) => s + x.c, 0) })
+  const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+  if (range === 'day') {
+    for (let i = 13; i >= 0; i--) { const d = new Date(now); d.setDate(now.getDate() - i); add(`${d.getMonth() + 1}/${d.getDate()}`, x => x.toDateString() === d.toDateString()) }
+  } else if (range === 'year') {
+    const yrs = costed.map(x => x.d.getFullYear())
+    let y0 = Math.min(now.getFullYear(), ...(yrs.length ? yrs : [now.getFullYear()])); if (now.getFullYear() - y0 > 9) y0 = now.getFullYear() - 9
+    for (let y = y0; y <= now.getFullYear(); y++) add(String(y), x => x.getFullYear() === y)
+  } else if (range === 'max') {
+    if (!costed.length) return { series: [], total: 0 }
+    const earliest = costed.reduce((m, x) => x.d < m ? x.d : m, costed[0].d)
+    const months = (now.getFullYear() - earliest.getFullYear()) * 12 + (now.getMonth() - earliest.getMonth())
+    if (months <= 24) { for (let i = months; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); add(MONTHS_S[d.getMonth()], x => sameMonth(x, d)) } }
+    else { for (let y = earliest.getFullYear(); y <= now.getFullYear(); y++) add(String(y), x => x.getFullYear() === y) }
+  } else { // month — last 12 months
+    for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); add(MONTHS_S[d.getMonth()], x => sameMonth(x, d)) }
   }
-  const maxW = Math.max(...weeks, 1)
-  const fmt = (n) => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const delta = total - lastMonthTotal
-  const curWeek = Math.min(weekCount - 1, Math.floor((now.getDate() - 1) / 7))
+  return { series: out, total: out.reduce((s, b) => s + b.value, 0) }
+}
+
+const RANGE_OPTS = [['day', 'Day'], ['month', 'Month'], ['year', 'Year'], ['max', 'Max']]
+
+// Spend over time, with a Day/Month/Year/Max selector and a line/bar toggle.
+function SpendGraph({ items }) {
+  const [range, setRange] = useState('month')
+  const [kind, setKind] = useState('line')
+  const { series, total } = buildSeries(range, items)
+  const nonZero = series.filter(b => b.value > 0).length
+  // A line needs at least two points to be a trend; a single point shows as a bar.
+  const enough = kind === 'bar' ? nonZero >= 1 : nonZero >= 2
+  const maxV = Math.max(...series.map(b => b.value), 1)
+  const n = series.length
+  const W = 320, H = 96, padL = 8, padR = 8, top = 10, bot = 18
+  const xAt = (i) => padL + (n <= 1 ? (W - padL - padR) / 2 : (i / (n - 1)) * (W - padL - padR))
+  const yAt = (v) => H - bot - (v / maxV) * (H - top - bot)
+  const linePts = series.map((b, i) => `${xAt(i).toFixed(1)},${yAt(b.value).toFixed(1)}`).join(' ')
+  const labelEvery = Math.max(1, Math.ceil(n / 6))
+
+  const chip = (active) => ({ flex: 1, padding: '5px 0', borderRadius: 7, fontSize: 11, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', border: 0, background: active ? 'var(--a-ink)' : 'transparent', color: active ? 'var(--a-card)' : 'var(--a-ink2)' })
 
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Spent · {MONTHS_F[now.getMonth()]}</div>
-        {lastMonthTotal > 0 && (
-          <div style={{ fontSize: 11, fontWeight: 600, color: delta > 0 ? '#a93a25' : '#3f7050' }}>
-            {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs last mo
-          </div>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Spend</div>
+          <div className="serif tnum" style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em' }}>{money(total)}</div>
+        </div>
+        <button onClick={() => setKind(k => k === 'line' ? 'bar' : 'line')} style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, fontFamily: 'Geist', color: 'var(--a-ink2)', cursor: 'pointer' }}>
+          {kind === 'line' ? '◔ Bars' : '∿ Line'}
+        </button>
       </div>
-      <div className="serif tnum" style={{ fontSize: 30, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 12 }}>{fmt(total)}</div>
-      {total > 0 ? (
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 72 }}>
-          {weeks.map((v, i) => (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div style={{ fontSize: 9, color: 'var(--a-ink3)', fontWeight: 600 }}>{v > 0 ? `$${Math.round(v)}` : ''}</div>
-              <div style={{ width: '100%', height: 48, display: 'flex', alignItems: 'flex-end' }}>
-                <div style={{ width: '100%', height: `${Math.max((v / maxW) * 100, v > 0 ? 6 : 0)}%`, background: i === curWeek ? 'var(--a-sage)' : 'var(--a-sage-dim)', borderRadius: '4px 4px 0 0', minHeight: v > 0 ? 4 : 0, transition: 'height 0.3s' }} />
+
+      {/* Range selector */}
+      <div style={{ display: 'flex', gap: 3, background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 9, padding: 3, marginBottom: 12 }}>
+        {RANGE_OPTS.map(([id, label]) => <button key={id} onClick={() => setRange(id)} style={chip(range === id)}>{label}</button>)}
+      </div>
+
+      {!enough ? (
+        <div style={{ padding: '22px 8px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)', lineHeight: 1.5 }}>
+          Not enough data yet for this view.<br />Log a few purchases with costs to see the trend.
+        </div>
+      ) : kind === 'line' ? (
+        <>
+          <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', overflow: 'visible' }} preserveAspectRatio="none">
+            <polygon points={`${padL},${H - bot} ${linePts} ${W - padR},${H - bot}`} fill="var(--a-sage)" fillOpacity="0.12" />
+            <polyline points={linePts} fill="none" stroke="var(--a-sage)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            {series.map((b, i) => b.value > 0 && <circle key={i} cx={xAt(i)} cy={yAt(b.value)} r="2.5" fill="var(--a-sage)" />)}
+          </svg>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+            {series.map((b, i) => <span key={i} style={{ flex: 1, textAlign: 'center', fontSize: 8.5, color: 'var(--a-ink3)' }}>{i % labelEvery === 0 ? b.label : ''}</span>)}
+          </div>
+        </>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 84 }}>
+          {series.map((b, i) => (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
+              <div style={{ width: '100%', height: 60, display: 'flex', alignItems: 'flex-end' }}>
+                <div title={money(b.value)} style={{ width: '100%', height: `${Math.max((b.value / maxV) * 100, b.value > 0 ? 4 : 0)}%`, background: i === n - 1 ? 'var(--a-sage)' : 'var(--a-sage-dim)', borderRadius: '3px 3px 0 0', minHeight: b.value > 0 ? 3 : 0 }} />
               </div>
-              <div style={{ fontSize: 9, color: i === curWeek ? 'var(--a-ink2)' : 'var(--a-ink3)', fontWeight: i === curWeek ? 700 : 500 }}>W{i + 1}</div>
+              <span style={{ fontSize: 8.5, color: 'var(--a-ink3)', whiteSpace: 'nowrap' }}>{i % labelEvery === 0 ? b.label : ''}</span>
             </div>
           ))}
         </div>
-      ) : (
-        <div style={{ fontSize: 12, color: 'var(--a-ink3)', paddingBottom: 4 }}>No purchases logged this month yet. Add an item with a cost (or mark a supply “bought”) to track spend.</div>
       )}
     </div>
   )
@@ -289,11 +330,57 @@ function AddItemModal({ user, houses, onClose, onAdded }) {
   )
 }
 
+// Monthly supply budget vs this-month spend. Supervisors can set/edit it.
+function BudgetCard({ user, items, budget, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(budget != null ? String(budget) : '')
+  const [saving, setSaving] = useState(false)
+  const isSup = user?.role === 'supervisor'
+  const spent = items.filter(it => Number(it?.cost) > 0 && inThisMonth(it.created_at)).reduce((s, it) => s + Number(it.cost), 0)
+  const has = budget != null && budget > 0
+  const pct = has ? Math.min(spent / budget, 1) : 0
+  const over = has && spent > budget
+  const save = async () => { setSaving(true); const amt = parseFloat(val) || 0; await setSupplyBudget(user.orgId, amt); setSaving(false); setEditing(false); onSaved(amt) }
+
+  if (!has && !isSup) return null
+  return (
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Supplies budget · {MONTHS_F[new Date().getMonth()]}</div>
+        {isSup && !editing && <button onClick={() => { setVal(budget != null ? String(budget) : ''); setEditing(true) }} style={{ background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>{has ? 'Edit' : 'Set budget'}</button>}
+      </div>
+      {editing ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <span style={{ fontSize: 16, color: 'var(--a-ink2)' }}>$</span>
+          <input autoFocus type="number" value={val} onChange={e => setVal(e.target.value)} placeholder="e.g. 500" style={{ flex: 1, background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '9px 12px', fontSize: 15, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+          <button onClick={save} disabled={saving} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>{saving ? '…' : 'Save'}</button>
+        </div>
+      ) : has ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+            <span className="serif tnum" style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', color: over ? '#a93a25' : 'var(--a-ink)' }}>{money(spent)}</span>
+            <span style={{ fontSize: 13, color: 'var(--a-ink3)' }}>/ {money(budget)}</span>
+          </div>
+          <div style={{ height: 8, background: 'var(--a-paper)', borderRadius: 999, overflow: 'hidden', marginTop: 8 }}>
+            <div style={{ width: `${pct * 100}%`, height: '100%', background: over ? '#c0392b' : pct > 0.8 ? 'var(--a-honey)' : 'var(--a-sage)', borderRadius: 999 }} />
+          </div>
+          <div style={{ fontSize: 11, color: over ? '#a93a25' : 'var(--a-ink3)', fontWeight: over ? 600 : 400, marginTop: 6 }}>
+            {over ? `Over budget by ${money(spent - budget)}` : `${money(budget - spent)} left this month`}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 8 }}>No budget set. Tap “Set budget” to track spend against a monthly limit.</div>
+      )}
+    </div>
+  )
+}
+
 export function ScreenA_Resources({ user }) {
   const [items, setItems] = useState([])
   const [houses, setHouses] = useState([])
   const [showAdd, setShowAdd] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [budget, setBudget] = useState(null)
   const [toast, showToast] = useToast()
 
   const isSupervisor = user?.role === 'supervisor'
@@ -301,6 +388,7 @@ export function ScreenA_Resources({ user }) {
   useEffect(() => {
     if (!user?.orgId) return
     setLoading(true)
+    fetchSupplyBudget(user.orgId).then(setBudget)
     fetchResources(user.orgId, user.houseId || null).then(data => {
       setItems(data)
       setLoading(false)
@@ -344,6 +432,8 @@ export function ScreenA_Resources({ user }) {
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
           {loading && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>}
 
+          {!loading && <BudgetCard user={user} items={items} budget={budget} onSaved={setBudget} />}
+
           {!loading && items.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
@@ -352,7 +442,7 @@ export function ScreenA_Resources({ user }) {
             </div>
           )}
 
-          {!loading && items.length > 0 && <MonthSpendGraph items={items} />}
+          {!loading && items.length > 0 && <SpendGraph items={items} />}
           {!loading && items.length > 0 && <SuppliesOverview items={items} />}
 
           {!loading && items.length > 0 && (
