@@ -203,7 +203,7 @@ export function demoPingStaffLocation(id, coords) {
 export function demoFetchTeamLocations(houseId) {
   const cutoff = Date.now() - 30 * 60 * 1000
   return store.staff
-    .filter(s => s.on_duty && s.cur_lat != null && (!houseId || s.house_id === houseId)
+    .filter(s => s.on_duty && (!houseId || s.house_id === houseId)
       && (!s.last_seen_at || new Date(s.last_seen_at).getTime() >= cutoff))
     .map(s => ({
       id: s.id, name: s.name, role: s.role,
