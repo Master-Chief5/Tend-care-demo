@@ -109,8 +109,14 @@ export async function forwardGeocode(q, near) {
 export async function fetchRoute(from, to) {
   if (!from || !to || from.lat == null || to.lat == null) return null
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`
-    const r = await fetch(url)
+    // `overview=simplified` returns a much lighter geometry than `full` (faster
+    // to fetch + draw); plenty of detail for an overview line. Abort if the free
+    // OSRM demo server is slow so it never hangs the map.
+    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=simplified&geometries=geojson`
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 7000) : null
+    const r = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
+    if (timer) clearTimeout(timer)
     if (!r.ok) return null
     const j = await r.json()
     const route = j.routes?.[0]

@@ -14,9 +14,10 @@ export function LiveTripsMap({ trips = [] }) {
   // Cache road routes by a coarse from→to key so we don't refetch on every redraw.
   const routeCache = useRef(new Map())
 
-  // Key the route by ~3-decimal (≈100m) rounded endpoints so small GPS jitter
-  // doesn't trigger constant refetches but real movement does.
-  const routeKey = (a, b) => `${a.lat.toFixed(3)},${a.lng.toFixed(3)}>${b.lat.toFixed(3)},${b.lng.toFixed(3)}`
+  // Coarse origin key (~1 km) so the route is fetched once and reused while the
+  // worker drives, instead of re-loading every time they move ~100 m. The
+  // straight-line fallback covers the small gap between fetches.
+  const routeKey = (a, b) => `${a.lat.toFixed(2)},${a.lng.toFixed(2)}>${b.lat.toFixed(3)},${b.lng.toFixed(3)}`
 
   function ensureRoute(from, to) {
     const key = routeKey(from, to)
