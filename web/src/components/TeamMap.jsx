@@ -87,24 +87,40 @@ export function TeamMap({ user }) {
       }).addTo(layer)
       pts.push([p.lat, p.lng])
     }
-    if (pts.length === 1) map.setView(pts[0], 15)
-    else if (pts.length > 1) map.fitBounds(pts, { padding: [30, 30], maxZoom: 16 })
+    // De-dupe near-identical points (e.g. one device testing two accounts) so
+    // fitBounds doesn't collapse to a zero-size box.
+    const uniq = pts.filter((p, i) => i === pts.findIndex(q => Math.abs(q[0] - p[0]) < 1e-5 && Math.abs(q[1] - p[1]) < 1e-5))
+    if (uniq.length === 1) map.setView(uniq[0], 15)
+    else if (uniq.length > 1) map.fitBounds(uniq, { padding: [30, 30], maxZoom: 16 })
   }
 
   useEffect(() => {
     let cancelled = false
-    loadLeaflet().then((L) => {
+    let tries = 0
+    let ro = null
+    const init = (L) => {
       if (cancelled || !L || !elRef.current || mapRef.current) return
       Lref.current = L
       const map = L.map(elRef.current, { attributionControl: false, zoomControl: false, renderer: L.svg({ padding: 2 }) }).setView([40, -74], 11)
       mapRef.current = map
       addBasemap(L, map, { attribution: false })
       layerRef.current = L.layerGroup().addTo(map)
-      // Re-measure a few times — the map often mounts before its flex container
-      // has its final height, which is what leaves it blank/grey.
-      ;[120, 350, 800].forEach(d => setTimeout(() => { if (!cancelled) { map.invalidateSize(); draw() } }, d))
+      map.whenReady(() => { map.invalidateSize(); draw() })
+      // Re-measure as the container settles (mounts before flex height is final).
+      ;[100, 300, 600, 1200].forEach(d => setTimeout(() => { if (!cancelled && mapRef.current) { map.invalidateSize(); draw() } }, d))
+      if (typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(() => { if (mapRef.current) mapRef.current.invalidateSize() })
+        ro.observe(elRef.current)
+      }
+    }
+    const attempt = () => loadLeaflet().then((L) => {
+      if (cancelled) return
+      if (L) return init(L)
+      // CDN slow/blocked on this load — retry a couple of times before giving up.
+      if (tries++ < 3) setTimeout(attempt, 1500)
     })
-    return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
+    attempt()
+    return () => { cancelled = true; if (ro) ro.disconnect(); if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

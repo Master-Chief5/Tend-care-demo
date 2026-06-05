@@ -42,7 +42,7 @@ export function loadLeaflet() {
   if (typeof window === 'undefined') return Promise.resolve(null)
   if (window.L) return Promise.resolve(window.L)
   if (_p) return _p
-  _p = new Promise((resolve) => {
+  const p = new Promise((resolve) => {
     try {
       if (!document.querySelector('link[data-leaflet]')) {
         const link = document.createElement('link')
@@ -51,10 +51,7 @@ export function loadLeaflet() {
         link.setAttribute('data-leaflet', '1')
         document.head.appendChild(link)
       }
-      const s = document.createElement('script')
-      s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-      s.async = true
-      s.onload = () => {
+      const onReady = () => {
         const L = window.L
         if (L?.Icon?.Default) {
           // Point the default marker at the CDN images (bundlers break the paths).
@@ -67,10 +64,25 @@ export function loadLeaflet() {
         }
         resolve(L || null)
       }
-      s.onerror = () => resolve(null)
-      document.head.appendChild(s)
+      // Reuse a script tag from a prior (failed/slow) attempt rather than piling
+      // up duplicates.
+      let s = document.querySelector('script[data-leaflet]')
+      if (window.L) return onReady()
+      if (!s) {
+        s = document.createElement('script')
+        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        s.async = true
+        s.setAttribute('data-leaflet', '1')
+        document.head.appendChild(s)
+      }
+      s.addEventListener('load', onReady)
+      s.addEventListener('error', () => resolve(null))
     } catch { resolve(null) }
   })
+  // Cache only a SUCCESSFUL load. On failure, clear the cache so the next map
+  // that mounts retries — otherwise one slow/failed CDN fetch leaves every map
+  // blank for the rest of the session.
+  _p = p.then((L) => { if (!L) _p = null; return L })
   return _p
 }
 

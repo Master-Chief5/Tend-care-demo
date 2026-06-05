@@ -5,6 +5,7 @@ import { DesktopShell } from './components/layout/DesktopShell'
 import { useIsMobile } from './hooks/useIsMobile'
 import { supabase, isDemoMode } from './lib/supabase'
 import { fetchStaffProfile, registerAsStaff, createOrgAndSupervisor } from './lib/db'
+import { setMyDuty } from './hooks/useDutyTracking'
 
 // Build a minimal user from the JWT immediately — no DB call, no delay.
 function quickUser(session) {
@@ -184,6 +185,9 @@ export default function App() {
   }, [runEnrich])
 
   const handleLogout = async () => {
+    // End on-duty location sharing before signing out, so the person doesn't
+    // linger as "on duty" on the supervisor's team map after they leave.
+    try { await setMyDuty(user?.staffId, false) } catch { /* ignore */ }
     if (!isDemoMode && supabase) await supabase.auth.signOut()
     setUser(null)
   }
