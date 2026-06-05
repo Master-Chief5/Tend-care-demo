@@ -26,8 +26,9 @@ CREATE TABLE IF NOT EXISTS trips (
   resident_name TEXT        NOT NULL,
   destination   TEXT        NOT NULL,
   miles         NUMERIC(6,1) NOT NULL DEFAULT 0,
-  purpose       TEXT        NOT NULL DEFAULT 'other'
-                            CHECK (purpose IN ('medical','grocery','activity','other')),
+  -- purpose is a free-form UI label (e.g. "Medical appt", "Day program"); no
+  -- CHECK constraint, which would break whenever the labels change.
+  purpose       TEXT        NOT NULL DEFAULT 'other',
   trip_date     DATE        NOT NULL DEFAULT CURRENT_DATE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -49,8 +50,9 @@ CREATE TABLE IF NOT EXISTS residents (
   name       TEXT        NOT NULL,
   room       TEXT,
   dob        DATE,
-  status     TEXT        NOT NULL DEFAULT 'active'
-                         CHECK (status IN ('active','inactive')),
+  -- status is a transient free-form UI label (Home / At appointment / Day
+  -- program / Hospital / Away); no CHECK constraint for the same reason as trips.
+  status     TEXT        NOT NULL DEFAULT 'active',
   notes      TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -71,8 +73,12 @@ DROP POLICY IF EXISTS "trips_update"     ON trips;
 DROP POLICY IF EXISTS "trips_delete"     ON trips;
 DROP POLICY IF EXISTS "vehicles_select"  ON vehicles;
 DROP POLICY IF EXISTS "vehicles_insert"  ON vehicles;
+DROP POLICY IF EXISTS "vehicles_update"  ON vehicles;
+DROP POLICY IF EXISTS "vehicles_delete"  ON vehicles;
 DROP POLICY IF EXISTS "residents_select" ON residents;
 DROP POLICY IF EXISTS "residents_insert" ON residents;
+DROP POLICY IF EXISTS "residents_update" ON residents;
+DROP POLICY IF EXISTS "residents_delete" ON residents;
 
 CREATE POLICY "resources_select" ON resources FOR SELECT USING (org_id = auth_org_id());
 CREATE POLICY "resources_insert" ON resources FOR INSERT WITH CHECK (org_id = auth_org_id());
@@ -87,9 +93,13 @@ CREATE POLICY "trips_delete" ON trips FOR DELETE USING (org_id = auth_org_id());
 
 CREATE POLICY "vehicles_select" ON vehicles FOR SELECT USING (org_id = auth_org_id());
 CREATE POLICY "vehicles_insert" ON vehicles FOR INSERT WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "vehicles_update" ON vehicles FOR UPDATE USING (org_id = auth_org_id()) WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "vehicles_delete" ON vehicles FOR DELETE USING (org_id = auth_org_id());
 
 CREATE POLICY "residents_select" ON residents FOR SELECT USING (org_id = auth_org_id());
 CREATE POLICY "residents_insert" ON residents FOR INSERT WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "residents_update" ON residents FOR UPDATE USING (org_id = auth_org_id()) WITH CHECK (org_id = auth_org_id());
+CREATE POLICY "residents_delete" ON residents FOR DELETE USING (org_id = auth_org_id());
 
 -- ── INSERT/UPDATE/DELETE policies for existing tables ────────
 
