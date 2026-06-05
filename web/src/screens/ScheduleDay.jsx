@@ -86,6 +86,31 @@ function FilterChip({ active, onClick, label, sub, short, color }) {
   )
 }
 
+// Greedy lane layout so overlapping shifts sit side-by-side (only where they
+// actually overlap) instead of stacking on top of each other.
+function layoutShifts(items) {
+  const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end)
+  // Break into clusters of transitively-overlapping shifts.
+  const clusters = []
+  let cur = null
+  for (const s of sorted) {
+    if (cur && s.start < cur.maxEnd) { cur.items.push(s); cur.maxEnd = Math.max(cur.maxEnd, s.end) }
+    else { cur = { items: [s], maxEnd: s.end }; clusters.push(cur) }
+  }
+  const out = []
+  for (const cl of clusters) {
+    const laneEnds = []  // end time of the last shift placed in each lane
+    for (const s of cl.items) {
+      let lane = laneEnds.findIndex(end => end <= s.start)
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(s.end) } else { laneEnds[lane] = s.end }
+      s._lane = lane
+    }
+    const lanes = laneEnds.length
+    for (const s of cl.items) out.push({ ...s, _lane: s._lane, _lanes: lanes })
+  }
+  return out
+}
+
 function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
   const { start, end, person, role, status } = shift
   const top = (start - DAY_START) * HOUR_PX
@@ -97,11 +122,14 @@ function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
   const bg = open ? 'transparent' : houseColor
   const border = open ? `1.5px dashed ${houseColor}` : late ? `1.5px solid #a93a25` : 'none'
   const txt = open ? houseColor : '#fff'
+  const lanes = shift._lanes || 1
+  const lane = shift._lane || 0
+  const wPct = 100 / lanes
   return (
     <div onClick={onClick} style={{
-      position: 'absolute', top: top + 2, left: 2, right: 2, height: Math.max(height - 4, 20),
+      position: 'absolute', top: top + 2, left: `calc(${lane * wPct}% + 2px)`, width: `calc(${wPct}% - 4px)`, height: Math.max(height - 4, 20),
       background: bg, border, borderRadius: 6, cursor: 'pointer',
-      padding: expanded ? '8px 12px' : '4px 6px', color: txt, overflow: 'hidden',
+      padding: expanded && lanes === 1 ? '8px 12px' : '4px 6px', color: txt, overflow: 'hidden',
       display: 'flex', flexDirection: 'column', gap: 2, opacity: dim && !mine ? 0.78 : 1,
       boxShadow: mine ? '0 0 0 2.5px var(--a-bg), 0 0 0 4px var(--a-ink)' : 'none',
     }}>
@@ -142,7 +170,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick, isMine }) {
             {hours.map((hr, i) => (
               <div key={i} style={{ height: HOUR_PX, borderBottom: i === hours.length - 1 ? '' : '1px solid var(--a-line)', background: i % 2 === 1 ? 'rgba(216, 204, 177, 0.07)' : 'transparent' }} />
             ))}
-            {shifts.filter(s => s.house === h.id).map((s, si) => (
+            {layoutShifts(shifts.filter(s => s.house === h.id)).map((s, si) => (
               <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} mine={isMine?.(s)} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>

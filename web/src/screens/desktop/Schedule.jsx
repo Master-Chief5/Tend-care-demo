@@ -91,6 +91,28 @@ function DskHouseTab({ active, onClick, color, short, label, sub }) {
   )
 }
 
+// Lane layout so overlapping shifts sit side-by-side instead of stacking.
+function layoutShifts(items) {
+  const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end)
+  const clusters = []
+  let cur = null
+  for (const s of sorted) {
+    if (cur && s.start < cur.maxEnd) { cur.items.push(s); cur.maxEnd = Math.max(cur.maxEnd, s.end) }
+    else { cur = { items: [s], maxEnd: s.end }; clusters.push(cur) }
+  }
+  const out = []
+  for (const cl of clusters) {
+    const laneEnds = []
+    for (const s of cl.items) {
+      let lane = laneEnds.findIndex(end => end <= s.start)
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(s.end) } else { laneEnds[lane] = s.end }
+      s._lane = lane
+    }
+    for (const s of cl.items) out.push({ ...s, _lanes: laneEnds.length })
+  }
+  return out
+}
+
 function DskShiftBlock({ shift, houseColor, onClick }) {
   const { start, end, person, role, status } = shift
   const top = (start - DAY_START) * DSK_HOUR_PX
@@ -101,9 +123,12 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
   const here = status === 'here'
   const bg = open ? 'transparent' : houseColor
   const border = open ? `1.5px dashed ${houseColor}` : late ? `1.5px solid #a93a25` : 'none'
+  const lanes = shift._lanes || 1
+  const lane = shift._lane || 0
+  const wPct = 100 / lanes
   return (
     <div onClick={onClick} title="Click to edit" style={{
-      position: 'absolute', top: top + 3, left: 6, right: 6, height: height - 6,
+      position: 'absolute', top: top + 3, left: `calc(${lane * wPct}% + 6px)`, width: `calc(${wPct}% - 12px)`, height: height - 6,
       background: bg, border, borderRadius: 8,
       padding: '8px 12px', color: open ? houseColor : '#fff',
       display: 'flex', flexDirection: 'column', cursor: 'pointer',
@@ -173,7 +198,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8, onShiftClick }) {
             {hours.slice(0, -1).map((hr, i) => (
               <div key={`half${i}`} style={{ position: 'absolute', top: i * DSK_HOUR_PX + DSK_HOUR_PX / 2, left: 0, right: 0, borderTop: '1px dashed var(--a-line)', opacity: 0.5 }} />
             ))}
-            {shifts.filter(s => s.house === h.id).map((s, si) => (
+            {layoutShifts(shifts.filter(s => s.house === h.id)).map((s, si) => (
               <DskShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>
