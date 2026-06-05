@@ -1,0 +1,16 @@
+{
+  "name": "Tend · Care Operations",
+  "short_name": "Tend",
+  "description": "Care operations for group homes — schedule, meds, goals, transport and more.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3ecdd",
+  "theme_color": "#f3ecdd",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
