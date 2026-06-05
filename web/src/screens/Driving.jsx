@@ -66,7 +66,7 @@ const inputStyle = {
   padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box',
 }
 
-function TripForm({ initial, defaultDriver = '', staffNames, residentNames, onSave, onCancel, saving, title, hideMiles = false }) {
+function TripForm({ initial, defaultDriver = '', lockDriver = false, staffNames, residentNames, onSave, onCancel, saving, title, hideMiles = false }) {
   const [driverName, setDriverName]     = useState(initial?.driver_name || defaultDriver || '')
   const [residentName, setResidentName] = useState(initial?.resident_name || '')
   const [destination, setDestination]   = useState(initial?.destination || '')
@@ -94,8 +94,15 @@ function TripForm({ initial, defaultDriver = '', staffNames, residentNames, onSa
           📍 Pick on map{destCoords ? ' ✓' : ''}
         </button>
       </div>
-      <SuggestInput placeholder="Driver — who's driving (required)" value={driverName} onChange={setDriverName}
-        options={staffNames} style={inputStyle} />
+      {lockDriver ? (
+        <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--a-ink2)', background: 'var(--a-paper)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Driver</span>
+          <span style={{ fontWeight: 600, color: 'var(--a-ink)' }}>{driverName || 'You'}</span>
+        </div>
+      ) : (
+        <SuggestInput placeholder="Driver — who's driving (required)" value={driverName} onChange={setDriverName}
+          options={staffNames} style={inputStyle} />
+      )}
       {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a, c) => { setDestination(a); setDestCoords(c || null); setShowMap(false) }} />}
       <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
         {!hideMiles && <input placeholder="Miles" value={miles} onChange={e => setMiles(e.target.value)} style={inputStyle} />}
@@ -117,7 +124,7 @@ function TripForm({ initial, defaultDriver = '', staffNames, residentNames, onSa
   )
 }
 
-function TripModal({ title, initial, defaultDriver = '', staffNames, residentNames, onClose, onSave, hideMiles = false, hint }) {
+function TripModal({ title, initial, defaultDriver = '', lockDriver = false, staffNames, residentNames, onClose, onSave, hideMiles = false, hint }) {
   const [saving, setSaving] = useState(false)
   const handleSave = async (data) => {
     setSaving(true)
@@ -130,7 +137,7 @@ function TripModal({ title, initial, defaultDriver = '', staffNames, residentNam
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: hint ? 4 : 16 }}>{title}</div>
         {hint && <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{hint}</div>}
-        <TripForm initial={initial} defaultDriver={defaultDriver} staffNames={staffNames} residentNames={residentNames}
+        <TripForm initial={initial} defaultDriver={defaultDriver} lockDriver={lockDriver} staffNames={staffNames} residentNames={residentNames}
           onSave={handleSave} onCancel={onClose} saving={saving} title={title} hideMiles={hideMiles} />
       </div>
     </div>
@@ -459,8 +466,11 @@ export function ScreenA_Driving({ user }) {
     }
   }
 
-  // Anyone can start/log a trip; the driver field records who's actually driving.
-  const canDrive = true
+  // Live trips are started by the person driving (DSP / house manager) for
+  // themselves — supervisors monitor. And you can't start a second while one of
+  // your own is already in progress.
+  const canDrive = user?.role === 'staff' || user?.role === 'manager'
+  const myActive = activeTrips.some(t => (t.driver_name || '').trim().toLowerCase() === (user?.name || '').trim().toLowerCase())
 
   return (
     <div className="phone-screen">
@@ -475,9 +485,7 @@ export function ScreenA_Driving({ user }) {
                 style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
                 Log past
               </button>
-              {/* Live trips are started by the person driving (DSP / manager); a
-                  supervisor monitors rather than logging others' drives. */}
-              {canDrive && (
+              {canDrive && !myActive && (
                 <button onClick={() => setShowStart(true)}
                   style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
                   <IconPlus size={13} sw={2.4} /> Start trip
@@ -556,7 +564,7 @@ export function ScreenA_Driving({ user }) {
       <TabBar active="drive" />
 
       {showStart && (
-        <TripModal title="Start trip" hideMiles hint="Your location is captured at start and end so the team can see the trip is underway."
+        <TripModal title="Start trip" hideMiles lockDriver hint="You're starting a trip for yourself — your location is captured so the team can see it's underway."
           defaultDriver={user?.name} staffNames={staffNames} residentNames={residentNames}
           onClose={() => setShowStart(false)} onSave={handleStart} />
       )}
