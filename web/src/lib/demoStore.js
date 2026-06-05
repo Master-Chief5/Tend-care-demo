@@ -223,6 +223,7 @@ export function demoAddTask(staffId, task) {
     id: uid('task'), staff_id: staffId, task_date: todayStr(),
     kind: task.kind || 'note', text: task.text, done: false,
     urgent: task.urgent || false, created_at: now(),
+    created_by_name: task.createdByName || null, created_by_role: task.createdByRole || null,
   }
   store.tasks.push(row); persist()
   return row

@@ -371,6 +371,8 @@ export async function addTask(orgId, staffId, task) {
       text:      task.text,
       done:      false,
       urgent:    task.urgent || false,
+      created_by_name: task.createdByName || null,
+      created_by_role: task.createdByRole || null,
     })
     .select()
     .single()
