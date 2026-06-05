@@ -3,7 +3,10 @@
 // stale-while-revalidate for our own static assets, and an offline fallback to
 // the cached app shell. Cross-origin requests (map tiles, geocoder) are left to
 // the network and never cached, so nothing goes stale there.
-const CACHE = 'tend-v1'
+// Bump this version whenever the app shell or caching strategy changes so old
+// caches are dropped on activate (prevents a stale index.html from referencing
+// content-hashed bundles that have since been removed from the server).
+const CACHE = 'tend-v2'
 const SHELL = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (e) => {

@@ -4,6 +4,14 @@ name: Build Android APK
 # installable debug APK. Run it from the Actions tab → "Build Android APK" →
 # "Run workflow", then download the "tend-android-apk" artifact and install it
 # on a phone (you'll need to allow "install from unknown sources").
+#
+# AUTO-UPDATING: capacitor.config.json points the WebView at the live site
+# (server.url = https://tend-care-demo.vercel.app). That means you build and
+# install this APK ONCE; from then on it always loads whatever is deployed to
+# production, so web/UI/logic changes appear in the app with no rebuild or
+# reinstall. Re-run this workflow only when something NATIVE changes (app icon,
+# name, the server URL, or an added Capacitor plugin). The bundled dist/ stays
+# in the APK as an offline fallback.
 on:
   workflow_dispatch:
 
