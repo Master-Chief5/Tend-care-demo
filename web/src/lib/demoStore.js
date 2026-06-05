@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [] }
 }
 
 function load() {
@@ -602,6 +602,8 @@ export function demoAddIncident(inc) {
     actions: inc.actions || '', notified: inc.notified || '',
     status: 'open', by: inc.by || null, at: now(), date: todayStr(),
     reviewed_by: null, reviewed_at: null,
+    reportable: inc.reportable || false, notified_at: null,
+    corrective_action: inc.correctiveAction || null, follow_up_due: inc.followUpDue || null,
   }
   store.incidents.unshift(row); persist()
   return row
@@ -614,8 +616,81 @@ export function demoReviewIncident(id, by) {
   if (i) { i.status = 'reviewed'; i.reviewed_by = by; i.reviewed_at = now() }
   persist(); return i
 }
+export function demoUpdateIncident(id, updates) {
+  const i = store.incidents.find(x => x.id === id)
+  if (!i) return null
+  if (updates.status !== undefined)           i.status = updates.status
+  if (updates.reportable !== undefined)        i.reportable = updates.reportable
+  if (updates.notified !== undefined)          i.notified = updates.notified
+  if (updates.markNotifiedNow)                 i.notified_at = now()
+  if (updates.correctiveAction !== undefined)  i.corrective_action = updates.correctiveAction
+  if (updates.followUpDue !== undefined)       i.follow_up_due = updates.followUpDue || null
+  persist(); return i
+}
 export function demoDeleteIncident(id) {
   store.incidents = store.incidents.filter(i => i.id !== id); persist()
+}
+
+// ── ISP goals + daily goal data ─────────────────────────────────────────────
+export function demoFetchGoals(houseId) {
+  return store.goals.filter(g => !houseId || g.house_id === houseId)
+    .map(g => ({ id: g.id, residentId: g.resident_id, resident: g.resident_id ? residentName(g.resident_id) : null, title: g.title, description: g.description, method: g.method, target: g.target, active: g.active }))
+}
+export function demoAddGoal(goal) {
+  const row = {
+    id: uid('goal'), house_id: goal.houseId || null, resident_id: goal.residentId || null,
+    title: goal.title, description: goal.description || null, method: goal.method || null, target: goal.target || null,
+    active: true, created_at: now(),
+  }
+  store.goals.push(row); persist()
+  return { ...row, residentId: row.resident_id, resident: row.resident_id ? residentName(row.resident_id) : null }
+}
+export function demoUpdateGoal(id, updates) {
+  const g = store.goals.find(x => x.id === id)
+  if (!g) return null
+  if (updates.title !== undefined)       g.title = updates.title
+  if (updates.description !== undefined) g.description = updates.description || null
+  if (updates.method !== undefined)      g.method = updates.method || null
+  if (updates.target !== undefined)      g.target = updates.target || null
+  if (updates.active !== undefined)      g.active = updates.active
+  persist(); return g
+}
+export function demoDeleteGoal(id) {
+  store.goals = store.goals.filter(g => g.id !== id)
+  store.goalData = store.goalData.filter(d => d.goal_id !== id); persist()
+}
+export function demoRecordGoalData(entry) {
+  const row = {
+    id: uid('gd'), house_id: entry.houseId || null, goal_id: entry.goalId, resident_id: entry.residentId || null,
+    log_date: entry.date || todayStr(), result: entry.result || null, value: entry.value ?? null,
+    note: entry.note || null, recorded_by: entry.by || null, recorded_at: now(),
+  }
+  store.goalData.unshift(row); persist()
+  return row
+}
+export function demoFetchGoalData(goalId, limit = 30) {
+  return store.goalData.filter(d => d.goal_id === goalId).slice(0, limit)
+    .map(d => ({ id: d.id, date: d.log_date, result: d.result, value: d.value, note: d.note, by: d.recorded_by, at: d.recorded_at }))
+}
+
+// ── Resident health logs ────────────────────────────────────────────────────
+export function demoFetchHealthLogs(houseId, kind = null, limit = 60) {
+  return store.healthLogs
+    .filter(h => (!houseId || h.house_id === houseId) && (!kind || h.kind === kind))
+    .slice(0, limit)
+    .map(h => ({ id: h.id, residentId: h.resident_id, resident: h.resident_id ? residentName(h.resident_id) : null, kind: h.kind, amount: h.amount, detail: h.detail || {}, note: h.note, date: h.log_date, occurredAt: h.occurred_at, by: h.recorded_by }))
+}
+export function demoAddHealthLog(entry) {
+  const row = {
+    id: uid('hl'), house_id: entry.houseId || null, resident_id: entry.residentId || null,
+    kind: entry.kind, amount: entry.amount ?? null, detail: entry.detail || {}, note: entry.note || null,
+    log_date: todayStr(), occurred_at: entry.occurredAt || now(), recorded_by: entry.by || null,
+  }
+  store.healthLogs.unshift(row); persist()
+  return { ...row, residentId: row.resident_id, resident: row.resident_id ? residentName(row.resident_id) : null, occurredAt: row.occurred_at, by: row.recorded_by }
+}
+export function demoDeleteHealthLog(id) {
+  store.healthLogs = store.healthLogs.filter(h => h.id !== id); persist()
 }
 
 // ── Safety drills (fire, tornado, evacuation) ────────────────────────────────
