@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident } from '../lib/db'
+import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident, fetchHouseGeofences, setHouseGeofence } from '../lib/db'
 import { IconChev, IconChat, IconPlus } from '../components/icons'
+import { MapPicker } from '../components/MapPicker'
 import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -173,6 +174,61 @@ function ViewField({ label, value, alert }) {
   )
 }
 
+// Supervisor/manager sets the house's location pin + alert radius. On-duty
+// staff who leave the radius are flagged on the team map.
+function GeofenceCard({ user, house, color }) {
+  const [geo, setGeo] = useState(null)        // saved { lat, lng, radiusM }
+  const [coords, setCoords] = useState(null)  // chosen pin
+  const [radius, setRadius] = useState(200)
+  const [showMap, setShowMap] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (!user?.orgId || !house?._uuid) return
+    fetchHouseGeofences(user.orgId).then(list => {
+      const g = list.find(x => x.id === house._uuid)
+      if (!g) return
+      setRadius(g.radiusM || 200)
+      if (g.lat != null) { setGeo(g); setCoords({ lat: g.lat, lng: g.lng }) }
+    })
+  }, [user?.orgId, house?._uuid])
+
+  const save = async () => {
+    if (!coords || saving) return
+    setSaving(true)
+    await setHouseGeofence(house._uuid, { lat: coords.lat, lng: coords.lng, radiusM: radius })
+    setSaving(false); setGeo({ lat: coords.lat, lng: coords.lng, radiusM: radius })
+    setSaved(true); setTimeout(() => setSaved(false), 1800)
+  }
+  const dirty = coords && (!geo || geo.lat !== coords.lat || geo.lng !== coords.lng || geo.radiusM !== radius)
+
+  return (
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)' }}>📍 Geofence · on-duty alerts</div>
+      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3, lineHeight: 1.4 }}>
+        Set this house's location and an alert radius. On-duty staff who leave it are flagged on your team map.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <button onClick={() => setShowMap(true)} style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', color: 'var(--a-ink)' }}>
+          {coords ? '📍 Move pin' : 'Set on map'}
+        </button>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>{coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}` : 'No location set'}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+        <span style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Radius</span>
+        <input type="range" min={50} max={1000} step={25} value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ flex: 1, accentColor: color }} />
+        <span className="tnum" style={{ fontSize: 12.5, fontWeight: 600, width: 56, textAlign: 'right' }}>{radius} m</span>
+      </div>
+      <button onClick={save} disabled={!dirty || saving} style={{ width: '100%', marginTop: 12, background: dirty ? 'var(--a-ink)' : 'var(--a-paper)', color: dirty ? 'var(--a-card)' : 'var(--a-ink3)', border: dirty ? 0 : '1px solid var(--a-line)', borderRadius: 10, padding: '10px', fontSize: 13.5, fontWeight: 600, fontFamily: 'Geist', cursor: dirty ? 'pointer' : 'default' }}>
+        {saving ? 'Saving…' : saved ? '✓ Saved' : geo ? 'Update geofence' : 'Save geofence'}
+      </button>
+      {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a, c) => { if (c) setCoords(c); setShowMap(false) }} />}
+    </div>
+  )
+}
+
 export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] }) {
   const house = houses.find(h => h.id === houseId) || houses[0] || null
   if (!house) return (
@@ -245,6 +301,8 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             <Stat label="Residents" big={residentsHome} sub={`${residents.length} total`} />
             <Stat label="Today's drives" big={drives} sub="logged" />
           </div>
+
+          {(user?.role === 'supervisor' || user?.role === 'manager') && <GeofenceCard user={user} house={house} color={c} />}
 
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Staff</div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '0 14px', marginBottom: 14 }}>
