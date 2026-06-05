@@ -451,8 +451,8 @@ export function ScreenA_Driving({ user }) {
     }
   }
 
-  // Only people who actually drive residents start live trips; supervisors monitor.
-  const canDrive = user?.role === 'staff' || user?.role === 'manager'
+  // Anyone can start/log a trip; the driver field records who's actually driving.
+  const canDrive = true
 
   return (
     <div className="phone-screen">
