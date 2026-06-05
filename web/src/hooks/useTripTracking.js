@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fetchActiveTrips, pingTrip, markArrived } from '../lib/db'
+import { reportGeo, geoError } from '../lib/geoStatus'
 
 // App-level live trip tracking. Runs regardless of which tab is open, so a
 // worker's location keeps reporting (and arrival auto-detects) during a drive
@@ -31,6 +32,7 @@ export function useTripTracking(user, onArrived) {
     const stopWatch = () => { if (watchId.current != null) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null } }
 
     const onPos = (pos) => {
+      reportGeo({ ok: true, kind: 'trip' })
       const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }
       for (const tr of active.current) {
         pingTrip(tr.id, c)
@@ -52,7 +54,7 @@ export function useTripTracking(user, onArrived) {
       if (stopped) return
       active.current = (rows || []).filter(r => my.has(r.id))
       if (active.current.length > 0 && watchId.current == null) {
-        watchId.current = navigator.geolocation.watchPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
+        watchId.current = navigator.geolocation.watchPosition(onPos, (err) => reportGeo(geoError(err, 'trip')), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
       } else if (active.current.length === 0) {
         stopWatch()
       }

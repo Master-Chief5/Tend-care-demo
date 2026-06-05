@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { pingStaffLocation, setStaffDuty } from '../lib/db'
+import { reportGeo, geoError } from '../lib/geoStatus'
 
 // App-level "on duty" location sharing for staff. While the staff member is on
 // duty (toggled in My Day), their phone shares its location with the org so the
@@ -28,12 +29,13 @@ export function useDutyTracking(user) {
     let stopped = false
 
     const stopWatch = () => { if (watchId.current != null) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null } }
-    const onPos = (pos) => { if (!stopped) pingStaffLocation(staffId, { lat: pos.coords.latitude, lng: pos.coords.longitude }) }
+    const onPos = (pos) => { if (!stopped) { reportGeo({ ok: true, kind: 'duty' }); pingStaffLocation(staffId, { lat: pos.coords.latitude, lng: pos.coords.longitude }) } }
+    const onErr = (err) => reportGeo(geoError(err, 'duty'))
 
     const sync = () => {
       if (isOnDuty()) {
         if (watchId.current == null) {
-          watchId.current = navigator.geolocation.watchPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 })
+          watchId.current = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 })
         }
       } else {
         stopWatch()
@@ -43,7 +45,7 @@ export function useDutyTracking(user) {
     sync()
     // Re-assert periodically so a fresh point lands even if the device is still
     // (watchPosition only fires on movement); also recovers a dropped watch.
-    const iv = setInterval(() => { if (isOnDuty()) navigator.geolocation.getCurrentPosition(onPos, () => {}, { maximumAge: 15000, timeout: 20000 }) }, 25000)
+    const iv = setInterval(() => { if (isOnDuty()) navigator.geolocation.getCurrentPosition(onPos, onErr, { maximumAge: 15000, timeout: 20000 }) }, 25000)
     window.addEventListener('tend-duty-changed', sync)
     return () => { stopped = true; clearInterval(iv); window.removeEventListener('tend-duty-changed', sync); stopWatch() }
   }, [user?.staffId])

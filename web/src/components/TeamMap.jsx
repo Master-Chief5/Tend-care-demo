@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadLeaflet, addBasemap } from '../lib/leaflet'
 import { fetchTeamLocations, fetchHouseGeofences } from '../lib/db'
+import { escapeHtml } from '../lib/utils'
 
 // Supervisor's live team view: a roster of everyone on duty plus a map of those
 // whose phone has reported a location. Renders nothing when no one is on duty.
@@ -76,12 +77,12 @@ export function TeamMap({ user }) {
       const dotColor = isOut ? '#c0392b' : p.color
       L.circleMarker([p.lat, p.lng], { radius: 14, color: dotColor, weight: 0, fillColor: dotColor, fillOpacity: 0.16, interactive: false }).addTo(layer)
       L.circleMarker([p.lat, p.lng], { radius: 8, color: '#fff', weight: 3, fillColor: dotColor, fillOpacity: 1 })
-        .bindPopup(`<strong>${p.name}</strong>${p.houseName ? ` · ${p.houseName}` : ''}<br/>${isOut ? '⚠ Outside perimeter<br/>' : ''}Updated ${ago(p.lastSeen) || 'just now'}`).addTo(layer)
+        .bindPopup(`<strong>${escapeHtml(p.name)}</strong>${p.houseName ? ` · ${escapeHtml(p.houseName)}` : ''}<br/>${isOut ? '⚠ Outside perimeter<br/>' : ''}Updated ${ago(p.lastSeen) || 'just now'}`).addTo(layer)
       L.marker([p.lat, p.lng], {
         interactive: false,
         icon: L.divIcon({
           className: 'team-label',
-          html: `<span style="background:var(--a-card);border:1px solid var(--a-line);border-radius:6px;padding:1px 6px;font:600 11px Geist,sans-serif;color:var(--a-ink);white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.12)">${p.name.split(' ')[0]}</span>`,
+          html: `<span style="background:var(--a-card);border:1px solid var(--a-line);border-radius:6px;padding:1px 6px;font:600 11px Geist,sans-serif;color:var(--a-ink);white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.12)">${escapeHtml(p.name.split(' ')[0])}</span>`,
           iconSize: [0, 0], iconAnchor: [-10, 8],
         }),
       }).addTo(layer)

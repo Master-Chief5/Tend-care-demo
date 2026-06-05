@@ -14,6 +14,7 @@ import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
+import { GeoStatusBanner } from '../GeoStatusBanner'
 
 function normalizeHouse(h) {
   return {
@@ -162,6 +163,7 @@ export function MobileShell({ user, onLogout }) {
 
   return (
     <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
+      <GeoStatusBanner />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}

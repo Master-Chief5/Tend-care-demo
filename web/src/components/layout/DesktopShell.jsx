@@ -13,6 +13,7 @@ import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
+import { GeoStatusBanner } from '../GeoStatusBanner'
 
 function normalizeHouse(h) {
   return {
@@ -47,7 +48,7 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />
-  if (tab === 'team')        return <PageTeamDesktop />
+  if (tab === 'team')        return <PageTeamDesktop user={user} />
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
   if (tab === 'staff')       return <PageStaffDesktop user={user} houses={houses} />
@@ -137,6 +138,7 @@ export function DesktopShell({ user, onLogout }) {
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
+      <GeoStatusBanner />
       <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
         <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />

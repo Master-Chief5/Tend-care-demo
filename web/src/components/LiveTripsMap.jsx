@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadLeaflet, addBasemap, makePin, fetchRoute } from '../lib/leaflet'
+import { escapeHtml } from '../lib/utils'
 
 // Live map of in-progress trips: a dot for each worker's current location, a pin
 // for the destination, and a road-following route between them (free OSRM). The
@@ -72,11 +73,11 @@ export function LiveTripsMap({ trips = [] }) {
       if (hasCur) {
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 15, color, weight: 0, fillColor: color, fillOpacity: 0.18, interactive: false }).addTo(layer)
         L.circleMarker([t.cur_lat, t.cur_lng], { radius: 8, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 })
-          .bindPopup(`${t.driver_name || 'Worker'} → ${t.destination || ''}`).addTo(layer)
+          .bindPopup(`${escapeHtml(t.driver_name || 'Worker')} → ${escapeHtml(t.destination || '')}`).addTo(layer)
         pts.push([t.cur_lat, t.cur_lng])
       }
       if (hasDest) {
-        L.marker([t.dest_lat, t.dest_lng], { icon: makePin(L, color) }).bindPopup(`Destination: ${t.destination || ''}`).addTo(layer)
+        L.marker([t.dest_lat, t.dest_lng], { icon: makePin(L, color) }).bindPopup(`Destination: ${escapeHtml(t.destination || '')}`).addTo(layer)
         pts.push([t.dest_lat, t.dest_lng])
       }
 

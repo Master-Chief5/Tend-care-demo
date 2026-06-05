@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [] }
 }
 
 function load() {
@@ -291,6 +291,7 @@ export function demoAddTrip(trip) {
 export function demoStartTrip(trip) {
   const row = {
     id: uid('trip'), house_id: trip.houseId || null,
+    driver_id: trip.driverId || null,
     driver_name: trip.driverName || 'Unknown', resident_name: trip.residentName,
     destination: trip.destination, miles: trip.miles || 0, purpose: trip.purpose || 'Other',
     trip_date: todayStr(), created_at: now(), status: 'active', started_at: now(),
@@ -728,4 +729,23 @@ export function demoDeleteResident(id) {
   store.residents = store.residents.filter(x => x.id !== id)
   if (r) { const h = store.houses.find(x => x.id === r.house_id); if (h && h.residents_count > 0) h.residents_count -= 1 }
   persist()
+}
+
+// ── Team chat (messages) ─────────────────────────────────────────────────────
+export function demoFetchMessages({ houseId = null } = {}) {
+  const want = houseId || null
+  return store.messages
+    .filter(m => (m.house_id || null) === want)
+    .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+}
+
+export function demoSendMessage(orgId, msg) {
+  if (!msg?.body?.trim()) return null
+  const row = {
+    id: uid('msg'), org_id: orgId, house_id: msg.houseId || null,
+    author_staff_id: msg.authorStaffId || null, author_name: msg.authorName || null,
+    author_role: msg.authorRole || null, body: msg.body.trim(), created_at: now(),
+  }
+  store.messages.push(row); persist()
+  return row
 }

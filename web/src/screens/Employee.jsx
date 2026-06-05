@@ -5,7 +5,7 @@ import { HouseItems } from '../components/HouseItems'
 import { OnDutyCard } from '../components/OnDutyCard'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconCheck, IconCal, IconCar, IconChat, IconBook, IconPlus, IconPeople } from '../components/icons'
+import { IconCheck, IconCal, IconCar, IconChat, IconPlus, IconPeople } from '../components/icons'
 
 const kindMap = {
   med:   { label: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
@@ -226,7 +226,6 @@ export function ScreenA_Me({ user, onLogout, onNavigate }) {
     { Icon: IconCal,  label: 'My schedule', tab: 'sched' },
     { Icon: IconCar,  label: 'My trips',    tab: 'drive' },
     { Icon: IconChat, label: 'Messages',    tab: 'team' },
-    { Icon: IconBook, label: 'Training',    tab: null },
   ]
 
   return (

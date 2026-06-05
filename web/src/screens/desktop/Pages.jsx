@@ -10,6 +10,7 @@ import { Pill } from '../../components/ui/Pill'
 import { StaffCard } from '../People'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
 import { IconPlus, IconSearch, IconChev, IconChat, IconArrow } from '../../components/icons'
+import { TeamChat } from '../../components/TeamChat'
 
 // ── Local helpers ─────────────────────────────────────────────────────
 
@@ -387,79 +388,8 @@ function Msg({ who, color, time, text, me }) {
   )
 }
 
-export function PageTeamDesktop() {
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 40 }}>💬</div>
-      <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--a-ink)' }}>Team Chat</div>
-      <div style={{ fontSize: 14, color: 'var(--a-ink3)', lineHeight: 1.6, maxWidth: 340 }}>
-        End-to-end encrypted messaging is coming soon. Messages will be live and never stored on any server.
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--a-ink3)', background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '5px 16px', marginTop: 8 }}>
-        Coming soon
-      </div>
-    </div>
-  )
-}
-
-function PageTeamDesktop_OLD() {
-  const [selectedKey, setSelectedKey] = useState('oak')
-  const channelKeys = ['oak', 'willow', 'maple', 'cedar', 'carmen', 'marcus']
-  const channels = channelKeys.map(k => ({ key: k, ...CHAT_DATA[k] }))
-  const dmKeys = ['carmen', 'marcus']
-  const ch = CHAT_DATA[selectedKey]
-  const h = HOUSES.find(x => x.id === selectedKey)
-  const chColor = h ? h.color : (ch.color || '#6e4d8f')
-
-  return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-      <div style={{ width: 300, borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', background: 'var(--a-card)', flexShrink: 0 }}>
-        <div style={{ padding: '18px 18px 10px' }}>
-          <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>Team chat</div>
-          <div style={{ background: 'var(--a-paper)', borderRadius: 999, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--a-line)', marginTop: 10 }}>
-            <IconSearch size={13} color="var(--a-ink3)" />
-            <input placeholder="Search messages" style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 12.5, fontFamily: 'Geist', color: 'var(--a-ink2)' }} />
-          </div>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto', paddingBottom: 16 }}>
-          <SectionLabel>House channels</SectionLabel>
-          {channels.filter(c => !dmKeys.includes(c.key)).map(c => (
-            <ChannelRow key={c.key} ch={c} active={selectedKey === c.key} onClick={() => setSelectedKey(c.key)} />
-          ))}
-          <SectionLabel>Direct messages</SectionLabel>
-          {channels.filter(c => dmKeys.includes(c.key)).map(c => (
-            <ChannelRow key={c.key} ch={c} active={selectedKey === c.key} onClick={() => setSelectedKey(c.key)} />
-          ))}
-        </div>
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--a-bg)' }}>
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--a-line)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 6, background: chColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{ch.short}</div>
-          <div>
-            <div className="serif" style={{ fontSize: 18, letterSpacing: '-0.01em' }}>{ch.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{ch.members}</div>
-          </div>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0 14px' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--a-line)' }} />
-            <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>Today</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--a-line)' }} />
-          </div>
-          {ch.messages.map((m, i) => (
-            <Msg key={i} who={m.from} color={m.from === 'You' ? 'var(--a-clay)' : chColor} time={m.time} text={m.text} me={m.from === 'You'} />
-          ))}
-        </div>
-        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--a-line)' }}>
-          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input placeholder={`Message ${ch.name}…`} style={{ background: 'transparent', border: 0, outline: 0, flex: 1, fontSize: 13.5, fontFamily: 'Geist', color: 'var(--a-ink)' }} />
-            <button style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Send</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+export function PageTeamDesktop({ user }) {
+  return <TeamChat user={user} desktop />
 }
 
 // ── Staff ─────────────────────────────────────────────────────────────
