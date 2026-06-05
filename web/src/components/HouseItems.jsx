@@ -13,6 +13,12 @@ const KIND = {
   note:   { label: 'Note',   bg: 'var(--a-paper)', tc: 'var(--a-ink3)' },
 }
 const roleLabel = (r) => r === 'supervisor' ? 'supervisor' : r === 'manager' ? 'manager' : 'worker'
+// Badge for who logged an item — so the supervisor stands out at a glance.
+const ROLE_BADGE = {
+  supervisor: { label: 'Supervisor', bg: 'var(--a-clay)', tc: '#fff' },
+  manager:    { label: 'Manager',    bg: '#2f9489',       tc: '#fff' },
+  staff:      { label: 'DSP',        bg: 'var(--a-sage)', tc: '#fff' },
+}
 
 export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
   const isSup = user?.role === 'supervisor' || user?.role === 'manager'
@@ -99,7 +105,10 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
                   {forSup && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#8a6d1e', background: '#f5e9d6', padding: '1px 6px', borderRadius: 3 }}>For supervisor</span>}
                 </div>
                 <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.35 }}>{it.text}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 2 }}>by {it.created_by_name || 'someone'} · {roleLabel(it.created_by_role)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                  <span style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>by {it.created_by_name || 'someone'}</span>
+                  {ROLE_BADGE[it.created_by_role] && <span style={{ fontSize: 8.5, fontWeight: 700, color: ROLE_BADGE[it.created_by_role].tc, background: ROLE_BADGE[it.created_by_role].bg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.03em' }}>{ROLE_BADGE[it.created_by_role].label}</span>}
+                </div>
               </div>
               <button onClick={() => remove(it)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
             </div>

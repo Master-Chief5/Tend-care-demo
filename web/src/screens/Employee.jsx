@@ -13,6 +13,12 @@ const kindMap = {
   note:  { label: 'Note',  bg: 'var(--a-paper)', tc: 'var(--a-ink3)' },
   shop:  { label: 'Shop',  bg: '#f5e9d6', tc: '#a47012' },
 }
+// Who assigned a task — surfaced so a DSP knows when it came from the boss.
+const ROLE_BADGE = {
+  supervisor: { label: 'Supervisor', bg: 'var(--a-clay)', tc: '#fff' },
+  manager:    { label: 'Manager',    bg: '#2f9489',       tc: '#fff' },
+  staff:      { label: 'DSP',        bg: 'var(--a-sage)', tc: '#fff' },
+}
 
 function AddTaskModal({ user, onClose, onAdded }) {
   const [text, setText]         = useState('')
@@ -35,7 +41,7 @@ function AddTaskModal({ user, onClose, onAdded }) {
     const targetStaffId = isSupervisorOrMgr ? (assignedId || null) : (user?.staffId || null)
     if (!targetStaffId) return
     setSaving(true)
-    const task = await addTask(user.orgId, targetStaffId, { kind, text: text.trim(), urgent })
+    const task = await addTask(user.orgId, targetStaffId, { kind, text: text.trim(), urgent, createdByName: user?.name || null, createdByRole: user?.role || null })
     setSaving(false)
     if (task) onAdded(task)
   }
@@ -167,6 +173,12 @@ export function ScreenA_MyDay({ user }) {
                     {t.urgent && !t.done && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', letterSpacing: '0.04em' }}>URGENT</span>}
                   </div>
                   <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.4, textDecoration: t.done ? 'line-through' : 'none' }}>{t.text}</div>
+                  {t.created_by_name && (t.created_by_role === 'supervisor' || t.created_by_role === 'manager' || t.created_by_name !== user?.name) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                      <span style={{ fontSize: 9.5, color: 'var(--a-ink3)' }}>Added by {t.created_by_name}</span>
+                      {ROLE_BADGE[t.created_by_role] && <span style={{ fontSize: 8.5, fontWeight: 700, color: ROLE_BADGE[t.created_by_role].tc, background: ROLE_BADGE[t.created_by_role].bg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.03em' }}>{ROLE_BADGE[t.created_by_role].label}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
             )
