@@ -45,6 +45,8 @@ export function LiveTripsMap({ trips = [] }) {
       const color = t.houses?.color || '#b8552f'
       const hasCur = t.cur_lat != null
       const hasDest = t.dest_lat != null
+      const recent = t.started_at && (Date.now() - new Date(t.started_at).getTime() < 45000)
+      let routeDrawn = false
 
       if (hasCur && hasDest) {
         const from = { lat: t.cur_lat, lng: t.cur_lng }, to = { lat: t.dest_lat, lng: t.dest_lng }
@@ -52,23 +54,19 @@ export function LiveTripsMap({ trips = [] }) {
         if (route && route.coords) {
           drawRoute(L, layer, route.coords, color, pts)
           lastRoute.current.set(t.id, route.coords)
+          routeDrawn = true
         } else {
           ensureRoute(from, to)
           const lr = lastRoute.current.get(t.id)
           if (lr) {
             // Keep the last good route on screen while the next one loads.
             drawRoute(L, layer, lr, color, pts)
+            routeDrawn = true
           } else {
-            // First load for this trip — straight line + show "Loading route…".
+            // First load — straight line under the "Loading route…" badge.
             L.polyline([[t.cur_lat, t.cur_lng], [t.dest_lat, t.dest_lng]], { color, weight: 3, dashArray: '2,7', lineCap: 'round', opacity: 0.7 }).addTo(layer)
-            firstLoad = true
           }
         }
-      } else if (hasCur && t.destination && t.started_at && (Date.now() - new Date(t.started_at).getTime() < 30000)) {
-        // Just-started trip whose destination is still being located (geocoded)
-        // — show the loading state now rather than a silent wait. Capped at 30s
-        // so a destination that can't be mapped doesn't spin forever.
-        firstLoad = true
       }
 
       if (hasCur) {
@@ -81,6 +79,11 @@ export function LiveTripsMap({ trips = [] }) {
         L.marker([t.dest_lat, t.dest_lng], { icon: makePin(L, color) }).bindPopup(`Destination: ${t.destination || ''}`).addTo(layer)
         pts.push([t.dest_lat, t.dest_lng])
       }
+
+      // A freshly-started trip without its route drawn yet (waiting on a GPS fix,
+      // the destination geocode, or the route fetch) shows "Loading route…" — so
+      // the whole resolve window reads as loading, never a silent pin.
+      if (recent && !routeDrawn && (hasCur || hasDest)) firstLoad = true
     }
     // Fit once; afterwards just keep the worker in view by panning, so the map
     // doesn't jarringly re-zoom on every position update.

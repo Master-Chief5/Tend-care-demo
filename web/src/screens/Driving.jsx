@@ -372,6 +372,14 @@ export function ScreenA_Driving({ user }) {
   // Start a trip now (status=active). Created instantly; GPS is captured in the
   // background so the trip never waits on the location-permission prompt.
   const handleStart = async (data) => {
+    // A driver can only be on one live trip at a time — starting a second while
+    // one is active confuses the live tracking. Block it.
+    const driver = (data.driverName || '').trim().toLowerCase()
+    if (driver && activeTrips.some(t => (t.driver_name || '').trim().toLowerCase() === driver)) {
+      setShowStart(false)
+      showToast(`${data.driverName} already has a trip in progress — end it first`)
+      return
+    }
     // Scope the trip to the resident's house (so a supervisor's trip isn't orphaned).
     const resHouse = residentsFull.find(r => r.name === data.residentName)?.house_id
     const houseId = user.houseId || resHouse || null
