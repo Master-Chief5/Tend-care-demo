@@ -86,7 +86,7 @@ function FilterChip({ active, onClick, label, sub, short, color }) {
   )
 }
 
-function ShiftBlock({ shift, houseColor, expanded, onClick }) {
+function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
   const { start, end, person, role, status } = shift
   const top = (start - DAY_START) * HOUR_PX
   const height = (end - start) * HOUR_PX
@@ -102,23 +102,25 @@ function ShiftBlock({ shift, houseColor, expanded, onClick }) {
       position: 'absolute', top: top + 2, left: 2, right: 2, height: Math.max(height - 4, 20),
       background: bg, border, borderRadius: 6, cursor: 'pointer',
       padding: expanded ? '8px 12px' : '4px 6px', color: txt, overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', gap: 2, opacity: dim ? 0.78 : 1,
+      display: 'flex', flexDirection: 'column', gap: 2, opacity: dim && !mine ? 0.78 : 1,
+      boxShadow: mine ? '0 0 0 2.5px var(--a-bg), 0 0 0 4px var(--a-ink)' : 'none',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
         <span className="tnum" style={{ fontSize: expanded ? 11 : 9, fontWeight: 700, letterSpacing: '0.04em', opacity: open ? 1 : 0.85 }}>
           {fmtTime(start)}–{fmtTime(end)}
         </span>
+        {mine && <span style={{ fontSize: 8, fontWeight: 800, color: houseColor, background: '#fff', padding: '0 4px', borderRadius: 3, letterSpacing: '0.06em' }}>YOU</span>}
         {late && <span style={{ fontSize: 8, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.9)', padding: '0 4px', borderRadius: 3 }}>LATE</span>}
         {swap && <span style={{ fontSize: 8, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.18)', padding: '0 4px', borderRadius: 3 }}>SWAP</span>}
       </div>
-      <div style={{ fontSize: expanded ? 14 : 11, fontWeight: 700, lineHeight: 1.1, color: open ? houseColor : '#fff' }}>{person}</div>
+      <div style={{ fontSize: expanded ? 14 : 11, fontWeight: 700, lineHeight: 1.1, color: open ? houseColor : '#fff' }}>{mine ? 'You' : person}</div>
       {height > 48 && <div style={{ fontSize: expanded ? 11 : 9, opacity: open ? 0.8 : 0.7, fontWeight: 500 }}>{role}</div>}
       {shift.note && height > 78 && <div style={{ fontSize: expanded ? 10.5 : 9, opacity: 0.78, fontStyle: 'italic', marginTop: 2, lineHeight: 1.25, overflow: 'hidden' }}>“{shift.note}”</div>}
     </div>
   )
 }
 
-function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick }) {
+function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick, isMine }) {
   const hours = []
   for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
   const nowTop = (nowFrac - DAY_START) * HOUR_PX
@@ -141,7 +143,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick }) {
               <div key={i} style={{ height: HOUR_PX, borderBottom: i === hours.length - 1 ? '' : '1px solid var(--a-line)', background: i % 2 === 1 ? 'rgba(216, 204, 177, 0.07)' : 'transparent' }} />
             ))}
             {shifts.filter(s => s.house === h.id).map((s, si) => (
-              <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} onClick={() => onShiftClick?.(s)} />
+              <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} mine={isMine?.(s)} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>
         ))}
@@ -342,12 +344,15 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onCl
     e.preventDefault()
     if (!personName.trim() || !houseId || !user?.orgId || saving || dur <= 0) return
     setSaving(true)
+    // Link the shift to a real staff member when the typed name matches one, so
+    // that worker's app can reliably flag "your shift".
+    const staffId = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase())?.id || null
     if (editShift) {
-      await updateShift(editShift.id, { personName: personName.trim(), role, startHour: sH, endHour: eH, date, note: note.trim() })
+      await updateShift(editShift.id, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date, note: note.trim() })
     } else {
       const dates = expandRepeatDates(date, repeatDays, weeks)
       for (const d of dates) {
-        await addShift(user.orgId, houseId, { personName: personName.trim(), role, startHour: sH, endHour: eH, date: d, note: note.trim() })
+        await addShift(user.orgId, houseId, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date: d, note: note.trim() })
       }
     }
     setSaving(false)
@@ -452,6 +457,13 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
 
   const isSupervisor = user?.role === 'supervisor'
 
+  // A shift belongs to the signed-in worker if it's linked to their staff row
+  // (new shifts) or, as a fallback, the name matches (older/free-text shifts).
+  const myStaffId = user?.staffId
+  const myName = (user?.name || '').trim().toLowerCase()
+  const isMine = (s) => employee && s.status !== 'open'
+    && ((myStaffId && s.staffId === myStaffId) || (!!myName && (s.person || '').trim().toLowerCase() === myName))
+
   // Use the `houses` prop (real DB houses, normalized) instead of the HOUSES constant.
   const displayHouses = isSupervisor ? houses : houses.filter(h => h.id === user?.houseSlug)
 
@@ -491,13 +503,25 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
 
   const canAddShift = user?.role === 'supervisor' || user?.role === 'manager'
 
+  // DSP view: this worker's own shifts in the loaded range, soonest first.
+  const todayStr = toDateStr(new Date())
+  const myUpcoming = employee
+    ? weekShifts.filter(isMine)
+        .filter(s => s.date > todayStr || (s.date === todayStr && s.end >= nowFrac))
+        .sort((a, b) => a.date === b.date ? a.start - b.start : a.date.localeCompare(b.date))
+    : []
+  const myNext = myUpcoming[0]
+  const myDayCount = employee ? dayShifts.filter(isMine).length : 0
+
   return (
     <div className="phone-screen">
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 22px 6px' }}>
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em', lineHeight: 1.05 }}>Schedule</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>{fmtDayLabel(anchorDate)} · {dayShifts.length} shifts</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)' }}>
+              {fmtDayLabel(anchorDate)} · {dayShifts.length} shifts{employee && myDayCount > 0 && <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}> · {myDayCount} yours</span>}
+            </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <ViewToggle view={view} setView={setView} />
               {canAddShift && (
@@ -508,6 +532,22 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
             </div>
           </div>
         </div>
+
+        {employee && myNext && (
+          <div style={{ padding: '4px 22px 10px' }}>
+            <div style={{ background: 'var(--a-sage)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, color: '#fff' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Your<br />next</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  {myNext.date === todayStr ? 'Today' : fmtDayLabel(new Date(myNext.date + 'T12:00:00'))} · {hourLabel(myNext.start)}–{hourLabel(myNext.end)}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 1 }}>
+                  {(displayHouses.find(h => h.id === myNext.house)?.name) || myNext.role}{myNext.note ? ` · “${myNext.note}”` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {user?.role === 'supervisor' && (
           <div style={{ padding: '4px 22px 10px' }}>
@@ -538,7 +578,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
-          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} isMine={isMine} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
         </div>
       </div>
       <TabBar active="sched" />

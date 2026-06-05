@@ -53,6 +53,7 @@ export async function fetchShifts(orgId, houseId, date) {
     start:  Number(s.start_hour),
     end:    Number(s.end_hour),
     person: s.person_name,
+    staffId: s.staff_id ?? null,
     role:   s.role,
     note:   s.note ?? null,
     status: s.status,
@@ -85,6 +86,7 @@ export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
     start:  Number(s.start_hour),
     end:    Number(s.end_hour),
     person: s.person_name,
+    staffId: s.staff_id ?? null,
     role:   s.role,
     note:   s.note ?? null,
     status: s.status,
@@ -101,6 +103,7 @@ export async function addShift(orgId, houseId, shift) {
       org_id:      orgId,
       house_id:    houseId,
       person_name: shift.personName,
+      staff_id:    shift.staffId || null,
       role:        shift.role,
       start_hour:  shift.startHour,
       end_hour:    shift.endHour,
@@ -119,6 +122,7 @@ export async function updateShift(id, updates) {
   if (!supabase) return null
   const patch = {}
   if (updates.personName !== undefined) patch.person_name = updates.personName
+  if (updates.staffId !== undefined)    patch.staff_id = updates.staffId || null
   if (updates.role !== undefined)       patch.role = updates.role
   if (updates.startHour !== undefined)  patch.start_hour = updates.startHour
   if (updates.endHour !== undefined)    patch.end_hour = updates.endHour
@@ -256,13 +260,19 @@ export async function pingStaffLocation(staffId, coords) {
   if (error) console.error('pingStaffLocation:', error.message)
 }
 
-// On-duty staff with a recent location, for the supervisor's team map.
+// How long a location stays on the supervisor's map after the last GPS ping.
+// Past this, the dot is hidden so a worker who lost signal (or forgot to go
+// off duty) doesn't linger as a stale "ghost" at an old spot.
+export const LOCATION_FRESH_MS = 30 * 60 * 1000
+
+// On-duty staff with a RECENT location, for the supervisor's team map.
 export async function fetchTeamLocations(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchTeamLocations(houseId)
   if (!supabase || !orgId) return []
+  const cutoff = new Date(Date.now() - LOCATION_FRESH_MS).toISOString()
   let q = supabase.from('staff')
     .select('id, name, role, house_id, cur_lat, cur_lng, last_seen_at, on_duty, houses(slug, name, color)')
-    .eq('org_id', orgId).eq('on_duty', true).not('cur_lat', 'is', null)
+    .eq('org_id', orgId).eq('on_duty', true).not('cur_lat', 'is', null).gte('last_seen_at', cutoff)
   if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) { console.error('fetchTeamLocations:', error.message); return [] }
