@@ -66,8 +66,8 @@ const inputStyle = {
   padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box',
 }
 
-function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving, title, hideMiles = false }) {
-  const [driverName, setDriverName]     = useState(initial?.driver_name || '')
+function TripForm({ initial, defaultDriver = '', staffNames, residentNames, onSave, onCancel, saving, title, hideMiles = false }) {
+  const [driverName, setDriverName]     = useState(initial?.driver_name || defaultDriver || '')
   const [residentName, setResidentName] = useState(initial?.resident_name || '')
   const [destination, setDestination]   = useState(initial?.destination || '')
   const [miles, setMiles]               = useState(initial?.miles != null ? String(initial.miles) : '')
@@ -76,11 +76,12 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
   const [destCoords, setDestCoords]     = useState(null)
 
   const purposeOpts = ['Medical appt', 'Day program', 'Pharmacy', 'Grocery', 'Outing', 'Other']
+  const ready = residentName.trim() && destination.trim() && driverName.trim()
 
   const submit = (e) => {
     e.preventDefault()
-    if (!residentName.trim() || !destination.trim()) return
-    onSave({ driverName: driverName.trim() || 'Unknown', residentName: residentName.trim(), destination: destination.trim(), miles: parseFloat(miles) || 0, purpose, destLat: destCoords?.lat, destLng: destCoords?.lng })
+    if (!ready) return
+    onSave({ driverName: driverName.trim(), residentName: residentName.trim(), destination: destination.trim(), miles: parseFloat(miles) || 0, purpose, destLat: destCoords?.lat, destLng: destCoords?.lng })
   }
 
   return (
@@ -93,7 +94,7 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
           📍 Pick on map{destCoords ? ' ✓' : ''}
         </button>
       </div>
-      <SuggestInput placeholder="Driver name" value={driverName} onChange={setDriverName}
+      <SuggestInput placeholder="Driver — who's driving (required)" value={driverName} onChange={setDriverName}
         options={staffNames} style={inputStyle} />
       {showMap && <MapPicker onClose={() => setShowMap(false)} onPick={(a, c) => { setDestination(a); setDestCoords(c || null); setShowMap(false) }} />}
       <div style={{ display: 'grid', gridTemplateColumns: hideMiles ? '1fr' : '1fr 1fr', gap: 10 }}>
@@ -107,8 +108,8 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
           style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 10, fontSize: 13, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>
           Cancel
         </button>
-        <button type="submit" disabled={!residentName.trim() || !destination.trim() || saving}
-          style={{ flex: 2, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (residentName.trim() && destination.trim()) ? 'pointer' : 'default', opacity: (residentName.trim() && destination.trim()) ? 1 : 0.5 }}>
+        <button type="submit" disabled={!ready || saving}
+          style={{ flex: 2, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: ready ? 'pointer' : 'default', opacity: ready ? 1 : 0.5 }}>
           {saving ? 'Saving…' : title}
         </button>
       </div>
@@ -116,7 +117,7 @@ function TripForm({ initial, staffNames, residentNames, onSave, onCancel, saving
   )
 }
 
-function TripModal({ title, initial, staffNames, residentNames, onClose, onSave, hideMiles = false, hint }) {
+function TripModal({ title, initial, defaultDriver = '', staffNames, residentNames, onClose, onSave, hideMiles = false, hint }) {
   const [saving, setSaving] = useState(false)
   const handleSave = async (data) => {
     setSaving(true)
@@ -129,7 +130,7 @@ function TripModal({ title, initial, staffNames, residentNames, onClose, onSave,
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: hint ? 4 : 16 }}>{title}</div>
         {hint && <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{hint}</div>}
-        <TripForm initial={initial} staffNames={staffNames} residentNames={residentNames}
+        <TripForm initial={initial} defaultDriver={defaultDriver} staffNames={staffNames} residentNames={residentNames}
           onSave={handleSave} onCancel={onClose} saving={saving} title={title} hideMiles={hideMiles} />
       </div>
     </div>
@@ -450,6 +451,9 @@ export function ScreenA_Driving({ user }) {
     }
   }
 
+  // Only people who actually drive residents start live trips; supervisors monitor.
+  const canDrive = user?.role === 'staff' || user?.role === 'manager'
+
   return (
     <div className="phone-screen">
       <Toast msg={toast} />
@@ -463,10 +467,14 @@ export function ScreenA_Driving({ user }) {
                 style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
                 Log past
               </button>
-              <button onClick={() => setShowStart(true)}
-                style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
-                <IconPlus size={13} sw={2.4} /> Start trip
-              </button>
+              {/* Live trips are started by the person driving (DSP / manager); a
+                  supervisor monitors rather than logging others' drives. */}
+              {canDrive && (
+                <button onClick={() => setShowStart(true)}
+                  style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist', cursor: 'pointer' }}>
+                  <IconPlus size={13} sw={2.4} /> Start trip
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -541,11 +549,11 @@ export function ScreenA_Driving({ user }) {
 
       {showStart && (
         <TripModal title="Start trip" hideMiles hint="Your location is captured at start and end so the team can see the trip is underway."
-          staffNames={staffNames} residentNames={residentNames}
+          defaultDriver={user?.name} staffNames={staffNames} residentNames={residentNames}
           onClose={() => setShowStart(false)} onSave={handleStart} />
       )}
       {showLog && (
-        <TripModal title="Log past trip" staffNames={staffNames} residentNames={residentNames}
+        <TripModal title="Log past trip" defaultDriver={user?.name} staffNames={staffNames} residentNames={residentNames}
           onClose={() => setShowLog(false)} onSave={handleAdd} />
       )}
       {editTrip && (
