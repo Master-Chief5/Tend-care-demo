@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident, fetchHouseGeofences, setHouseGeofence } from '../lib/db'
-import { IconChev, IconChat, IconPlus, IconDots } from '../components/icons'
+import { IconChev, IconChat, IconPlus } from '../components/icons'
 import { loadLeaflet, addBasemap } from '../lib/leaflet'
 import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
@@ -174,35 +174,20 @@ function ViewField({ label, value, alert }) {
   )
 }
 
-// Interactive geofence editor: a live map where the supervisor taps/drags the
-// pin and the radius circle updates in real time as the slider moves. Lives in
-// House settings (⋯), not the overview.
-function GeofenceEditor({ user, house, color }) {
-  const [geo, setGeo] = useState(null)        // saved { lat, lng, radiusM }
-  const [coords, setCoords] = useState(null)  // chosen pin
-  const [radius, setRadius] = useState(200)
+// Interactive geofence editor: a live map where you tap/drag the pin and the
+// radius circle resizes in real time as you drag the slider. Mounts only while
+// editing, so the map builds fresh each time.
+function GeofenceEditor({ house, color, initial, onSaved, onCancel }) {
+  const [coords, setCoords] = useState(initial?.lat != null ? { lat: initial.lat, lng: initial.lng } : null)
+  const [radius, setRadius] = useState(initial?.radiusM || 200)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const elRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
   const circleRef = useRef(null)
   const Lref = useRef(null)
-  const coordsRef = useRef(coords); coordsRef.current = coords
   const radiusRef = useRef(radius); radiusRef.current = radius
 
-  // Load any saved geofence first.
-  useEffect(() => {
-    if (!user?.orgId || !house?._uuid) return
-    fetchHouseGeofences(user.orgId).then(list => {
-      const g = list.find(x => x.id === house._uuid)
-      if (!g) return
-      setRadius(g.radiusM || 200)
-      if (g.lat != null) { setGeo(g); setCoords({ lat: g.lat, lng: g.lng }) }
-    })
-  }, [user?.orgId, house?._uuid])
-
-  // Build the map once.
   useEffect(() => {
     let cancelled = false, tries = 0
     const place = (latlng) => {
@@ -210,7 +195,7 @@ function GeofenceEditor({ user, house, color }) {
       if (!L || !map) return
       if (!markerRef.current) {
         markerRef.current = L.marker(latlng, { draggable: true }).addTo(map)
-        markerRef.current.on('drag', () => { const ll = markerRef.current.getLatLng(); circleRef.current?.setLatLng(ll) })
+        markerRef.current.on('drag', () => circleRef.current?.setLatLng(markerRef.current.getLatLng()))
         markerRef.current.on('dragend', () => { const ll = markerRef.current.getLatLng(); setCoords({ lat: ll.lat, lng: ll.lng }) })
       } else markerRef.current.setLatLng(latlng)
       if (!circleRef.current) circleRef.current = L.circle(latlng, { radius: radiusRef.current, color, weight: 2, fillColor: color, fillOpacity: 0.12 }).addTo(map)
@@ -219,15 +204,16 @@ function GeofenceEditor({ user, house, color }) {
     const init = (L) => {
       if (cancelled || !L || !elRef.current || mapRef.current) return
       Lref.current = L
-      const start = coordsRef.current ? [coordsRef.current.lat, coordsRef.current.lng] : [40.7128, -74.006]
-      const map = L.map(elRef.current, { renderer: L.svg({ padding: 2 }) }).setView(start, coordsRef.current ? 16 : 12)
+      const seed = initial?.lat != null ? [initial.lat, initial.lng] : [40.7128, -74.006]
+      const map = L.map(elRef.current, { renderer: L.svg({ padding: 2 }) }).setView(seed, initial?.lat != null ? 16 : 12)
       mapRef.current = map
       addBasemap(L, map)
       map.on('click', (e) => { place(e.latlng); setCoords({ lat: e.latlng.lat, lng: e.latlng.lng }) })
-      if (coordsRef.current) place([coordsRef.current.lat, coordsRef.current.lng])
+      if (initial?.lat != null) place([initial.lat, initial.lng])
       else navigator.geolocation?.getCurrentPosition(
         (p) => { if (cancelled) return; const ll = [p.coords.latitude, p.coords.longitude]; map.setView(ll, 16); place(ll); setCoords({ lat: ll[0], lng: ll[1] }) },
         () => {}, { timeout: 6000 })
+      map.whenReady(() => map.invalidateSize())
       ;[120, 400, 900].forEach(d => setTimeout(() => { if (!cancelled && mapRef.current) mapRef.current.invalidateSize() }, d))
     }
     const attempt = () => loadLeaflet().then(L => { if (cancelled) return; if (L) init(L); else if (tries++ < 3) setTimeout(attempt, 1500) })
@@ -236,51 +222,71 @@ function GeofenceEditor({ user, house, color }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Once the saved geofence loads after the map is up, drop the pin.
-  useEffect(() => { if (coords && mapRef.current && !markerRef.current) { mapRef.current.setView([coords.lat, coords.lng], 16) } }, [coords])
-  // Live radius preview.
+  // Live radius preview as the slider moves.
   useEffect(() => { circleRef.current?.setRadius(radius) }, [radius])
 
   const save = async () => {
     if (!coords || saving) return
     setSaving(true)
     await setHouseGeofence(house._uuid, { lat: coords.lat, lng: coords.lng, radiusM: radius })
-    setSaving(false); setGeo({ lat: coords.lat, lng: coords.lng, radiusM: radius })
-    setSaved(true); setTimeout(() => setSaved(false), 1800)
+    setSaving(false)
+    onSaved({ lat: coords.lat, lng: coords.lng, radiusM: radius })
   }
-  const dirty = coords && (!geo || geo.lat !== coords.lat || geo.lng !== coords.lng || geo.radiusM !== radius)
 
   return (
-    <div>
-      <div style={{ fontSize: 12, color: 'var(--a-ink3)', lineHeight: 1.45, marginBottom: 10 }}>
-        Tap the map or drag the pin to set this house's location. Drag the slider to size the alert radius — on-duty staff who leave the circle are flagged on the team map.
+    <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)' }}>📍 Geofence · on-duty alerts</div>
+      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', lineHeight: 1.45, margin: '3px 0 10px' }}>
+        Tap the map or drag the pin to set the house location. Drag the slider to size the alert radius — on-duty staff who leave the circle are flagged on the team map.
       </div>
-      <div ref={elRef} style={{ width: '100%', height: 240, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--a-line)', background: 'var(--a-paper)' }} />
+      <div ref={elRef} style={{ width: '100%', height: 220, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--a-line)', background: 'var(--a-paper)' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
         <span style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Radius</span>
         <input type="range" min={50} max={1000} step={25} value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ flex: 1, accentColor: color }} />
         <span className="tnum" style={{ fontSize: 12.5, fontWeight: 600, width: 56, textAlign: 'right' }}>{radius} m</span>
       </div>
-      <button onClick={save} disabled={!dirty || saving} style={{ width: '100%', marginTop: 12, background: dirty ? 'var(--a-ink)' : 'var(--a-paper)', color: dirty ? 'var(--a-card)' : 'var(--a-ink3)', border: dirty ? 0 : '1px solid var(--a-line)', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: dirty ? 'pointer' : 'default' }}>
-        {saving ? 'Saving…' : saved ? '✓ Saved' : geo ? 'Update geofence' : 'Save geofence'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        {onCancel && <button onClick={onCancel} style={{ flex: 1, background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 10, padding: '11px', fontSize: 13.5, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>Cancel</button>}
+        <button onClick={save} disabled={!coords || saving} style={{ flex: 2, background: coords ? 'var(--a-ink)' : 'var(--a-paper)', color: coords ? 'var(--a-card)' : 'var(--a-ink3)', border: coords ? 0 : '1px solid var(--a-line)', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: coords ? 'pointer' : 'default' }}>
+          {saving ? 'Saving…' : 'Save geofence'}
+        </button>
+      </div>
     </div>
   )
 }
 
-// House settings sheet (⋯) — currently holds the geofence; room to grow.
-function HouseSettingsSheet({ user, house, color, onClose }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div className="serif" style={{ fontSize: 22 }}>House settings</div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: 4 }}>×</button>
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)', margin: '10px 0 8px' }}>📍 Geofence · on-duty alerts</div>
-        <GeofenceEditor user={user} house={house} color={color} />
+// Overview card: shows the editor until a geofence is saved, then collapses to a
+// slim line (so the setup "goes away" once done, but stays editable).
+function GeofenceCard({ user, house, color }) {
+  const [status, setStatus] = useState(undefined)  // undefined=loading | null=none | {lat,lng,radiusM}
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!user?.orgId || !house?._uuid) { setStatus(null); return }
+    fetchHouseGeofences(user.orgId).then(list => {
+      const g = list.find(x => x.id === house._uuid)
+      setStatus(g && g.lat != null ? { lat: g.lat, lng: g.lng, radiusM: g.radiusM } : null)
+    })
+  }, [user?.orgId, house?._uuid])
+
+  if (status === undefined) return null
+
+  if (status && !editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, marginBottom: 14 }}>
+        <span style={{ fontSize: 14 }}>📍</span>
+        <span style={{ fontSize: 12.5, color: 'var(--a-ink2)', flex: 1 }}>Geofence active · {status.radiusM} m radius</span>
+        <button onClick={() => setEditing(true)} style={{ background: 'transparent', border: 0, color: color, fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Edit</button>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <GeofenceEditor
+      house={house} color={color} initial={status}
+      onSaved={(g) => { setStatus(g); setEditing(false) }}
+      onCancel={status ? () => setEditing(false) : undefined}
+    />
   )
 }
 
@@ -300,7 +306,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
   const [drives, setDrives]         = useState(0)
   const [residentModal, setResidentModal] = useState(null) // null | {mode:'add'} | {mode:'view'|'edit', resident}
   const [section, setSection] = useState('overview')
-  const [showSettings, setShowSettings] = useState(false)
 
   // The house's real DB UUID comes through on the normalized house object as `_uuid`.
   const houseUuid = house._uuid
@@ -343,11 +348,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2 }}>{house.addr} · {house.branch} branch · mgr {house.manager}</div>
           </div>
-          {(user?.role === 'supervisor' || user?.role === 'manager') && (
-            <button onClick={() => setShowSettings(true)} aria-label="House settings" style={{ background: 'transparent', border: 0, padding: 6, color: 'var(--a-ink2)', cursor: 'pointer', flexShrink: 0 }}>
-              <IconDots size={20} sw={2} />
-            </button>
-          )}
         </div>
 
         <div style={{ padding: '4px 16px 8px', display: 'flex', gap: 6, flexShrink: 0, overflowX: 'auto' }}>
@@ -362,6 +362,8 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             <Stat label="Residents" big={residentsHome} sub={`${residents.length} total`} />
             <Stat label="Today's drives" big={drives} sub="logged" />
           </div>
+
+          {(user?.role === 'supervisor' || user?.role === 'manager') && <GeofenceCard user={user} house={house} color={c} />}
 
 
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '12px 0 8px' }}>Staff</div>
@@ -444,7 +446,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           onDeleted={closeResident}
         />
       )}
-      {showSettings && <HouseSettingsSheet user={user} house={house} color={c} onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
