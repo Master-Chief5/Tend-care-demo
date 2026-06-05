@@ -96,7 +96,7 @@ export function HouseItems({ user, houseUuid, houseColor = 'var(--a-ink)' }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: k.tc, background: k.bg, padding: '1px 6px', borderRadius: 3 }}>{k.label}</span>
-                  {forSup && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a93a25', background: '#fadcd7', padding: '1px 6px', borderRadius: 3 }}>FOR SUPERVISOR</span>}
+                  {forSup && <span style={{ fontSize: 9.5, fontWeight: 700, color: '#8a6d1e', background: '#f5e9d6', padding: '1px 6px', borderRadius: 3 }}>For supervisor</span>}
                 </div>
                 <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.35 }}>{it.text}</div>
                 <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 2 }}>by {it.created_by_name || 'someone'} · {roleLabel(it.created_by_role)}</div>
