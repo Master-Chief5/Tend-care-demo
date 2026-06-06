@@ -56,7 +56,9 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          # --init-script drops the duplicate legacy kotlin-stdlib-jdk7/jdk8 jars
+          # (see ../android-kotlin-fix.gradle) so checkDebugDuplicateClasses passes.
+          ./gradlew assembleDebug --no-daemon --init-script ../android-kotlin-fix.gradle
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -1,0 +1,15 @@
+// Gradle init script applied during the CI Android build (see android-apk.yml).
+//
+// Capacitor's Android dependency graph pulls BOTH the modern unified
+// `kotlin-stdlib` (1.8.x) and the legacy split `kotlin-stdlib-jdk7` /
+// `kotlin-stdlib-jdk8` (1.6.x). Their classes overlap, so the build fails at
+// :app:checkDebugDuplicateClasses with "Duplicate class kotlin.*".
+//
+// The unified stdlib already contains all of the jdk7/jdk8 classes, so drop the
+// redundant legacy split artifacts everywhere. Version-independent — no pin.
+allprojects {
+    configurations.all {
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    }
+}
