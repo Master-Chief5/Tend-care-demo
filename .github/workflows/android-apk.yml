@@ -4,6 +4,14 @@ name: Build Android APK
 # installable debug APK. Run it from the Actions tab → "Build Android APK" →
 # "Run workflow", then download the "tend-android-apk" artifact and install it
 # on a phone (you'll need to allow "install from unknown sources").
+#
+# AUTO-UPDATING: capacitor.config.json points the WebView at the live site
+# (server.url = https://tend-care-demo.vercel.app). That means you build and
+# install this APK ONCE; from then on it always loads whatever is deployed to
+# production, so web/UI/logic changes appear in the app with no rebuild or
+# reinstall. Re-run this workflow only when something NATIVE changes (app icon,
+# name, the server URL, or an added Capacitor plugin). The bundled dist/ stays
+# in the APK as an offline fallback.
 on:
   workflow_dispatch:
 
@@ -37,7 +45,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          # Capacitor's Android library targets Java 21; building with 17 fails
+          # with "invalid source release: 21" at compileDebugJavaWithJavac.
+          java-version: '21'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -46,7 +56,9 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          # --init-script drops the duplicate legacy kotlin-stdlib-jdk7/jdk8 jars
+          # (see ../android-kotlin-fix.gradle) so checkDebugDuplicateClasses passes.
+          ./gradlew assembleDebug --no-daemon --init-script ../android-kotlin-fix.gradle
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

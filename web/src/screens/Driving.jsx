@@ -380,9 +380,15 @@ export function ScreenA_Driving({ user }) {
   // background so the trip never waits on the location-permission prompt.
   const handleStart = async (data) => {
     // A driver can only be on one live trip at a time — starting a second while
-    // one is active confuses the live tracking. Block it.
+    // one is active confuses the live tracking. Block it. Re-check against the
+    // freshest list first, since the background poll can be ~18s stale and two
+    // devices could otherwise both slip past the guard (the DB unique index is
+    // the final backstop).
     const driver = (data.driverName || '').trim().toLowerCase()
-    if (driver && activeTrips.some(t => (t.driver_name || '').trim().toLowerCase() === driver)) {
+    let current = activeTrips
+    try { current = (await fetchActiveTrips(user.orgId, houseScope)) || activeTrips } catch { /* keep cached */ }
+    if (current !== activeTrips) setActiveTrips(current)
+    if (driver && current.some(t => (t.driver_name || '').trim().toLowerCase() === driver)) {
       setShowStart(false)
       showToast(`${data.driverName} already has a trip in progress — end it first`)
       return
@@ -390,8 +396,11 @@ export function ScreenA_Driving({ user }) {
     // Scope the trip to the resident's house (so a supervisor's trip isn't orphaned).
     const resHouse = residentsFull.find(r => r.name === data.residentName)?.house_id
     const houseId = user.houseId || resHouse || null
-    const trip = await startTrip(user.orgId, { ...data, houseId })
-    if (trip) {
+    const trip = await startTrip(user.orgId, { ...data, driverId: user.staffId || null, houseId })
+    if (trip && trip.error === 'duplicate') {
+      setShowStart(false)
+      showToast(`${data.driverName} already has a trip in progress — end it first`)
+    } else if (trip) {
       setActiveTrips(prev => [trip, ...prev])
       setTrips(prev => [trip, ...prev])
       setShowStart(false)
@@ -480,9 +489,9 @@ export function ScreenA_Driving({ user }) {
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Transportation</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
             <div style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Resident transport — appointments, day programs, outings · mileage</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button onClick={() => setShowLog(true)}
-                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 Log past
               </button>
               {canDrive && !myActive && (

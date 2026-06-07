@@ -1,0 +1,42 @@
+# CI — runs on every PR (and on push to main). Two gates:
+#   1. the web app must build
+#   2. a headless smoke test boots the built app and clicks through every tab,
+#      failing if any runtime/console error fires
+# This is what catches regressions before they merge.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build (demo mode)
+        run: VITE_DEMO_MODE=true npm run build
+
+      - name: Smoke test (boot + navigate, fail on runtime errors)
+        env:
+          BASE_URL: http://127.0.0.1:4173
+        run: |
+          npx vite preview --port 4173 --host 127.0.0.1 &
+          PREVIEW_PID=$!
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          node e2e/smoke.test.mjs
+          kill $PREVIEW_PID 2>/dev/null || true

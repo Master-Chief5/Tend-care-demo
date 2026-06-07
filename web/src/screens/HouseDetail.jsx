@@ -284,7 +284,10 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
               <span style={{ fontSize: 11, fontWeight: 700, color: c, letterSpacing: '0.1em', background: `${c}1a`, padding: '2px 7px', borderRadius: 4 }}>{house.short}</span>
               <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{house.name}</span>
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2 }}>{house.addr} · {house.branch} branch · mgr {house.manager}</div>
+            {(() => {
+              const parts = [house.addr, house.branch && `${house.branch} branch`, house.manager && `mgr ${house.manager}`].filter(Boolean)
+              return parts.length ? <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2 }}>{parts.join(' · ')}</div> : null
+            })()}
           </div>
         </div>
 

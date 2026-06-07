@@ -90,7 +90,7 @@ RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT org_id FROM staff
   WHERE auth_user_id = auth.uid()
      OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
-  ORDER BY (auth_user_id = auth.uid()) DESC
+  ORDER BY (auth_user_id = auth.uid()) DESC NULLS LAST
   LIMIT 1
 $$;
 
@@ -100,7 +100,7 @@ RETURNS UUID LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT id FROM staff
   WHERE auth_user_id = auth.uid()
      OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
-  ORDER BY (auth_user_id = auth.uid()) DESC
+  ORDER BY (auth_user_id = auth.uid()) DESC NULLS LAST
   LIMIT 1
 $$;
 
@@ -110,7 +110,7 @@ RETURNS TEXT LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   SELECT role FROM staff
   WHERE auth_user_id = auth.uid()
      OR email = (SELECT email FROM auth.users WHERE id = auth.uid())
-  ORDER BY (auth_user_id = auth.uid()) DESC
+  ORDER BY (auth_user_id = auth.uid()) DESC NULLS LAST
   LIMIT 1
 $$;
 
@@ -136,7 +136,7 @@ LANGUAGE SQL SECURITY DEFINER STABLE AS $$
   LEFT JOIN houses h ON h.id = s.house_id
   WHERE s.auth_user_id = auth.uid()
      OR s.email = (SELECT email FROM auth.users WHERE id = auth.uid())
-  ORDER BY (s.auth_user_id = auth.uid()) DESC
+  ORDER BY (s.auth_user_id = auth.uid()) DESC NULLS LAST
   LIMIT 1
 $$;
 

@@ -1,5 +1,17 @@
 // Date / time utilities
 
+// Escape a string for safe interpolation into raw HTML (e.g. Leaflet popup /
+// divIcon markup). Names, destinations and other user-entered values must pass
+// through this before being concatenated into an HTML string.
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 const _dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 // Local-timezone "YYYY-MM-DD" for a Date (or pass-through if already a string).

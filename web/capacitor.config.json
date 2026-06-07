@@ -2,5 +2,10 @@
   "appId": "com.tendcare.app",
   "appName": "Tend",
   "webDir": "dist",
-  "backgroundColor": "#f3ecdd"
+  "backgroundColor": "#f3ecdd",
+  "server": {
+    "url": "https://tend-care-demo.vercel.app",
+    "androidScheme": "https",
+    "cleartext": false
+  }
 }

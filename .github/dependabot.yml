@@ -1,0 +1,18 @@
+# Dependabot: weekly dependency + GitHub Actions update PRs.
+# Keeps the web app's npm packages and our workflow actions patched, and surfaces
+# security advisories as PRs.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Bundle minor/patch bumps so we get one PR instead of many.
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

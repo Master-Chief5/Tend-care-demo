@@ -3,29 +3,27 @@ import * as demo from './demoStore'
 
 // Returns the staff profile for the authenticated user.
 // Uses a SECURITY DEFINER RPC that bypasses RLS — safe for initial login bootstrap.
+// Returns the profile object, or null when the user genuinely has no staff row
+// yet (a real "needs setup" state). THROWS on a transport error or timeout so
+// the caller can tell "no profile" apart from "couldn't reach the server" and
+// retry instead of mistakenly routing the user to org setup.
 export async function fetchStaffProfile(authUserId, _email) {
   if (!supabase || !authUserId) return null
 
-  try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('profile timeout')), 6000)
-    )
-    const result = await Promise.race([supabase.rpc('get_my_staff_profile'), timeout])
-    const { data, error } = result
-    if (error) { console.error('fetchStaffProfile:', error.message); return null }
-    if (!data || data.length === 0) return null
-    const row = data[0]
-    return {
-      staffId:   row.staff_id,
-      orgId:     row.org_id,
-      houseId:   row.house_id,
-      houseSlug: row.house_slug ?? null,
-      role:      row.role,
-      name:      row.staff_name,
-    }
-  } catch (e) {
-    console.error('fetchStaffProfile failed:', e.message)
-    return null
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('profile timeout')), 6000)
+  )
+  const { data, error } = await Promise.race([supabase.rpc('get_my_staff_profile'), timeout])
+  if (error) { console.error('fetchStaffProfile:', error.message); throw new Error(error.message) }
+  if (!data || data.length === 0) return null
+  const row = data[0]
+  return {
+    staffId:   row.staff_id,
+    orgId:     row.org_id,
+    houseId:   row.house_id,
+    houseSlug: row.house_slug ?? null,
+    role:      row.role,
+    name:      row.staff_name,
   }
 }
 
@@ -507,13 +505,20 @@ export async function startTrip(orgId, trip) {
   if (!supabase) return null
   const { data, error } = await supabase.from('trips').insert({
     org_id: orgId, house_id: trip.houseId || null,
+    driver_id: trip.driverId || null,
     driver_name: trip.driverName || 'Unknown', resident_name: trip.residentName,
     destination: trip.destination, purpose: trip.purpose || 'Other', miles: trip.miles || 0,
     trip_date: toDateStr(new Date()), status: 'active', started_at: new Date().toISOString(),
     start_lat: trip.lat ?? null, start_lng: trip.lng ?? null,
     dest_lat: trip.destLat ?? null, dest_lng: trip.destLng ?? null,
   }).select('*, houses(slug, name, color, short)').single()
-  if (error) { console.error('startTrip:', error.message); return null }
+  if (error) {
+    console.error('startTrip:', error.message)
+    // A unique-violation here means the DB backstop caught a duplicate active
+    // trip for this driver (one device/tab racing another). Signal it distinctly.
+    if (error.code === '23505') return { error: 'duplicate' }
+    return null
+  }
   return data
 }
 
@@ -1270,6 +1275,34 @@ export async function fetchHouseAlerts(orgId) {
   }
 
   return map
+}
+
+// ── Team chat (messages) ────────────────────────────────────────────────────
+// Channels are keyed by house: houseId=null is the org-wide "All staff" channel;
+// a houseId scopes to that house's channel. Returned oldest-first for display.
+export async function fetchMessages(orgId, { houseId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchMessages({ houseId })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('messages').select('*').eq('org_id', orgId).order('created_at', { ascending: true }).limit(200)
+  q = houseId ? q.eq('house_id', houseId) : q.is('house_id', null)
+  const { data, error } = await q
+  if (error) { console.error('fetchMessages:', error.message); return [] }
+  return data || []
+}
+
+export async function sendMessage(orgId, msg) {
+  if (isDemoMode) return demo.demoSendMessage(orgId, msg)
+  if (!supabase || !orgId || !msg?.body?.trim()) return null
+  const { data, error } = await supabase.from('messages').insert({
+    org_id:          orgId,
+    house_id:        msg.houseId || null,
+    author_staff_id: msg.authorStaffId || null,
+    author_name:     msg.authorName || null,
+    author_role:     msg.authorRole || null,
+    body:            msg.body.trim(),
+  }).select().single()
+  if (error) { console.error('sendMessage:', error.message); return null }
+  return data
 }
 
 // Search organizations by name or slug — callable before the user is authenticated

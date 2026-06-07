@@ -3,7 +3,7 @@ import { LoginScreen, OrgSearchPicker, toSlug } from './components/layout/LoginS
 import { MobileShell } from './components/layout/MobileShell'
 import { DesktopShell } from './components/layout/DesktopShell'
 import { useIsMobile } from './hooks/useIsMobile'
-import { supabase, isDemoMode } from './lib/supabase'
+import { supabase, isDemoMode, isMisconfigured } from './lib/supabase'
 import { fetchStaffProfile, registerAsStaff, createOrgAndSupervisor } from './lib/db'
 import { setMyDuty } from './hooks/useDutyTracking'
 
@@ -15,25 +15,38 @@ function quickUser(session) {
   return { id: role, name, role, enriched: false }
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
 // Enrich the user with orgId/staffId/houseId from the database in the background.
 // A monotonic `seq` (compared against `seqRef.current`) ensures only the most
 // recent enrich applies its result — stale concurrent runs are ignored.
-// Always marks enriched:true so the app renders even if the profile fetch fails.
+//
+// Crucially, this distinguishes three outcomes so the app routes correctly:
+//   • profile found        → fill in org/house/role
+//   • genuinely no profile → enriched with no orgId → org-setup screen
+//   • fetch error/timeout  → retry a few times, then flag profileError so the
+//     app shows a "couldn't load your account" retry screen — NOT the org-setup
+//     screen, which used to confusingly appear on any transient DB hiccup.
 async function enrichUser(session, setUser, seq, seqRef) {
   const apply = (updater) => { if (seqRef.current === seq) setUser(updater) }
-  const markDone = () => apply(prev => prev ? { ...prev, enriched: true } : null)
-  if (!supabase || !session?.user) { markDone(); return }
-  try {
-    const profile = await fetchStaffProfile(session.user.id, session.user.email)
-    if (profile) {
-      const r = profile.role || quickUser(session).role
-      apply(prev => prev ? { ...prev, ...profile, id: r, role: r, name: profile.name || prev.name, enriched: true } : null)
-    } else {
-      markDone()
+  if (!supabase || !session?.user) { apply(prev => prev ? { ...prev, enriched: true } : null); return }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const profile = await fetchStaffProfile(session.user.id, session.user.email)
+      if (profile) {
+        const r = profile.role || quickUser(session).role
+        apply(prev => prev ? { ...prev, ...profile, id: r, role: r, name: profile.name || prev.name, enriched: true, profileError: false } : null)
+      } else {
+        // Authenticated but no staff row yet — a real "needs setup" state.
+        apply(prev => prev ? { ...prev, enriched: true, profileError: false } : null)
+      }
+      return
+    } catch (e) {
+      if (attempt < 2) { await sleep(500 * (attempt + 1)); continue }
+      console.error('enrichUser failed after retries:', e)
+      apply(prev => prev ? { ...prev, enriched: true, profileError: true } : null)
     }
-  } catch (e) {
-    console.error('enrichUser failed:', e)
-    markDone()
   }
 }
 
@@ -124,6 +137,45 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
   )
 }
 
+// Centered single-message screen used for fatal/holding states.
+function CenteredNotice({ title, body, children }) {
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--a-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', textAlign: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div className="serif" style={{ fontSize: 24, letterSpacing: '-0.02em', marginBottom: 10 }}>{title}</div>
+        <div style={{ fontSize: 14, color: 'var(--a-ink2)', lineHeight: 1.6, marginBottom: 20 }}>{body}</div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// Shown when a production build has no Supabase credentials (and isn't an
+// explicit demo). Better to say so loudly than to serve a fake demo login.
+function MisconfiguredScreen() {
+  return (
+    <CenteredNotice
+      title="App not configured"
+      body="Tend can't reach its database — the Supabase environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) are missing from this build. Set them in the hosting environment and redeploy. (To intentionally run the offline demo, set VITE_DEMO_MODE=true.)"
+    />
+  )
+}
+
+// Shown when the user is authenticated but their profile couldn't be loaded due
+// to a transient error/timeout (vs. genuinely having no profile yet).
+function ProfileErrorScreen({ onRetry, onLogout }) {
+  const btn = { width: '100%', padding: '12px', borderRadius: 999, fontSize: 14, fontWeight: 600, fontFamily: 'Geist, sans-serif', cursor: 'pointer' }
+  return (
+    <CenteredNotice
+      title="Couldn't load your account"
+      body="We had trouble reaching the server to load your profile. Check your connection and try again."
+    >
+      <button onClick={onRetry} style={{ ...btn, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0 }}>Try again</button>
+      <button onClick={onLogout} style={{ ...btn, marginTop: 10, background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-ink3)' }}>Sign out</button>
+    </CenteredNotice>
+  )
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(!isDemoMode)
@@ -149,6 +201,13 @@ export default function App() {
 
   const startSignup  = useCallback(() => { signupActiveRef.current = true }, [])
   const cancelSignup = useCallback(() => { signupActiveRef.current = false }, [])
+
+  // Retry profile enrichment after a transient load failure (profileError).
+  const retryEnrich = useCallback(() => {
+    if (!sessionRef.current) return
+    setUser(prev => prev ? { ...prev, enriched: false, profileError: false } : null)
+    runEnrich(sessionRef.current)
+  }, [runEnrich])
 
   useEffect(() => {
     if (isDemoMode) return
@@ -192,11 +251,20 @@ export default function App() {
     setUser(null)
   }
 
+  // Production build with no database credentials → say so, never fake-demo.
+  if (isMisconfigured) return <MisconfiguredScreen />
+
   if (loading || (user && !user.enriched && !isDemoMode)) return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--a-bg)' }}>
       <div style={{ width: 32, height: 32, border: '2px solid var(--a-line)', borderTopColor: 'var(--a-sage)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
+  )
+
+  // Profile fetch failed (transient) — offer a retry instead of stranding the
+  // user on the org-setup screen as if they had no organization.
+  if (user && user.enriched && user.profileError && !isDemoMode) return (
+    <ProfileErrorScreen onRetry={retryEnrich} onLogout={handleLogout} />
   )
 
   // Authenticated but no org profile — sign-up via email confirmation, or a fresh account.
