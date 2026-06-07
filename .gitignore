@@ -1,1 +1,3 @@
-.claude/
+# Keep shared Claude tooling (hooks, skills, settings) in the repo so it works in
+# web sessions; ignore only the per-user local overrides.
+.claude/settings.local.json
