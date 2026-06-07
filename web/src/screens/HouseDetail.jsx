@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident, fetchHouseGeofences, setHouseGeofence } from '../lib/db'
 import { IconChev, IconChat, IconPlus } from '../components/icons'
 import { MapPicker } from '../components/MapPicker'
-import { TabBar } from '../components/ui/TabBar'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { HouseItems } from '../components/HouseItems'
@@ -66,7 +65,7 @@ function NeedRow({ kind, text, color }) {
   )
 }
 
-function ResidentModal({ user, houseUuid, resident, startEdit = false, onClose, onSaved, onDeleted }) {
+function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage = true, onClose, onSaved, onDeleted }) {
   const editing0 = startEdit || !resident
   const [editing, setEditing] = useState(editing0)
   const [name, setName] = useState(resident?.name || '')
@@ -105,7 +104,7 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, onClose, 
       <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="serif" style={{ fontSize: 22 }}>{resident ? (editing ? 'Edit resident' : name) : 'Add resident'}</div>
-          {resident && !editing && <button type="button" onClick={() => setEditing(true)} style={{ border: 0, background: 'transparent', color: 'var(--a-sage)', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Edit</button>}
+          {resident && !editing && canManage && <button type="button" onClick={() => setEditing(true)} style={{ border: 0, background: 'transparent', color: 'var(--a-sage)', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Edit</button>}
         </div>
 
         {!editing && resident ? (
@@ -124,7 +123,7 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, onClose, 
             <ViewField label="Guardian / contact" value={guardian} />
             <ViewField label="Physician" value={physician} />
             <ViewField label="Notes" value={notes} />
-            <button type="button" onClick={remove} disabled={saving} style={{ marginTop: 6, width: '100%', padding: '11px', background: 'transparent', border: '1px solid #e0b4ab', borderRadius: 10, fontSize: 13, color: '#a93a25', fontFamily: 'Geist', cursor: 'pointer' }}>Remove resident</button>
+            {canManage && <button type="button" onClick={remove} disabled={saving} style={{ marginTop: 6, width: '100%', padding: '11px', background: 'transparent', border: '1px solid #e0b4ab', borderRadius: 10, fontSize: 13, color: '#a93a25', fontFamily: 'Geist', cursor: 'pointer' }}>Remove resident</button>}
           </div>
         ) : (
           <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -247,6 +246,9 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
 
   // The house's real DB UUID comes through on the normalized house object as `_uuid`.
   const houseUuid = house._uuid
+  // DSPs can view residents and log care, but managing resident records (add /
+  // edit / remove) and house settings is for managers/supervisors.
+  const canManage = user?.role !== 'staff'
 
   const reloadResidents = useCallback(() => {
     if (!user?.orgId || !houseUuid) return
@@ -332,9 +334,11 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 8px' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Residents</span>
-            <button onClick={() => setResidentModal({ mode: 'add' })} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: c, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
-              <IconPlus size={13} sw={2.2} /> Add resident
-            </button>
+            {canManage && (
+              <button onClick={() => setResidentModal({ mode: 'add' })} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: c, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                <IconPlus size={13} sw={2.2} /> Add resident
+              </button>
+            )}
           </div>
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
             {residents.length === 0 && (
@@ -374,7 +378,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
         </div>
       </div>
-      <TabBar active="houses" />
       <Toast msg={toast} />
       {residentModal && (
         <ResidentModal
@@ -382,6 +385,7 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           houseUuid={houseUuid}
           resident={residentModal.resident || null}
           startEdit={residentModal.mode === 'edit'}
+          canManage={canManage}
           onClose={() => setResidentModal(null)}
           onSaved={closeResident}
           onDeleted={closeResident}
