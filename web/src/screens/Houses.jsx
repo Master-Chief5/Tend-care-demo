@@ -109,7 +109,7 @@ function HouseCard({ house, stats, alerts = [], onHouseClick, onTeamChat }) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: c, letterSpacing: '0.1em', background: `${c}1a`, padding: '2px 7px', borderRadius: 4 }}>{house.short}</span>
-          <span className="serif" style={{ fontSize: 17, fontWeight: 500, flex: 1, letterSpacing: '-0.01em' }}>{house.name}</span>
+          <span className="serif" style={{ fontSize: 17, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{house.name}</span>
           {alerts.length > 0 && (
             <span style={{ background: '#d44e3a', color: '#fff', fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{alerts.length}</span>
           )}
@@ -223,7 +223,7 @@ function ManagerHomePanel({ user, house, onHouseClick }) {
       <div style={{ padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: c, letterSpacing: '0.1em', background: `${c}1a`, padding: '2px 7px', borderRadius: 4 }}>{house.short}</span>
-          <span className="serif" style={{ fontSize: 19, fontWeight: 500, flex: 1, letterSpacing: '-0.01em' }}>{house.name}</span>
+          <span className="serif" style={{ fontSize: 19, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{house.name}</span>
           <button onClick={open} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: c, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Open <IconArrow size={13} sw={2} /></button>
         </div>
         <div style={{ display: 'flex', padding: '8px 0 12px' }}>

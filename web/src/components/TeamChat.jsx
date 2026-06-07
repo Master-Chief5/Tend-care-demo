@@ -88,9 +88,9 @@ export function TeamChat({ user, desktop = false }) {
   const ChannelChips = () => (
     <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: desktop ? '0 0 4px' : '0 22px 6px' }}>
       {channels.map(c => (
-        <button key={c.key} onClick={() => setSelectedKey(c.key)} style={{
+        <button key={c.key} onClick={() => setSelectedKey(c.key)} title={c.label} style={{
           flexShrink: 0, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist',
-          cursor: 'pointer', whiteSpace: 'nowrap',
+          cursor: 'pointer', whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis',
           background: selected?.key === c.key ? 'var(--a-ink)' : 'var(--a-card)',
           color: selected?.key === c.key ? 'var(--a-card)' : 'var(--a-ink2)',
           border: `1px solid ${selected?.key === c.key ? 'var(--a-ink)' : 'var(--a-line)'}`,
