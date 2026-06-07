@@ -138,7 +138,7 @@ export function ScreenA_MyDay({ user }) {
               </div>
             </div>
             <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 600 }}>
-              {done === tasks.length ? '✓ All done!' : `${tasks.length - done} left`}
+              {tasks.length === 0 ? 'No tasks yet' : done === tasks.length ? '✓ All done!' : `${tasks.length - done} left`}
             </span>
           </div>
         </div>

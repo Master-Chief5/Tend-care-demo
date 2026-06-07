@@ -489,9 +489,9 @@ export function ScreenA_Driving({ user }) {
           <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Transportation</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
             <div style={{ fontSize: 12, color: 'var(--a-ink2)' }}>Resident transport — appointments, day programs, outings · mileage</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button onClick={() => setShowLog(true)}
-                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+                style={{ background: 'transparent', color: 'var(--a-ink2)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 Log past
               </button>
               {canDrive && !myActive && (
