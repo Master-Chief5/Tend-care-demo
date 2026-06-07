@@ -12,6 +12,13 @@ updates:
       # Bundle minor/patch bumps so we get one PR instead of many.
       npm-minor-patch:
         update-types: ["minor", "patch"]
+    # Don't auto-propose MAJOR npm upgrades — they (vite 8, react 19,
+    # @vitejs/plugin-react 6, etc.) break the build and spawn failed preview
+    # deploys. Majors should be done deliberately. Security patches (patch/minor)
+    # still come through.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

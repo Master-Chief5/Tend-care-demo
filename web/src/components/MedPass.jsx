@@ -117,14 +117,16 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Med pass · today{doses.length > 0 && <span style={{ color: doneCount === doses.length ? 'var(--a-sage)' : 'var(--a-clay)', marginLeft: 6 }}>{doneCount}/{doses.length} done</span>}
         </span>
-        <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
-          <IconPlus size={13} sw={2.2} /> Add medication
-        </button>
+        {user?.role !== 'staff' && (
+          <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <IconPlus size={13} sw={2.2} /> Add medication
+          </button>
+        )}
       </div>
 
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden', marginBottom: prnMeds.length ? 10 : 14 }}>
         {doses.length === 0 && (
-          <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No scheduled meds today. Tap “Add medication”.</div>
+          <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No scheduled meds today.{user?.role !== 'staff' ? ' Tap “Add medication”.' : ''}</div>
         )}
         {doses.map((d, i) => (
           <div key={d.key} style={{ padding: '10px 14px', borderBottom: i < doses.length - 1 ? '1px solid var(--a-line)' : '' }}>

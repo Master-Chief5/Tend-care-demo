@@ -11,7 +11,7 @@ import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart } from '../icons'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -34,6 +34,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
   if (role === 'staff') {
     switch (tab) {
       case 'home':  return <ScreenA_MyDay user={user} />
+      case 'house': return <ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => switchTab('home')} houses={houses} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
       case 'team':  return <ScreenA_Chat user={user} />
       case 'drive': return <ScreenA_Driving user={user} />
@@ -132,6 +133,7 @@ export function MobileShell({ user, onLogout }) {
 
   const tabs = isStaff ? [
     { id: 'home',   label: 'My Day',   icon: IconHome },
+    { id: 'house',  label: 'Care',     icon: IconHeart },
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },

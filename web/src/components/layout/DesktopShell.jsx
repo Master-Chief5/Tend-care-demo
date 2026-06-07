@@ -10,7 +10,7 @@ import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
-import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus } from '../icons'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -32,6 +32,7 @@ function normalizeHouse(h) {
 const ALL_TABS = [
   { id: 'today',       label: 'Today',       icon: IconHome,    roles: ['supervisor', 'manager'] },
   { id: 'myday',       label: 'My Day',      icon: IconHome,    roles: ['staff'] },
+  { id: 'care',        label: 'Care',        icon: IconHeart,   roles: ['staff'] },
   { id: 'houses',      label: 'Houses',      icon: IconBox,     roles: ['supervisor', 'manager'] },
   { id: 'setup',       label: 'House setup', icon: IconPlus,    roles: ['supervisor'] },
   { id: 'schedule',    label: 'Schedule',    icon: IconCal,     roles: ['supervisor', 'manager', 'staff'] },
@@ -45,6 +46,7 @@ const ALL_TABS = [
 function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigate }) {
   if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'myday')       return <div style={{ padding: 24, maxWidth: 480 }}><ScreenA_MyDay user={user} /></div>
+  if (tab === 'care')        return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 480, margin: '0 auto' }}><ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => onNavigate('myday')} houses={houses} /></div></div>
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />

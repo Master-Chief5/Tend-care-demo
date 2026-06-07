@@ -475,10 +475,10 @@ export function ScreenA_Driving({ user }) {
     }
   }
 
-  // Live trips are started by the person driving (DSP / house manager) for
-  // themselves — supervisors monitor. And you can't start a second while one of
-  // your own is already in progress.
-  const canDrive = user?.role === 'staff' || user?.role === 'manager'
+  // A live trip is started by whoever is driving — DSP, house manager, or a
+  // supervisor covering a run. You can't start a second while one of your own is
+  // already in progress.
+  const canDrive = !!user?.role
   const myActive = activeTrips.some(t => (t.driver_name || '').trim().toLowerCase() === (user?.name || '').trim().toLowerCase())
 
   return (
