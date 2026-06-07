@@ -61,6 +61,9 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
 function DesktopRail({ tab, setTab, user, onLogout, houses }) {
   const u = ROLES.find(r => r.id === user.role) || ROLES.find(r => r.id === user.id) || ROLES[0]
   const role = user.role ?? user.id
+  // Show the ACTUAL signed-in person, not the demo persona for their role.
+  const displayName = user.name || u.name
+  const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?'
   const railTabs = ALL_TABS.filter(t => t.roles.includes(role))
 
   const branches = [...new Set(houses.map(h => h.branch).filter(Boolean))]
@@ -101,9 +104,9 @@ function DesktopRail({ tab, setTab, user, onLogout, houses }) {
         </>
       )}
       <div onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer' }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{u.initial}</div>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{initial}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{u.name}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
           <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Sign out</div>
         </div>
         <IconArrow size={13} color="var(--a-ink3)" />
