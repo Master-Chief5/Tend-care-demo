@@ -9,7 +9,7 @@
     "e2e": "node e2e/smoke.test.mjs"
   },
   "dependencies": {
-    "react": "^18.3.0",
+    "react": "^19.2.7",
     "react-dom": "^18.3.0",
     "@supabase/supabase-js": "^2.44.0"
   },
