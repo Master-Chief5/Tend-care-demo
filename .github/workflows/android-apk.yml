@@ -42,7 +42,7 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           # Capacitor's Android library targets Java 21; building with 17 fails
