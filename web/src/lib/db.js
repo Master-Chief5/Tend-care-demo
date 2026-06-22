@@ -1910,3 +1910,58 @@ export async function setShiftDocSection(orgId, { houseId, date, residentId, res
   if (error) { console.error('setShiftDocSection:', error.message); return false }
   return true
 }
+
+// ── Resident progress notes ──────────────────────────────────────────────────
+// Free-text progress / behavior / medical / general notes about a resident,
+// written by staff over time. These are the raw material for a resident's
+// progress report (see lib/progressReport.js). House-scoped; DSPs write their
+// own house. Valid `category` values: 'progress' | 'behavior' | 'medical' | 'general'.
+
+// Insert a resident note. note_date defaults to today when noteDate is falsy.
+// Returns the inserted row, or null.
+export async function addResidentNote(orgId, { houseId, residentId, residentName, category, body, authorName, authorRole, noteDate } = {}) {
+  if (isDemoMode) return demo.demoAddResidentNote(orgId, { houseId, residentId, residentName, category, body, authorName, authorRole, noteDate })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('resident_notes')
+    .insert({
+      org_id:        orgId,
+      house_id:      houseId || null,
+      resident_id:   residentId || null,
+      resident_name: residentName || null,
+      category:      category || 'progress',
+      body,
+      author_name:   authorName || null,
+      author_role:   authorRole || null,
+      note_date:     noteDate || toDateStr(new Date()),
+    })
+    .select()
+    .single()
+  if (error) { console.error('addResidentNote:', error.message); return null }
+  return data
+}
+
+// Resident notes, NEWEST-first. Optionally scoped by house/resident and a
+// note_date range (from/to inclusive, 'YYYY-MM-DD'). Returns raw row shape:
+//   { id, resident_id, resident_name, category, body, author_name, author_role, note_date, created_at }
+export async function fetchResidentNotes(orgId, { houseId = null, residentId = null, from = null, to = null } = {}) {
+  if (isDemoMode) return demo.demoFetchResidentNotes({ houseId, residentId, from, to })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('resident_notes').select('*').eq('org_id', orgId).order('note_date', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (residentId) q = q.eq('resident_id', residentId)
+  if (from) q = q.gte('note_date', from)
+  if (to) q = q.lte('note_date', to)
+  const { data, error } = await q
+  if (error) { console.error('fetchResidentNotes:', error.message); return [] }
+  return (data || []).map(n => ({ id: n.id, resident_id: n.resident_id, resident_name: n.resident_name, category: n.category, body: n.body, author_name: n.author_name, author_role: n.author_role, note_date: n.note_date, created_at: n.created_at }))
+}
+
+// Delete a resident note. Returns true on success, false on error.
+export async function deleteResidentNote(id) {
+  if (isDemoMode) return demo.demoDeleteResidentNote(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('resident_notes').delete().eq('id', id)
+  if (error) { console.error('deleteResidentNote:', error.message); return false }
+  return true
+}

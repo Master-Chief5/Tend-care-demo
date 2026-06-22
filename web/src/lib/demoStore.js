@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [] }
 }
 
 function load() {
@@ -1230,5 +1230,37 @@ export function demoSetShiftDocSection(orgId, { houseId, date, residentId, resid
   }
   store.shiftDocProgress = store.shiftDocProgress.filter(r => !match(r))
   persist()
+  return true
+}
+
+// ── Resident progress notes ──────────────────────────────────────────────────
+// Free-text progress / behavior / medical / general notes about a resident.
+// Raw material for the progress report. No seeder.
+export function demoAddResidentNote(orgId, { houseId, residentId, residentName, category, body, authorName, authorRole, noteDate } = {}) {
+  const row = {
+    id: uid('rnote'), org_id: orgId, house_id: houseId || null,
+    resident_id: residentId || null, resident_name: residentName || null,
+    category: category || 'progress', body,
+    author_name: authorName || null, author_role: authorRole || null,
+    note_date: noteDate || todayStr(), created_at: now(),
+  }
+  store.residentNotes.unshift(row); persist()
+  return row
+}
+
+export function demoFetchResidentNotes({ houseId = null, residentId = null, from = null, to = null } = {}) {
+  return store.residentNotes
+    .filter(n =>
+      (!houseId || n.house_id === houseId) &&
+      (!residentId || n.resident_id === residentId) &&
+      (!from || n.note_date >= from) &&
+      (!to || n.note_date <= to)
+    )
+    .sort((a, b) => (b.note_date || '').localeCompare(a.note_date || ''))
+    .map(n => ({ id: n.id, resident_id: n.resident_id, resident_name: n.resident_name, category: n.category, body: n.body, author_name: n.author_name, author_role: n.author_role, note_date: n.note_date, created_at: n.created_at }))
+}
+
+export function demoDeleteResidentNote(id) {
+  store.residentNotes = store.residentNotes.filter(n => n.id !== id); persist()
   return true
 }
