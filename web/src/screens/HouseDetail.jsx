@@ -15,7 +15,7 @@ import { ProgressPanel } from '../components/ProgressPanel'
 
 const HOUSE_SECTIONS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'shift', label: 'Shift doc' },
+  { id: 'shift', label: 'Shift documentation' },
   { id: 'meds', label: 'Meds' },
   { id: 'goals', label: 'Goals' },
   { id: 'health', label: 'Health' },
@@ -309,6 +309,22 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             <Stat label="Residents" big={residentsHome} sub={`${residents.length} total`} />
             <Stat label="Today's drives" big={drives} sub="logged" />
           </div>
+
+          {/* Prominent entry to the guided shift-documentation flow (the
+              CareSoft-style per-resident checklist). Front-and-center on every
+              house so staff can't miss where the day's documentation lives. */}
+          <button onClick={() => setSection('shift')} style={{
+            width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'Geist',
+            display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
+            background: `${c}12`, border: `1px solid ${c}55`, borderRadius: 14, padding: '13px 15px',
+          }}>
+            <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19 }}>📝</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>Shift documentation</div>
+              <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 1 }}>Guided per-resident checklist — notes, health, goals, meds, incidents.</div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: c, background: 'var(--a-card)', border: `1px solid ${c}55`, borderRadius: 999, padding: '6px 13px', flexShrink: 0 }}>Start →</span>
+          </button>
 
           {(user?.role === 'supervisor' || user?.role === 'manager') && <GeofenceCard user={user} house={house} color={c} />}
 
