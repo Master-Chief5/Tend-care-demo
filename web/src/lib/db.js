@@ -1476,6 +1476,134 @@ export async function countPendingRequests(orgId, { houseId = null } = {}) {
   return count || 0
 }
 
+// ── Time off + Activity ──────────────────────────────────────────────────────
+// Submit a time-off request (status 'pending'). Returns the row.
+export async function requestTimeOff(orgId, { houseId, staffId, staffName, kind, startDate, endDate, hours, reason } = {}) {
+  if (isDemoMode) return demo.demoRequestTimeOff(orgId, { houseId, staffId, staffName, kind, startDate, endDate, hours, reason })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('time_off_requests')
+    .insert({
+      org_id:     orgId,
+      house_id:   houseId || null,
+      staff_id:   staffId || null,
+      staff_name: staffName || null,
+      kind:       kind || 'vacation',
+      start_date: startDate,
+      end_date:   endDate,
+      hours:      hours ?? null,
+      reason:     reason || null,
+      status:     'pending',
+    })
+    .select()
+    .single()
+  if (error) { console.error('requestTimeOff:', error.message); return null }
+  return data
+}
+
+// Time-off requests, newest first, optionally filtered by house & status.
+export async function fetchTimeOffRequests(orgId, { houseId = null, status = null } = {}) {
+  if (isDemoMode) return demo.demoFetchTimeOffRequests(orgId, { houseId, status })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('time_off_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) { console.error('fetchTimeOffRequests:', error.message); return [] }
+  return data || []
+}
+
+// Approve/reject a time-off request — stamps status, decider name, decided_at = now.
+export async function reviewTimeOffRequest(id, { status, decidedByName } = {}) {
+  if (isDemoMode) return demo.demoReviewTimeOffRequest(id, { status, decidedByName })
+  if (!supabase || !id) return null
+  const { data, error } = await supabase
+    .from('time_off_requests')
+    .update({ status, decided_by_name: decidedByName || null, decided_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) { console.error('reviewTimeOffRequest:', error.message); return null }
+  return data
+}
+
+// Count of pending time-off requests (optionally house-scoped) for badges.
+export async function countPendingTimeOff(orgId, { houseId = null } = {}) {
+  if (isDemoMode) return demo.demoCountPendingTimeOff(orgId, { houseId })
+  if (!supabase || !orgId) return 0
+  let q = supabase.from('time_off_requests').select('*', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'pending')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { count, error } = await q
+  if (error) { console.error('countPendingTimeOff:', error.message); return 0 }
+  return count || 0
+}
+
+// Unified, newest-first activity feed aggregated from existing data (no new
+// table). Each event: { id, kind, at /* ISO */, actor, text, houseId }, where
+// kind ∈ 'clock_in' | 'clock_out' | 'shift_edit' | 'time_off' |
+// 'work_hour_limit' | 'auto_clock_out'. House-filter includes org-wide
+// (null house_id) rows. Errors are handled per source so one bad table doesn't
+// sink the feed.
+const WORK_HOUR_LIMIT_MS = 16 * 60 * 60 * 1000
+export async function fetchActivityFeed(orgId, { houseId = null, limit = 40 } = {}) {
+  if (isDemoMode) return demo.demoFetchActivityFeed({ houseId, limit })
+  if (!supabase || !orgId) return []
+
+  const events = []
+  const inHouse = (rowHouseId) => !houseId || rowHouseId == null || rowHouseId === houseId
+
+  // time_punches → clock_in / clock_out (+ work_hour_limit / auto_clock_out)
+  try {
+    let q = supabase.from('time_punches').select('*').eq('org_id', orgId).order('clock_in_at', { ascending: false }).limit(limit)
+    const { data, error } = await q
+    if (error) throw error
+    for (const p of (data || [])) {
+      if (!inHouse(p.house_id)) continue
+      const name = p.staff_name || 'Someone'
+      events.push({ id: `clockin-${p.id}`, kind: 'clock_in', at: p.clock_in_at, actor: name, text: `${name} clocked in`, houseId: p.house_id || null })
+      if (p.clock_out_at) {
+        events.push({ id: `clockout-${p.id}`, kind: 'clock_out', at: p.clock_out_at, actor: name, text: `${name} clocked out`, houseId: p.house_id || null })
+      }
+      const end = p.clock_out_at ? new Date(p.clock_out_at).getTime() : Date.now()
+      const span = end - new Date(p.clock_in_at).getTime()
+      if (span > WORK_HOUR_LIMIT_MS) {
+        events.push({ id: `whl-${p.id}`, kind: 'work_hour_limit', at: p.clock_out_at || p.clock_in_at, actor: name, text: `${name} exceeded the daily work-hour limit`, houseId: p.house_id || null })
+      }
+      if (p.auto_closed) {
+        events.push({ id: `auto-${p.id}`, kind: 'auto_clock_out', at: p.clock_out_at || p.clock_in_at, actor: name, text: `${name} was auto clocked out`, houseId: p.house_id || null })
+      }
+    }
+  } catch (e) { console.error('fetchActivityFeed punches:', e.message) }
+
+  // shift_edit_requests → shift_edit
+  try {
+    let q = supabase.from('shift_edit_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit)
+    const { data, error } = await q
+    if (error) throw error
+    for (const r of (data || [])) {
+      if (!inHouse(r.house_id)) continue
+      const name = r.staff_name || 'Someone'
+      events.push({ id: `shiftedit-${r.id}`, kind: 'shift_edit', at: r.created_at, actor: name, text: `${name} requested a shift edit on ${r.target_date}`, houseId: r.house_id || null })
+    }
+  } catch (e) { console.error('fetchActivityFeed shiftEdits:', e.message) }
+
+  // time_off_requests → time_off
+  try {
+    let q = supabase.from('time_off_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit)
+    const { data, error } = await q
+    if (error) throw error
+    for (const r of (data || [])) {
+      if (!inHouse(r.house_id)) continue
+      const name = r.staff_name || 'Someone'
+      events.push({ id: `timeoff-${r.id}`, kind: 'time_off', at: r.created_at, actor: name, text: `${name} requested ${r.kind} time off`, houseId: r.house_id || null })
+    }
+  } catch (e) { console.error('fetchActivityFeed timeOff:', e.message) }
+
+  return events
+    .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+    .slice(0, limit)
+}
+
 function toDateStr(date) {
   if (typeof date === 'string') return date
   // Local date (not UTC) so evening entries don't roll to the next day.

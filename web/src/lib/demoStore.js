@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [] }
 }
 
 function load() {
@@ -913,4 +913,120 @@ export function demoCountPendingRequests(orgId, { houseId = null } = {}) {
   return store.shiftEditRequests
     .filter(r => r.status === 'pending' && (!houseId || r.house_id === houseId))
     .length
+}
+
+// ── Time off + Activity ──────────────────────────────────────────────────────
+// Seed ~3 realistic time-off requests for seed staff, but ONLY when the store is
+// empty (guarded so it never duplicates). Called at the top of every time-off
+// read so the data exists on first render. Dates are relative to today.
+export function demoSeedTimeOff(orgId) {
+  if (store.timeOffRequests.length > 0) return
+  const today = new Date()
+  const addDays = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return _ds(d) }
+
+  const specs = [
+    // Pending vacation next week (3-day trip).
+    { p: SEED_TC_STAFF[0], kind: 'vacation', start: 7, end: 9, hours: 24, reason: 'Family trip out of town.', status: 'pending' },
+    // Approved sick day last week.
+    { p: SEED_TC_STAFF[1], kind: 'sick', start: -6, end: -6, hours: 8, reason: 'Came down with the flu.', status: 'approved', decidedByName: 'Dana Whitfield' },
+    // Pending personal day (a few days out).
+    { p: SEED_TC_STAFF[3], kind: 'personal', start: 3, end: 3, hours: 8, reason: 'Personal appointment.', status: 'pending' },
+  ]
+  specs.forEach((s) => {
+    store.timeOffRequests.push({
+      id: uid('toff'), org_id: orgId, house_id: null,
+      staff_id: s.p.staff_id, staff_name: s.p.staff_name,
+      kind: s.kind, start_date: addDays(s.start), end_date: addDays(s.end),
+      hours: s.hours, reason: s.reason, status: s.status,
+      decided_by_name: s.decidedByName || null,
+      decided_at: s.status === 'pending' ? null : now(),
+      created_at: now(),
+    })
+  })
+
+  persist()
+}
+
+export function demoRequestTimeOff(orgId, { houseId, staffId, staffName, kind, startDate, endDate, hours, reason } = {}) {
+  const row = {
+    id: uid('toff'), org_id: orgId, house_id: houseId || null,
+    staff_id: staffId || null, staff_name: staffName || null,
+    kind: kind || 'vacation',
+    start_date: asDateStr(startDate || new Date()),
+    end_date: asDateStr(endDate || startDate || new Date()),
+    hours: hours ?? null, reason: reason || null, status: 'pending',
+    decided_by_name: null, decided_at: null, created_at: now(),
+  }
+  store.timeOffRequests.push(row); persist()
+  return row
+}
+
+export function demoFetchTimeOffRequests(orgId, { houseId = null, status = null } = {}) {
+  demoSeedTimeOff(orgId)
+  return store.timeOffRequests
+    .filter(r => (!houseId || r.house_id === houseId) && (!status || r.status === status))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+}
+
+export function demoReviewTimeOffRequest(id, { status, decidedByName } = {}) {
+  const r = store.timeOffRequests.find(x => x.id === id)
+  if (!r) return null
+  if (status) r.status = status
+  r.decided_by_name = decidedByName || null
+  r.decided_at = now()
+  persist()
+  return r
+}
+
+export function demoCountPendingTimeOff(orgId, { houseId = null } = {}) {
+  demoSeedTimeOff(orgId)
+  return store.timeOffRequests
+    .filter(r => r.status === 'pending' && (!houseId || r.house_id === houseId))
+    .length
+}
+
+// Unified, newest-first activity feed aggregated from punches, shift edit
+// requests and time-off requests. Each event:
+// { id, kind, at /* ISO */, actor, text, houseId }. House-filter includes
+// org-wide (null house_id) rows. Seeders run first so data exists.
+const DEMO_WORK_HOUR_LIMIT_MS = 16 * 60 * 60 * 1000
+export function demoFetchActivityFeed({ houseId = null, limit = 40 } = {}) {
+  demoSeedTimeclock(store.punches[0]?.org_id || 'demo')
+  demoSeedTimeOff(store.timeOffRequests[0]?.org_id || 'demo')
+
+  const events = []
+  const inHouse = (rowHouseId) => !houseId || rowHouseId == null || rowHouseId === houseId
+
+  for (const p of store.punches) {
+    if (!inHouse(p.house_id)) continue
+    const name = p.staff_name || 'Someone'
+    events.push({ id: `clockin-${p.id}`, kind: 'clock_in', at: p.clock_in_at, actor: name, text: `${name} clocked in`, houseId: p.house_id || null })
+    if (p.clock_out_at) {
+      events.push({ id: `clockout-${p.id}`, kind: 'clock_out', at: p.clock_out_at, actor: name, text: `${name} clocked out`, houseId: p.house_id || null })
+    }
+    const end = p.clock_out_at ? new Date(p.clock_out_at).getTime() : Date.now()
+    const span = end - new Date(p.clock_in_at).getTime()
+    if (span > DEMO_WORK_HOUR_LIMIT_MS) {
+      events.push({ id: `whl-${p.id}`, kind: 'work_hour_limit', at: p.clock_out_at || p.clock_in_at, actor: name, text: `${name} exceeded the daily work-hour limit`, houseId: p.house_id || null })
+    }
+    if (p.auto_closed) {
+      events.push({ id: `auto-${p.id}`, kind: 'auto_clock_out', at: p.clock_out_at || p.clock_in_at, actor: name, text: `${name} was auto clocked out`, houseId: p.house_id || null })
+    }
+  }
+
+  for (const r of store.shiftEditRequests) {
+    if (!inHouse(r.house_id)) continue
+    const name = r.staff_name || 'Someone'
+    events.push({ id: `shiftedit-${r.id}`, kind: 'shift_edit', at: r.created_at, actor: name, text: `${name} requested a shift edit on ${r.target_date}`, houseId: r.house_id || null })
+  }
+
+  for (const r of store.timeOffRequests) {
+    if (!inHouse(r.house_id)) continue
+    const name = r.staff_name || 'Someone'
+    events.push({ id: `timeoff-${r.id}`, kind: 'time_off', at: r.created_at, actor: name, text: `${name} requested ${r.kind} time off`, houseId: r.house_id || null })
+  }
+
+  return events
+    .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+    .slice(0, limit)
 }

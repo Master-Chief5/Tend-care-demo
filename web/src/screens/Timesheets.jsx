@@ -7,6 +7,7 @@ import {
   fmtHM, periodRange, shiftPrevPeriod, shiftNextPeriod,
   overtimeFor, buildTimesheet, punchWorked,
 } from '../lib/timesheet'
+import { TimeOffPanel } from '../components/TimeOffPanel'
 
 // "Time clock + Timesheets + Approvals" screen. Role-aware:
 //   • admins (supervisor/manager): Who's in · Timesheets · Requests
@@ -511,7 +512,7 @@ export function ScreenA_Timesheets({ user, desktop = false, houses = [] }) {
   // Manager views are scoped to their own house; supervisors see all houses.
   const scopeHouse = role === 'manager' ? houseId : null
 
-  const tabs = isAdmin ? ['Who’s in', 'Timesheets', 'Requests'] : ['My timesheet', 'Requests']
+  const tabs = isAdmin ? ['Who’s in', 'Timesheets', 'Requests', 'Time off'] : ['My timesheet', 'Requests', 'Time off']
   const [tab, setTab] = useState(tabs[0])
 
   // Keep tab valid if role changes.
@@ -532,6 +533,7 @@ export function ScreenA_Timesheets({ user, desktop = false, houses = [] }) {
   )
 
   const Body = () => {
+    if (tab === 'Time off') return <TimeOffPanel user={user} desktop={desktop} />
     if (isAdmin) {
       if (tab === 'Who’s in') return <WhoseIn orgId={orgId} houseId={scopeHouse} />
       if (tab === 'Timesheets') return <PeriodGrid orgId={orgId} houseId={scopeHouse} staffId={staffId} singleStaff={false} />
