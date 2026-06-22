@@ -8,6 +8,7 @@ import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff } from 
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 import { SuggestInput } from '../../components/SuggestInput'
+import { ScheduleWeekTools, WeekSummary } from './ScheduleTools'
 
 const DAY_START = 0
 const DAY_END = 24
@@ -311,19 +312,22 @@ function DayScheduleView({ week, selectedDate, onPickDay, onPrev, onNext, onToda
   )
 }
 
-function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday }) {
+function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday, user, onChanged }) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
   const openCount = shifts.filter(s => s.status === 'open').length
+  const weekDates = week.map(d => toDateStr(d.date))
+  const isAdmin = user?.role === 'supervisor' || user?.role === 'manager'
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button onClick={onPrev} title="Previous week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} style={{ transform: 'rotate(180deg)' }} /></button>
         <button onClick={onToday} style={{ ...dBtnGhost, padding: '6px 12px', fontSize: 12 }}>Today</button>
         <button onClick={onNext} title="Next week" style={{ ...dBtnGhost, padding: '6px 8px' }}><IconChev size={14} sw={2} /></button>
         <span className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{weekLabel}</span>
-        <div style={{ flex: 1 }} />
         {openCount > 0 && <span style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>Open shifts: <strong style={{ color: 'var(--a-clay)' }}>{openCount}</strong></span>}
+        <div style={{ flex: 1 }} />
+        {isAdmin && <ScheduleWeekTools user={user} houses={houses} weekDates={weekDates} shifts={shifts} onChanged={onChanged} />}
       </div>
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
@@ -337,6 +341,7 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
         </div>
         {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} />)}
       </div>
+      <WeekSummary shifts={shifts} weekDates={weekDates} />
     </>
   )
 }
@@ -609,6 +614,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         )}
         {view === 'week' && (
           <WeekScheduleView week={week} houses={houses} shifts={rangeShifts} {...nav}
+            user={user} onChanged={reload}
             onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
         )}
         {view === 'month' && (

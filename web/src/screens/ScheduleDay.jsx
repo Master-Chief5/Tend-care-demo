@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime, expandRepeatDates } from '../lib/utils'
+import { summarizeWeek, fmtHrs } from '../lib/scheduleSummary'
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../hooks/useNowMinute'
@@ -229,6 +230,19 @@ function ScreenA_ScheduleWeek({ setView, houses, week, weekShifts = [], weekDate
           </div>
         </div>
         <div style={{ padding: '2px 16px 8px' }}><ScheduleNav onPrev={onPrev} onNext={onNext} onToday={onToday} /></div>
+        {(() => {
+          const wk = summarizeWeek(weekShifts, weekDates)
+          return (
+            <div style={{ padding: '0 16px 8px' }}>
+              <div style={{ display: 'flex', gap: 14, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '8px 14px', fontSize: 11.5, color: 'var(--a-ink2)' }}>
+                <span>This week</span>
+                <span><strong style={{ color: 'var(--a-ink)' }}>{fmtHrs(wk.total.hours)}</strong> hrs</span>
+                <span><strong style={{ color: 'var(--a-ink)' }}>{wk.total.shifts}</strong> shifts</span>
+                <span><strong style={{ color: 'var(--a-ink)' }}>{wk.total.staff}</strong> staff</span>
+              </div>
+            </div>
+          )
+        })()}
         <div style={{ overflowY: 'auto', flex: 1, padding: '14px 14px 24px' }}>
           {houses.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)', fontSize: 13 }}>No houses set up yet.</div>
