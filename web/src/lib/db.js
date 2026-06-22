@@ -1604,6 +1604,156 @@ export async function fetchActivityFeed(orgId, { houseId = null, limit = 40 } = 
     .slice(0, limit)
 }
 
+// ── Announcements / Updates ──────────────────────────────────────────────────
+// A lightweight org/house updates feed with optional polls + read receipts.
+// Rows are returned AUGMENTED so the UI needs a single call:
+//   _read       (bool)  — did this staffId read it
+//   _myVote     (int|null) — this staffId's poll choice
+//   _pollCounts (int[])  — vote tallies, same length as poll_options
+//   _readCount  (int)    — total distinct readers
+// `bg` is one of: 'sage' | 'clay' | 'blue' | 'amber' | 'plain'.
+
+// Create an announcement. Returns the inserted row, augmented with zeroed
+// engagement fields (_read=false, _myVote=null, _pollCounts=zeros, _readCount=0).
+export async function createAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead } = {}) {
+  if (isDemoMode) return demo.demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('announcements')
+    .insert({
+      org_id:          orgId,
+      house_id:        houseId || null,
+      author_staff_id: authorStaffId || null,
+      author_name:     authorName || null,
+      author_role:     authorRole || null,
+      title:           title || null,
+      body:            body || '',
+      bg:              bg || 'plain',
+      audience_roles:  (audienceRoles && audienceRoles.length) ? audienceRoles : null,
+      poll_question:   pollQuestion || null,
+      poll_options:    (pollOptions && pollOptions.length) ? pollOptions : null,
+      require_read:    !!requireRead,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createAnnouncement:', error.message); return null }
+  return {
+    ...data,
+    _read: false,
+    _myVote: null,
+    _pollCounts: (data.poll_options || []).map(() => 0),
+    _readCount: 0,
+  }
+}
+
+// Announcements visible to this staff, newest first, each augmented with
+// engagement fields. RLS auto-applies house + audience filtering.
+export async function fetchAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoFetchAnnouncements(orgId, { houseId, staffId, role })
+  if (!supabase || !orgId) return []
+
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) { console.error('fetchAnnouncements:', error.message); return [] }
+
+  const rows = data || []
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+
+  // Read receipts → _readCount per id, _read for this staff.
+  const readCount = {}
+  const readByMe = {}
+  try {
+    const { data: reads, error: rErr } = await supabase
+      .from('announcement_reads')
+      .select('announcement_id, staff_id')
+      .in('announcement_id', ids)
+    if (rErr) throw rErr
+    for (const r of (reads || [])) {
+      readCount[r.announcement_id] = (readCount[r.announcement_id] || 0) + 1
+      if (staffId && r.staff_id === staffId) readByMe[r.announcement_id] = true
+    }
+  } catch (e) { console.error('fetchAnnouncements reads:', e.message) }
+
+  // Poll votes → _pollCounts per id, _myVote for this staff.
+  const voteCounts = {}
+  const myVote = {}
+  try {
+    const { data: votes, error: vErr } = await supabase
+      .from('announcement_poll_votes')
+      .select('announcement_id, staff_id, choice')
+      .in('announcement_id', ids)
+    if (vErr) throw vErr
+    for (const v of (votes || [])) {
+      ;(voteCounts[v.announcement_id] || (voteCounts[v.announcement_id] = [])).push(v.choice)
+      if (staffId && v.staff_id === staffId) myVote[v.announcement_id] = v.choice
+    }
+  } catch (e) { console.error('fetchAnnouncements votes:', e.message) }
+
+  return rows.map(r => {
+    const opts = r.poll_options || []
+    const counts = opts.map(() => 0)
+    for (const c of (voteCounts[r.id] || [])) {
+      if (c >= 0 && c < counts.length) counts[c] += 1
+    }
+    return {
+      ...r,
+      _read:       !!readByMe[r.id],
+      _myVote:     myVote[r.id] ?? null,
+      _pollCounts: counts,
+      _readCount:  readCount[r.id] || 0,
+    }
+  })
+}
+
+// Mark an announcement read by this staff (idempotent). Returns true.
+export async function markAnnouncementRead(orgId, { announcementId, staffId, staffName } = {}) {
+  if (isDemoMode) return demo.demoMarkAnnouncementRead(orgId, { announcementId, staffId, staffName })
+  if (!supabase || !orgId || !announcementId) return false
+  const { error } = await supabase
+    .from('announcement_reads')
+    .upsert(
+      { org_id: orgId, announcement_id: announcementId, staff_id: staffId || null, staff_name: staffName || null },
+      { onConflict: 'announcement_id,staff_id', ignoreDuplicates: true }
+    )
+  if (error) { console.error('markAnnouncementRead:', error.message); return false }
+  return true
+}
+
+// Cast or change this staff's poll vote. Returns true.
+export async function voteAnnouncementPoll(orgId, { announcementId, staffId, choice } = {}) {
+  if (isDemoMode) return demo.demoVoteAnnouncementPoll(orgId, { announcementId, staffId, choice })
+  if (!supabase || !orgId || !announcementId) return false
+  const { error } = await supabase
+    .from('announcement_poll_votes')
+    .upsert(
+      { org_id: orgId, announcement_id: announcementId, staff_id: staffId || null, choice },
+      { onConflict: 'announcement_id,staff_id' }
+    )
+  if (error) { console.error('voteAnnouncementPoll:', error.message); return false }
+  return true
+}
+
+// Delete an announcement (reads/votes cascade). Returns true.
+export async function deleteAnnouncement(id) {
+  if (isDemoMode) return demo.demoDeleteAnnouncement(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('announcements').delete().eq('id', id)
+  if (error) { console.error('deleteAnnouncement:', error.message); return false }
+  return true
+}
+
+// Count of visible announcements this staff hasn't read yet (for badges).
+export async function countUnreadAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoCountUnreadAnnouncements(orgId, { houseId, staffId, role })
+  const rows = await fetchAnnouncements(orgId, { houseId, staffId, role })
+  return rows.filter(r => !r._read).length
+}
+
 function toDateStr(date) {
   if (typeof date === 'string') return date
   // Local date (not UTC) so evening entries don't roll to the next day.

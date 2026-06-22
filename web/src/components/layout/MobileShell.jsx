@@ -13,7 +13,8 @@ import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { ScreenA_Timesheets } from '../../screens/Timesheets'
 import { ScreenA_Activity } from '../../screens/Activity'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity } from '../icons'
+import { ScreenA_Updates } from '../../screens/Updates'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -39,6 +40,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
       case 'house': return <ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => switchTab('home')} houses={houses} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
       case 'time':  return <ScreenA_Timesheets user={user} houses={houses} />
+      case 'updates': return <ScreenA_Updates user={user} />
       case 'team':  return <ScreenA_Chat user={user} />
       case 'drive': return <ScreenA_Driving user={user} />
       case 'supply': return <ScreenA_Resources user={user} />
@@ -50,6 +52,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
     case 'time':   return <ScreenA_Timesheets user={user} houses={houses} />
+    case 'updates': return <ScreenA_Updates user={user} />
     case 'activity': return <ScreenA_Activity user={user} />
     case 'team':   return <ScreenA_Chat user={user} />
     case 'drive':  return <ScreenA_Driving user={user} />
@@ -141,6 +144,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'house',  label: 'Care',     icon: IconHeart },
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'time',   label: 'Time',     icon: IconClock },
+    { id: 'updates', label: 'Updates', icon: IconMegaphone },
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
@@ -150,6 +154,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'time',   label: 'Time',     icon: IconClock },
     { id: 'activity', label: 'Activity', icon: IconActivity },
+    { id: 'updates', label: 'Updates', icon: IconMegaphone },
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
