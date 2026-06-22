@@ -11,6 +11,7 @@ import { StaffCard } from '../People'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
 import { IconPlus, IconSearch, IconChev, IconChat, IconArrow } from '../../components/icons'
 import { TeamChat } from '../../components/TeamChat'
+import { StaffRanking } from './StaffRanking'
 
 // ── Local helpers ─────────────────────────────────────────────────────
 
@@ -401,6 +402,7 @@ export function PageStaffDesktop({ user, houses = [] }) {
   const [loading, setLoading] = useState(true)
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [modal, setModal] = useState(null)   // null | { mode:'add' } | { mode:'edit', staff }
+  const [view, setView] = useState('directory')   // 'directory' | 'ranking'
   const [toast, showToast] = useToast()
 
   const reload = () => {
@@ -434,10 +436,17 @@ export function PageStaffDesktop({ user, houses = [] }) {
     <>
       <Toast msg={toast} />
       <DTopBar title="Staff" sub={`${staffList.length} staff member${staffList.length === 1 ? '' : 's'}`}
-        actions={<button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add staff</button>}
+        actions={<>
+          <div style={{ display: 'flex', background: 'var(--a-paper)', borderRadius: 999, padding: 3, border: '1px solid var(--a-line)' }}>
+            {['directory', 'ranking'].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{ border: 0, background: v === view ? 'var(--a-ink)' : 'transparent', color: v === view ? 'var(--a-card)' : 'var(--a-ink2)', padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Geist', textTransform: 'capitalize' }}>{v === 'ranking' ? 'Ranking' : 'Directory'}</button>
+            ))}
+          </div>
+          <button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add staff</button>
+        </>}
         search={false} />
       <CenteredColumn width={820} side>
-        <div>
+        <div>{view === 'ranking' ? <StaffRanking user={user} /> : (<>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
             <div style={{ flex: 1, background: 'var(--a-paper)', borderRadius: 999, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--a-line)' }}>
               <IconSearch size={13} color="var(--a-ink3)" />
@@ -465,7 +474,7 @@ export function PageStaffDesktop({ user, houses = [] }) {
           )}
           {!loading && staffList.length > 0 && filtered.map((s) => <StaffCard key={s.id} {...s} onClick={() => setSelectedStaff(s)} />)}
           {!loading && staffList.length > 0 && filtered.length === 0 && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No staff match your search.</div>}
-        </div>
+        </>)}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {selectedStaff ? (
