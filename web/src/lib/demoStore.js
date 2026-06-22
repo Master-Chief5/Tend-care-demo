@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [] }
 }
 
 function load() {
@@ -1029,4 +1029,123 @@ export function demoFetchActivityFeed({ houseId = null, limit = 40 } = {}) {
   return events
     .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
     .slice(0, limit)
+}
+
+// ── Announcements / Updates ──────────────────────────────────────────────────
+// Mirrors db.js: returns rows augmented with _read / _myVote / _pollCounts /
+// _readCount so the UI needs a single call. `bg` ∈ sage|clay|blue|amber|plain.
+export function demoSeedAnnouncements(orgId) {
+  if (store.announcements.length > 0) return
+  const today = new Date()
+  const addDays = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return _ds(d) }
+
+  store.announcements.push({
+    id: uid('ann'), org_id: orgId, house_id: null,
+    author_staff_id: null, author_name: 'Dana Whitfield', author_role: 'supervisor',
+    title: 'Welcome to Tend Updates',
+    body: "We've launched a new Updates feed so the whole team stays in the loop — shift news, reminders, and quick polls all in one place. Check back here for the latest.",
+    bg: 'sage',
+    audience_roles: null,
+    poll_question: 'How often should we post shift updates?',
+    poll_options: ['Daily', 'A few times a week', 'Only when needed'],
+    require_read: false,
+    created_at: now(),
+  })
+  store.announcements.push({
+    id: uid('ann'), org_id: orgId, house_id: null,
+    author_staff_id: null, author_name: 'Dana Whitfield', author_role: 'supervisor',
+    title: 'Monthly house meeting',
+    body: `Our monthly all-staff house meeting is scheduled for ${addDays(7)}. Please review the agenda and confirm you've seen this update.`,
+    bg: 'amber',
+    audience_roles: null,
+    poll_question: null,
+    poll_options: null,
+    require_read: true,
+    created_at: now(),
+  })
+
+  persist()
+}
+
+function _augmentAnnouncement(a, staffId) {
+  const opts = a.poll_options || []
+  const counts = opts.map(() => 0)
+  let myVote = null
+  for (const v of store.announcementVotes) {
+    if (v.announcement_id !== a.id) continue
+    if (v.choice >= 0 && v.choice < counts.length) counts[v.choice] += 1
+    if (staffId && v.staff_id === staffId) myVote = v.choice
+  }
+  let readCount = 0
+  let read = false
+  for (const r of store.announcementReads) {
+    if (r.announcement_id !== a.id) continue
+    readCount += 1
+    if (staffId && r.staff_id === staffId) read = true
+  }
+  return { ...a, _read: read, _myVote: myVote, _pollCounts: counts, _readCount: readCount }
+}
+
+export function demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead } = {}) {
+  const row = {
+    id: uid('ann'), org_id: orgId, house_id: houseId || null,
+    author_staff_id: authorStaffId || null, author_name: authorName || null, author_role: authorRole || null,
+    title: title || null, body: body || '', bg: bg || 'plain',
+    audience_roles: (audienceRoles && audienceRoles.length) ? audienceRoles : null,
+    poll_question: pollQuestion || null,
+    poll_options: (pollOptions && pollOptions.length) ? pollOptions : null,
+    require_read: !!requireRead,
+    created_at: now(),
+  }
+  store.announcements.push(row); persist()
+  return _augmentAnnouncement(row, authorStaffId || null)
+}
+
+export function demoFetchAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
+  demoSeedAnnouncements(orgId)
+  return store.announcements
+    .filter(a =>
+      (role === 'supervisor' || a.house_id == null || a.house_id === houseId) &&
+      (!a.audience_roles || a.audience_roles.length === 0 || a.audience_roles.includes(role))
+    )
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(a => _augmentAnnouncement(a, staffId))
+}
+
+export function demoMarkAnnouncementRead(orgId, { announcementId, staffId, staffName } = {}) {
+  const exists = store.announcementReads.some(r => r.announcement_id === announcementId && r.staff_id === (staffId || null))
+  if (!exists) {
+    store.announcementReads.push({
+      id: uid('aread'), org_id: orgId, announcement_id: announcementId,
+      staff_id: staffId || null, staff_name: staffName || null, read_at: now(),
+    })
+    persist()
+  }
+  return true
+}
+
+export function demoVoteAnnouncementPoll(orgId, { announcementId, staffId, choice } = {}) {
+  const v = store.announcementVotes.find(x => x.announcement_id === announcementId && x.staff_id === (staffId || null))
+  if (v) { v.choice = choice }
+  else {
+    store.announcementVotes.push({
+      id: uid('avote'), org_id: orgId, announcement_id: announcementId,
+      staff_id: staffId || null, choice,
+    })
+  }
+  persist()
+  return true
+}
+
+export function demoDeleteAnnouncement(id) {
+  store.announcements = store.announcements.filter(a => a.id !== id)
+  store.announcementReads = store.announcementReads.filter(r => r.announcement_id !== id)
+  store.announcementVotes = store.announcementVotes.filter(v => v.announcement_id !== id)
+  persist()
+  return true
+}
+
+export function demoCountUnreadAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
+  demoSeedAnnouncements(orgId)
+  return demoFetchAnnouncements(orgId, { houseId, staffId, role }).filter(r => !r._read).length
 }

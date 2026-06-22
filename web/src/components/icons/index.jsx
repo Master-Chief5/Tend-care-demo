@@ -19,6 +19,9 @@ export function IconClock({ size = 20, sw = 1.5, color = 'currentColor', style }
 export function IconActivity({ size = 20, sw = 1.5, color = 'currentColor', style }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
 }
+export function IconMegaphone({ size = 20, sw = 1.5, color = 'currentColor', style }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M3 11l15-6v14L3 13z"/><path d="M3 11v2a2 2 0 0 0 2 2h2"/><path d="M7 15v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-2"/></svg>
+}
 export function IconChat({ size = 20, sw = 1.5, color = 'currentColor', style }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
 }
