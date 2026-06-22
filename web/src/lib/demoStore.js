@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [] }
 }
 
 function load() {
@@ -1148,4 +1148,49 @@ export function demoDeleteAnnouncement(id) {
 export function demoCountUnreadAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
   demoSeedAnnouncements(orgId)
   return demoFetchAnnouncements(orgId, { houseId, staffId, role }).filter(r => !r._read).length
+}
+
+// ── Schedule templates / tools ───────────────────────────────────────────────
+// A template-shift is a day-of-week pattern object:
+//   { dayIndex: 0-6, startHour, endHour, role, personName, staffId, note }
+// Templates start empty (no seeder).
+export function demoSaveScheduleTemplate(orgId, { houseId, name, shifts, createdByName } = {}) {
+  const row = {
+    id: uid('tmpl'), org_id: orgId, house_id: houseId || null,
+    name, shifts: shifts || [], created_by_name: createdByName || null, created_at: now(),
+  }
+  store.scheduleTemplates.push(row); persist()
+  return row
+}
+
+export function demoFetchScheduleTemplates(orgId, { houseId } = {}) {
+  return store.scheduleTemplates
+    .filter(t => !houseId || !t.house_id || t.house_id === houseId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+}
+
+export function demoDeleteScheduleTemplate(id) {
+  store.scheduleTemplates = store.scheduleTemplates.filter(t => t.id !== id); persist()
+  return true
+}
+
+// Insert one shift per template-shift at weekDates[dayIndex], reusing demoAddShift.
+// Skips out-of-range dayIndex or a missing weekDates[dayIndex]. Returns the count.
+export function demoApplyShiftsToWeek(orgId, { houseId, weekDates, shifts } = {}) {
+  const dates = Array.isArray(weekDates) ? weekDates : []
+  const list = Array.isArray(shifts) ? shifts : []
+  let inserted = 0
+  for (const ts of list) {
+    if (!ts) continue
+    const di = ts.dayIndex
+    if (!Number.isInteger(di) || di < 0 || di > 6) continue
+    const date = dates[di]
+    if (!date) continue
+    demoAddShift(houseId, {
+      personName: ts.personName, staffId: ts.staffId || null, role: ts.role,
+      startHour: ts.startHour, endHour: ts.endHour, date, note: ts.note || null,
+    })
+    inserted += 1
+  }
+  return inserted
 }

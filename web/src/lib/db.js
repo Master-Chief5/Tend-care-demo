@@ -1766,3 +1766,91 @@ function fmtClock(iso) {
   const h = d.getHours(), m = d.getMinutes()
   return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h < 12 ? 'a' : 'p'}`
 }
+
+// ── Schedule templates / tools ───────────────────────────────────────────────
+// A "template shift" is a day-of-week pattern object:
+//   { dayIndex: 0-6, startHour, endHour, role, personName, staffId, note }
+// where dayIndex is the POSITION within the displayed week. These power
+// save/apply week templates AND copy-a-week (the UI builds the `shifts` array
+// from a source week before calling applyShiftsToWeek).
+
+// Save a week template. `shifts` is the template-shift array (stored as-is in
+// the jsonb column). Returns the inserted row, or null.
+export async function saveScheduleTemplate(orgId, { houseId, name, shifts, createdByName } = {}) {
+  if (isDemoMode) return demo.demoSaveScheduleTemplate(orgId, { houseId, name, shifts, createdByName })
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('schedule_templates')
+    .insert({
+      org_id:          orgId,
+      house_id:        houseId || null,
+      name,
+      shifts:          shifts || [],
+      created_by_name: createdByName || null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('saveScheduleTemplate:', error.message); return null }
+  return data
+}
+
+// Fetch week templates, newest-first. RLS house-filters; when houseId is passed
+// we also return org-wide (house_id IS NULL) plus that house's templates.
+export async function fetchScheduleTemplates(orgId, { houseId } = {}) {
+  if (isDemoMode) return demo.demoFetchScheduleTemplates(orgId, { houseId })
+  if (!supabase || !orgId) return []
+  let q = supabase
+    .from('schedule_templates')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+  if (houseId) q = q.or(`house_id.is.null,house_id.eq.${houseId}`)
+  const { data, error } = await q
+  if (error) { console.error('fetchScheduleTemplates:', error.message); return [] }
+  return data || []
+}
+
+// Delete a template. Returns true on success.
+export async function deleteScheduleTemplate(id) {
+  if (isDemoMode) return demo.demoDeleteScheduleTemplate(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('schedule_templates').delete().eq('id', id)
+  if (error) { console.error('deleteScheduleTemplate:', error.message); return false }
+  return true
+}
+
+// Insert one shift per template-shift at weekDates[dayIndex], via the SAME
+// insert addShift uses. `weekDates` is 7 'YYYY-MM-DD' strings. Skips any shift
+// whose dayIndex is out of 0-6 or whose weekDates[dayIndex] is missing. Powers
+// BOTH "apply template" and "copy week". Returns the count inserted.
+export async function applyShiftsToWeek(orgId, { houseId, weekDates, shifts } = {}) {
+  if (isDemoMode) return demo.demoApplyShiftsToWeek(orgId, { houseId, weekDates, shifts })
+  if (!supabase) return 0
+  const dates = Array.isArray(weekDates) ? weekDates : []
+  const list = Array.isArray(shifts) ? shifts : []
+  let inserted = 0
+  for (const ts of list) {
+    if (!ts) continue
+    const di = ts.dayIndex
+    if (!Number.isInteger(di) || di < 0 || di > 6) continue
+    const date = dates[di]
+    if (!date) continue
+    const { error } = await supabase
+      .from('shifts')
+      .insert({
+        org_id:      orgId,
+        house_id:    houseId,
+        person_name: ts.personName,
+        staff_id:    ts.staffId || null,
+        role:        ts.role,
+        start_hour:  ts.startHour,
+        end_hour:    ts.endHour,
+        shift_date:  date,
+        note:        ts.note || null,
+        status:      'scheduled',
+      })
+    if (error) { console.error('applyShiftsToWeek:', error.message); continue }
+    inserted += 1
+  }
+  return inserted
+}

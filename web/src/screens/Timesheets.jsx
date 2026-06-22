@@ -5,7 +5,7 @@ import {
 } from '../lib/db'
 import {
   fmtHM, periodRange, shiftPrevPeriod, shiftNextPeriod,
-  overtimeFor, buildTimesheet, punchWorked,
+  overtimeFor, buildTimesheet, punchWorked, dateOf,
 } from '../lib/timesheet'
 import { TimeOffPanel } from '../components/TimeOffPanel'
 
@@ -184,7 +184,7 @@ function PeriodGrid({ orgId, houseId, staffId, singleStaff }) {
     }
     const loadShifts = Promise.all(days.map(day =>
       Promise.resolve(fetchShifts(orgId, houseId, day))
-        .then(list => (list || []).map(s => ({ ...s, date: day })))
+        .then(list => (list || []).map(s => ({ ...s, date: dateOf(day) })))
         .catch(() => [])
     )).then(arrs => arrs.flat()).catch(() => [])
 
