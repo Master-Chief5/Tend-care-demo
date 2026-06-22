@@ -52,7 +52,8 @@ for (const [r, name] of [['supervisor', 'Lina R.'], ['manager', 'Devon P.'], ['s
     await page.screenshot({ path: `${OUT}/${r}-${i}.png` }).catch(() => {})
   }
   // Sign out so the next persona starts clean (data persists in the demo store).
-  await page.locator('.web-tab-bar button', { hasText: 'Me' }).first().click().catch(() => {}); await wait(400)
+  // Exact-match the "Me" tab — a substring match would also hit "Time".
+  await page.locator('.web-tab-bar button', { hasText: /^Me$/ }).first().click().catch(() => {}); await wait(400)
   await page.getByRole('button', { name: /^Sign out$/ }).first().click().catch(() => {}); await wait(700); await noAnim()
 }
 

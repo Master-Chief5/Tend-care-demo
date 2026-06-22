@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [] }
 }
 
 function load() {
@@ -748,4 +748,169 @@ export function demoSendMessage(orgId, msg) {
   }
   store.messages.push(row); persist()
   return row
+}
+
+// ── Time clock (punches + shift edit requests) ───────────────────────────────
+// Seed staff used to populate a convincing demo when the store is empty.
+const SEED_TC_STAFF = [
+  { staff_id: 'seed-staff-1', staff_name: 'Aisha Mendez', role: 'staff' },
+  { staff_id: 'seed-staff-2', staff_name: 'Jay Brooks',   role: 'staff' },
+  { staff_id: 'seed-staff-3', staff_name: 'Marcus Lewis', role: 'staff' },
+  { staff_id: 'seed-staff-4', staff_name: 'Priya Nair',   role: 'staff' },
+  { staff_id: 'seed-staff-5', staff_name: 'Reni Tate',    role: 'staff' },
+]
+
+// Build a LOCAL-equivalent ISO timestamp at the given y/m/d h:m. Using the
+// Date(y, m, d, h, min) ctor keeps it in local time, matching `_ds`.
+function _localISO(y, m, d, h, min = 0) {
+  return new Date(y, m, d, h, min).toISOString()
+}
+
+// Seed realistic punches + pending edit requests for the CURRENT week, but ONLY
+// when the store is empty (guarded so it never duplicates). Called at the top of
+// every time-clock read so the data exists on first render.
+export function demoSeedTimeclock(orgId) {
+  if (store.punches.length > 0) return
+  const today = new Date()
+  const y = today.getFullYear(), mo = today.getMonth(), d = today.getDate()
+  const dow = today.getDay()                    // 0 = Sunday
+  const sundayDate = d - dow                     // day-of-month of this week's Sunday
+
+  // Each seed staff gets a completed punch most days from Sunday up to today.
+  SEED_TC_STAFF.forEach((p, idx) => {
+    for (let i = 0; i <= dow; i++) {
+      const dayOfMonth = sundayDate + i
+      // Skip an occasional day so the timesheet isn't perfectly uniform.
+      if ((i + idx) % 5 === 4) continue
+      const isToday = i === dow
+      // The last two staff are CURRENTLY clocked in (today, no clock_out).
+      const activeToday = isToday && idx >= SEED_TC_STAFF.length - 2
+      const inHour = 7
+      const inMin = (idx % 3) * 5            // small stagger 7:00 / 7:05 / 7:10
+      const clockIn = _localISO(y, mo, dayOfMonth, inHour, inMin)
+      let clockOut = null
+      let unpaidBreak = 30
+      if (!activeToday) {
+        // ~8h day with a small +/- diff vs the 8h schedule.
+        const diffMin = ((idx + i) % 3 - 1) * 12   // -12, 0, or +12 minutes
+        const outHour = 15
+        clockOut = _localISO(y, mo, dayOfMonth, outHour, inMin + diffMin)
+      }
+      store.punches.push({
+        id: uid('punch'), org_id: orgId, house_id: null,
+        staff_id: p.staff_id, staff_name: p.staff_name, role: p.role,
+        shift_id: null, clock_in_at: clockIn, clock_out_at: clockOut,
+        in_lat: null, in_lng: null, out_lat: null, out_lng: null,
+        paid_break_min: 0, unpaid_break_min: clockOut ? unpaidBreak : 0,
+        auto_closed: false, note: null, created_at: clockIn,
+      })
+    }
+  })
+
+  // ~3 pending shift edit requests referencing seed staff & dates this week.
+  const reqSpecs = [
+    { p: SEED_TC_STAFF[0], dayOffset: 1, inH: 7, outH: 15, reason: 'Forgot to clock out — left at 3pm.' },
+    { p: SEED_TC_STAFF[2], dayOffset: 2, inH: 6, outH: 14, reason: 'Clocked in late, actually started at 6am.' },
+    { p: SEED_TC_STAFF[3], dayOffset: 0, inH: 8, outH: 16, reason: 'Covered an extra hour, please adjust.' },
+  ]
+  reqSpecs.forEach((r) => {
+    const dayOfMonth = Math.min(sundayDate + r.dayOffset, d)
+    store.shiftEditRequests.push({
+      id: uid('sreq'), org_id: orgId, house_id: null,
+      staff_id: r.p.staff_id, staff_name: r.p.staff_name,
+      target_date: _ds(new Date(y, mo, dayOfMonth)),
+      requested_in: _localISO(y, mo, dayOfMonth, r.inH, 0),
+      requested_out: _localISO(y, mo, dayOfMonth, r.outH, 0),
+      reason: r.reason, status: 'pending',
+      decided_by_name: null, decided_at: null, created_at: now(),
+    })
+  })
+
+  persist()
+}
+
+export function demoClockIn(orgId, { houseId, staffId, staffName, role, shiftId, lat, lng } = {}) {
+  const row = {
+    id: uid('punch'), org_id: orgId, house_id: houseId || null,
+    staff_id: staffId || null, staff_name: staffName || null, role: role || null,
+    shift_id: shiftId || null, clock_in_at: now(), clock_out_at: null,
+    in_lat: lat ?? null, in_lng: lng ?? null, out_lat: null, out_lng: null,
+    paid_break_min: 0, unpaid_break_min: 0, auto_closed: false, note: null, created_at: now(),
+  }
+  store.punches.push(row); persist()
+  return row
+}
+
+export function demoClockOut(punchId, { lat, lng, paidBreakMin, unpaidBreakMin } = {}) {
+  const p = store.punches.find(x => x.id === punchId)
+  if (!p) return null
+  p.clock_out_at = now()
+  if (lat != null) p.out_lat = lat
+  if (lng != null) p.out_lng = lng
+  if (paidBreakMin != null) p.paid_break_min = paidBreakMin
+  if (unpaidBreakMin != null) p.unpaid_break_min = unpaidBreakMin
+  persist()
+  return p
+}
+
+export function demoFetchActivePunch(orgId, staffId) {
+  return store.punches.find(p => p.staff_id === staffId && !p.clock_out_at) || null
+}
+
+export function demoFetchPunches(orgId, { houseId = null, staffId = null, from = null, to = null } = {}) {
+  demoSeedTimeclock(orgId)
+  return store.punches
+    .filter(p => {
+      if (houseId && p.house_id !== houseId) return false
+      if (staffId && p.staff_id !== staffId) return false
+      const day = asDateStr(new Date(p.clock_in_at))
+      if (from && day < from) return false
+      if (to && day > to) return false
+      return true
+    })
+    .sort((a, b) => (a.clock_in_at || '').localeCompare(b.clock_in_at || ''))
+}
+
+export function demoFetchClockedInNow(orgId, { houseId = null } = {}) {
+  demoSeedTimeclock(orgId)
+  return store.punches
+    .filter(p => !p.clock_out_at && (!houseId || p.house_id === houseId))
+    .sort((a, b) => (a.clock_in_at || '').localeCompare(b.clock_in_at || ''))
+}
+
+export function demoRequestShiftEdit(orgId, { houseId, staffId, staffName, targetDate, requestedIn, requestedOut, reason } = {}) {
+  const row = {
+    id: uid('sreq'), org_id: orgId, house_id: houseId || null,
+    staff_id: staffId || null, staff_name: staffName || null,
+    target_date: asDateStr(targetDate || new Date()),
+    requested_in: requestedIn || null, requested_out: requestedOut || null,
+    reason: reason || null, status: 'pending',
+    decided_by_name: null, decided_at: null, created_at: now(),
+  }
+  store.shiftEditRequests.push(row); persist()
+  return row
+}
+
+export function demoFetchShiftEditRequests(orgId, { houseId = null, status = null } = {}) {
+  demoSeedTimeclock(orgId)
+  return store.shiftEditRequests
+    .filter(r => (!houseId || r.house_id === houseId) && (!status || r.status === status))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+}
+
+export function demoReviewShiftEditRequest(id, { status, decidedByName } = {}) {
+  const r = store.shiftEditRequests.find(x => x.id === id)
+  if (!r) return null
+  if (status) r.status = status
+  r.decided_by_name = decidedByName || null
+  r.decided_at = now()
+  persist()
+  return r
+}
+
+export function demoCountPendingRequests(orgId, { houseId = null } = {}) {
+  demoSeedTimeclock(orgId)
+  return store.shiftEditRequests
+    .filter(r => r.status === 'pending' && (!houseId || r.house_id === houseId))
+    .length
 }
