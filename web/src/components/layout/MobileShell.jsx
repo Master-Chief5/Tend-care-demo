@@ -12,7 +12,8 @@ import { ScreenA_Staff } from '../../screens/People'
 import { ScreenA_MyDay, ScreenA_Me } from '../../screens/Employee'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { ScreenA_Timesheets } from '../../screens/Timesheets'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock } from '../icons'
+import { ScreenA_Activity } from '../../screens/Activity'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -49,6 +50,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
     case 'time':   return <ScreenA_Timesheets user={user} houses={houses} />
+    case 'activity': return <ScreenA_Activity user={user} />
     case 'team':   return <ScreenA_Chat user={user} />
     case 'drive':  return <ScreenA_Driving user={user} />
     case 'supply': return <ScreenA_Resources user={user} />
@@ -147,6 +149,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'home',   label: 'Houses',   icon: IconHome },
     { id: 'sched',  label: 'Schedule', icon: IconCal },
     { id: 'time',   label: 'Time',     icon: IconClock },
+    { id: 'activity', label: 'Activity', icon: IconActivity },
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
