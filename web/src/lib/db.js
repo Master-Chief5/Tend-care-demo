@@ -1854,3 +1854,59 @@ export async function applyShiftsToWeek(orgId, { houseId, weekDates, shifts } = 
   }
   return inserted
 }
+
+// ── Shift documentation ──────────────────────────────────────────────────────
+// Tracks, per resident per shift-date, which care-documentation sections got
+// done (so a shift can show "did this get done"). A row only exists when a
+// section is 'done' or 'na'; the absence of a row means it's still "to do".
+// Valid `section` values: 'log' | 'health' | 'goals' | 'meds' | 'incident'.
+
+// Rows for one house + shift-date. Returns the rows that exist (done/na):
+//   { id, resident_id, section, status, done_by_name, updated_at }
+export async function fetchShiftDocProgress(orgId, { houseId, date } = {}) {
+  if (isDemoMode) return demo.demoFetchShiftDocProgress({ houseId, date })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('shift_doc_progress')
+    .select('id, resident_id, section, status, done_by_name, updated_at')
+    .eq('org_id', orgId)
+    .eq('house_id', houseId)
+    .eq('shift_date', date)
+  if (error) { console.error('fetchShiftDocProgress:', error.message); return [] }
+  return data || []
+}
+
+// Mark/un-mark a section for one resident on one shift-date.
+//   status 'done' | 'na' → upsert the row (status + done_by_name + updated_at)
+//   status falsy / 'todo' / 'clear' → delete the matching row (un-mark)
+// Returns true on success, false on error.
+export async function setShiftDocSection(orgId, { houseId, date, residentId, residentName, section, status, doneByName } = {}) {
+  if (isDemoMode) return demo.demoSetShiftDocSection(orgId, { houseId, date, residentId, residentName, section, status, doneByName })
+  if (!supabase || !orgId) return false
+  if (status === 'done' || status === 'na') {
+    const { error } = await supabase
+      .from('shift_doc_progress')
+      .upsert({
+        org_id:        orgId,
+        house_id:      houseId || null,
+        shift_date:    date,
+        resident_id:   residentId || null,
+        resident_name: residentName || null,
+        section,
+        status,
+        done_by_name:  doneByName || null,
+        updated_at:    new Date().toISOString(),
+      }, { onConflict: 'house_id,shift_date,resident_id,section' })
+    if (error) { console.error('setShiftDocSection:', error.message); return false }
+    return true
+  }
+  const { error } = await supabase
+    .from('shift_doc_progress')
+    .delete()
+    .eq('house_id', houseId)
+    .eq('shift_date', date)
+    .eq('resident_id', residentId)
+    .eq('section', section)
+  if (error) { console.error('setShiftDocSection:', error.message); return false }
+  return true
+}

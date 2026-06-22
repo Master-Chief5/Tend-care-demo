@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [] }
 }
 
 function load() {
@@ -1193,4 +1193,42 @@ export function demoApplyShiftsToWeek(orgId, { houseId, weekDates, shifts } = {}
     inserted += 1
   }
   return inserted
+}
+
+// ── Shift documentation ──────────────────────────────────────────────────────
+// Per resident per shift-date, which care-doc sections got done. A row only
+// exists when 'done' or 'na'; no row means still "to do". No seeder.
+export function demoFetchShiftDocProgress({ houseId, date } = {}) {
+  return store.shiftDocProgress
+    .filter(r => r.house_id === (houseId || null) && r.shift_date === date)
+    .map(r => ({
+      id: r.id, resident_id: r.resident_id, section: r.section,
+      status: r.status, done_by_name: r.done_by_name, updated_at: r.updated_at,
+    }))
+}
+
+export function demoSetShiftDocSection(orgId, { houseId, date, residentId, residentName, section, status, doneByName } = {}) {
+  const match = r =>
+    r.house_id === (houseId || null) && r.shift_date === date &&
+    r.resident_id === (residentId || null) && r.section === section
+  if (status === 'done' || status === 'na') {
+    const existing = store.shiftDocProgress.find(match)
+    if (existing) {
+      existing.status = status
+      existing.resident_name = residentName || null
+      existing.done_by_name = doneByName || null
+      existing.updated_at = now()
+    } else {
+      store.shiftDocProgress.push({
+        id: uid('sdoc'), org_id: orgId, house_id: houseId || null,
+        shift_date: date, resident_id: residentId || null, resident_name: residentName || null,
+        section, status, done_by_name: doneByName || null, updated_at: now(),
+      })
+    }
+    persist()
+    return true
+  }
+  store.shiftDocProgress = store.shiftDocProgress.filter(r => !match(r))
+  persist()
+  return true
 }
