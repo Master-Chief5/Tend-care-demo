@@ -7,10 +7,12 @@ import { ScreenA_MyDay } from '../../screens/Employee'
 import { ScreenA_Resources } from '../../screens/Resources'
 import { ScreenA_Driving } from '../../screens/Driving'
 import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
+import { ScreenA_Timesheets } from '../../screens/Timesheets'
 import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
-import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart } from '../icons'
+import { countPendingRequests } from '../../lib/db'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -36,6 +38,7 @@ const ALL_TABS = [
   { id: 'houses',      label: 'Houses',      icon: IconBox,     roles: ['supervisor', 'manager'] },
   { id: 'setup',       label: 'House setup', icon: IconPlus,    roles: ['supervisor'] },
   { id: 'schedule',    label: 'Schedule',    icon: IconCal,     roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'timeclock',   label: 'Time clock',  icon: IconClock,   roles: ['supervisor', 'manager', 'staff'] },
   { id: 'team',        label: 'Team chat',   icon: IconChat,    roles: ['supervisor', 'manager', 'staff'] },
   { id: 'driving',     label: 'Transport',   icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager', 'staff'] },
@@ -50,6 +53,7 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />
+  if (tab === 'timeclock')   return <ScreenA_Timesheets user={user} desktop houses={houses} />
   if (tab === 'team')        return <PageTeamDesktop user={user} />
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
@@ -58,13 +62,14 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
 }
 
-function DesktopRail({ tab, setTab, user, onLogout, houses }) {
+function DesktopRail({ tab, setTab, user, onLogout, houses, counts = {} }) {
   const u = ROLES.find(r => r.id === user.role) || ROLES.find(r => r.id === user.id) || ROLES[0]
   const role = user.role ?? user.id
   // Show the ACTUAL signed-in person, not the demo persona for their role.
   const displayName = user.name || u.name
   const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?'
   const railTabs = ALL_TABS.filter(t => t.roles.includes(role))
+    .map(t => counts[t.id] ? { ...t, count: counts[t.id] } : t)
 
   const branches = [...new Set(houses.map(h => h.branch).filter(Boolean))]
 
@@ -138,13 +143,28 @@ export function DesktopShell({ user, onLogout }) {
     ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
     : user
 
+  // Pending shift-edit requests, surfaced as a badge on the Time clock tab for
+  // approvers. Polls lightly; managers are scoped to their house.
+  const [pendingReqs, setPendingReqs] = useState(0)
+  const role = user.role ?? user.id
+  useEffect(() => {
+    if (!effUser?.orgId || (role !== 'supervisor' && role !== 'manager')) { setPendingReqs(0); return }
+    let stop = false
+    const load = () => Promise.resolve(
+      countPendingRequests(effUser.orgId, { houseId: role === 'manager' ? effUser.houseId : null })
+    ).then(n => { if (!stop) setPendingReqs(n || 0) }).catch(() => {})
+    load()
+    const iv = setInterval(load, 15000)
+    return () => { stop = true; clearInterval(iv) }
+  }, [effUser?.orgId, effUser?.houseId, role])
+
   useTripTracking(effUser)
   useDutyTracking(effUser)
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <GeoStatusBanner />
-      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} />
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} counts={{ timeclock: pendingReqs }} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
         <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
       </div>

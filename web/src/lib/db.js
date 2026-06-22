@@ -1337,6 +1337,145 @@ export async function registerAsStaff(orgId, name) {
 }
 
 
+// ── Time clock (punches) + timesheets + approvals ───────────────────────────
+// Clock in: insert an open punch (clock_in_at defaults now). Returns the row.
+export async function clockIn(orgId, { houseId, staffId, staffName, role, shiftId, lat, lng } = {}) {
+  if (isDemoMode) return demo.demoClockIn(orgId, { houseId, staffId, staffName, role, shiftId, lat, lng })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('time_punches')
+    .insert({
+      org_id:    orgId,
+      house_id:  houseId || null,
+      staff_id:  staffId || null,
+      staff_name: staffName || null,
+      role:      role || null,
+      shift_id:  shiftId || null,
+      in_lat:    lat ?? null,
+      in_lng:    lng ?? null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('clockIn:', error.message); return null }
+  return data
+}
+
+// Clock out: stamp clock_out_at = now, plus optional location & break minutes.
+export async function clockOut(punchId, { lat, lng, paidBreakMin, unpaidBreakMin } = {}) {
+  if (isDemoMode) return demo.demoClockOut(punchId, { lat, lng, paidBreakMin, unpaidBreakMin })
+  if (!supabase || !punchId) return null
+  const patch = { clock_out_at: new Date().toISOString() }
+  if (lat != null) patch.out_lat = lat
+  if (lng != null) patch.out_lng = lng
+  if (paidBreakMin != null) patch.paid_break_min = paidBreakMin
+  if (unpaidBreakMin != null) patch.unpaid_break_min = unpaidBreakMin
+  const { data, error } = await supabase.from('time_punches').update(patch).eq('id', punchId).select().single()
+  if (error) { console.error('clockOut:', error.message); return null }
+  return data
+}
+
+// The caller's currently-open punch (clock_out_at IS NULL) for this staff, or null.
+export async function fetchActivePunch(orgId, staffId) {
+  if (isDemoMode) return demo.demoFetchActivePunch(orgId, staffId)
+  if (!supabase || !orgId || !staffId) return null
+  const { data, error } = await supabase
+    .from('time_punches')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('staff_id', staffId)
+    .is('clock_out_at', null)
+    .order('clock_in_at', { ascending: false })
+    .limit(1)
+  if (error) { console.error('fetchActivePunch:', error.message); return null }
+  return (data && data[0]) || null
+}
+
+// Punches in [from, to] by clock_in_at date (inclusive), optionally filtered by
+// house/staff, ordered clock_in_at ascending. `from`/`to` are 'YYYY-MM-DD'.
+export async function fetchPunches(orgId, { houseId = null, staffId = null, from = null, to = null } = {}) {
+  if (isDemoMode) return demo.demoFetchPunches(orgId, { houseId, staffId, from, to })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('time_punches').select('*').eq('org_id', orgId).order('clock_in_at', { ascending: true })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (staffId) q = q.eq('staff_id', staffId)
+  if (from) q = q.gte('clock_in_at', from)
+  if (to) q = q.lte('clock_in_at', to + 'T23:59:59')
+  const { data, error } = await q
+  if (error) { console.error('fetchPunches:', error.message); return [] }
+  return data || []
+}
+
+// Everyone currently clocked in (clock_out_at IS NULL), optionally house-scoped.
+export async function fetchClockedInNow(orgId, { houseId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchClockedInNow(orgId, { houseId })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('time_punches').select('*').eq('org_id', orgId).is('clock_out_at', null).order('clock_in_at', { ascending: true })
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) { console.error('fetchClockedInNow:', error.message); return [] }
+  return data || []
+}
+
+// Submit a timesheet correction (status 'pending'). Returns the row.
+export async function requestShiftEdit(orgId, { houseId, staffId, staffName, targetDate, requestedIn, requestedOut, reason } = {}) {
+  if (isDemoMode) return demo.demoRequestShiftEdit(orgId, { houseId, staffId, staffName, targetDate, requestedIn, requestedOut, reason })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('shift_edit_requests')
+    .insert({
+      org_id:        orgId,
+      house_id:      houseId || null,
+      staff_id:      staffId || null,
+      staff_name:    staffName || null,
+      target_date:   targetDate,
+      requested_in:  requestedIn || null,
+      requested_out: requestedOut || null,
+      reason:        reason || null,
+      status:        'pending',
+    })
+    .select()
+    .single()
+  if (error) { console.error('requestShiftEdit:', error.message); return null }
+  return data
+}
+
+// Shift edit requests, newest first, optionally filtered by house & status.
+export async function fetchShiftEditRequests(orgId, { houseId = null, status = null } = {}) {
+  if (isDemoMode) return demo.demoFetchShiftEditRequests(orgId, { houseId, status })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('shift_edit_requests').select('*').eq('org_id', orgId).order('created_at', { ascending: false })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) { console.error('fetchShiftEditRequests:', error.message); return [] }
+  return data || []
+}
+
+// Approve/reject a request — stamps status, decider name, and decided_at = now.
+export async function reviewShiftEditRequest(id, { status, decidedByName } = {}) {
+  if (isDemoMode) return demo.demoReviewShiftEditRequest(id, { status, decidedByName })
+  if (!supabase || !id) return null
+  const { data, error } = await supabase
+    .from('shift_edit_requests')
+    .update({ status, decided_by_name: decidedByName || null, decided_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) { console.error('reviewShiftEditRequest:', error.message); return null }
+  return data
+}
+
+// Count of pending shift edit requests (optionally house-scoped) for badges.
+export async function countPendingRequests(orgId, { houseId = null } = {}) {
+  if (isDemoMode) return demo.demoCountPendingRequests(orgId, { houseId })
+  if (!supabase || !orgId) return 0
+  let q = supabase.from('shift_edit_requests').select('*', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'pending')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { count, error } = await q
+  if (error) { console.error('countPendingRequests:', error.message); return 0 }
+  return count || 0
+}
+
 function toDateStr(date) {
   if (typeof date === 'string') return date
   // Local date (not UTC) so evening entries don't roll to the next day.

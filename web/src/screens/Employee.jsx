@@ -3,6 +3,7 @@ import { fmtDayLabel, getGreeting } from '../lib/utils'
 import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
 import { HouseItems } from '../components/HouseItems'
 import { OnDutyCard } from '../components/OnDutyCard'
+import { ClockCard } from '../components/ClockCard'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
 import { IconCheck, IconCal, IconCar, IconChat, IconPlus, IconPeople } from '../components/icons'
@@ -144,6 +145,7 @@ export function ScreenA_MyDay({ user }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
+          <ClockCard user={user} />
           {user?.staffId && <OnDutyCard user={user} />}
           {loading && (
             <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--a-ink3)', fontSize: 13 }}>
