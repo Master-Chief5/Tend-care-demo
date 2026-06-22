@@ -10,9 +10,11 @@ import { DailyLog } from '../components/DailyLog'
 import { Compliance } from '../components/Compliance'
 import { Goals } from '../components/Goals'
 import { HealthLogs } from '../components/HealthLogs'
+import { ShiftDocPanel } from '../components/ShiftDocPanel'
 
 const HOUSE_SECTIONS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'shift', label: 'Shift doc' },
   { id: 'meds', label: 'Meds' },
   { id: 'goals', label: 'Goals' },
   { id: 'health', label: 'Health' },
@@ -371,8 +373,8 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           <HouseItems user={user} houseUuid={houseUuid} houseColor={c} />
           </>)}
 
-          {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
-          {section === 'goals' && <Goals user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'shift' && <ShiftDocPanel user={user} houseUuid={houseUuid} houseColor={c} residents={residents} onOpenSection={setSection} />}
+          {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}          {section === 'goals' && <Goals user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'health' && <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'log' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
