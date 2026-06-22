@@ -217,7 +217,9 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8, onShiftClick }) {
 
 const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-function ScheduleRow({ house, weekShifts, weekDates, onShiftClick }) {
+function ScheduleRow({ house, weekShifts, weekDates, onShiftClick, onMoveShift }) {
+  const [overDate, setOverDate] = useState(null)   // dateStr being dragged over (this house's row)
+  const canDrag = !!onMoveShift
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', borderBottom: '1px solid var(--a-line)', minHeight: 86 }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, borderRight: '1px solid var(--a-line)' }}>
@@ -230,14 +232,30 @@ function ScheduleRow({ house, weekShifts, weekDates, onShiftClick }) {
       {weekDates.map((d, i) => {
         const dateStr = toDateStr(d.date)
         const dayShifts = weekShifts.filter(s => s.house === house.id && s.date === dateStr)
+        const isOver = overDate === dateStr
+        const dropProps = canDrag ? {
+          onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overDate !== dateStr) setOverDate(dateStr) },
+          onDragLeave: () => setOverDate(o => (o === dateStr ? null : o)),
+          onDrop: (e) => {
+            e.preventDefault(); setOverDate(null)
+            try {
+              const data = JSON.parse(e.dataTransfer.getData('text/plain'))
+              // Only move within the same house (a shift can't change house here).
+              if (data && data.house === house.id && data.date !== dateStr) onMoveShift(data.id, dateStr)
+            } catch { /* ignore */ }
+          },
+        } : {}
         return (
-          <div key={i} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div key={i} {...dropProps} style={{ padding: '8px 6px', borderLeft: i === 0 ? '' : '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', gap: 4, background: isOver ? `${house.color}1f` : 'transparent', outline: isOver ? `1.5px dashed ${house.color}` : 'none', outlineOffset: -2, transition: 'background 0.12s' }}>
             {dayShifts.length === 0 ? (
               <div style={{ color: 'var(--a-ink3)', fontSize: 11, padding: '4px 4px', opacity: 0.45 }}>—</div>
             ) : dayShifts.map((s, j) => {
               const open = s.status === 'open'
               return (
-                <div key={s.id ?? j} onClick={() => onShiftClick?.(s)} title="Click to edit" style={{ cursor: 'pointer', background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
+                <div key={s.id ?? j} draggable={canDrag}
+                  onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', JSON.stringify({ id: s.id, house: s.house, date: s.date })) } : undefined}
+                  onClick={() => onShiftClick?.(s)} title={canDrag ? 'Click to edit · drag to move to another day' : 'Click to edit'}
+                  style={{ cursor: canDrag ? 'grab' : 'pointer', background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
                   <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{fmtTime(s.start)}–{fmtTime(s.end)}</div>
                   <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s.person}</div>
                 </div>
@@ -318,6 +336,25 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
   const openCount = shifts.filter(s => s.status === 'open').length
   const weekDates = week.map(d => toDateStr(d.date))
   const isAdmin = user?.role === 'supervisor' || user?.role === 'manager'
+
+  // Coverage: house-days with no shift this week (a real staffing gap for a
+  // 24/7 home). Only meaningful once a schedule exists for the week.
+  const gaps = []
+  if (shifts.length > 0) {
+    for (const h of houses) {
+      for (let i = 0; i < weekDates.length; i++) {
+        if (!shifts.some(s => s.house === h.id && s.date === weekDates[i])) {
+          gaps.push({ short: h.short, dow: week[i].dow, num: week[i].num })
+        }
+      }
+    }
+  }
+  const totalCells = houses.length * 7
+  const staffed = totalCells - gaps.length
+
+  // Drag-and-drop: move a shift to a different day within the same house.
+  const moveShift = async (id, date) => { await updateShift(id, { date }); onChanged?.() }
+
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -329,6 +366,22 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
         <div style={{ flex: 1 }} />
         {isAdmin && <ScheduleWeekTools user={user} houses={houses} weekDates={weekDates} shifts={shifts} onChanged={onChanged} />}
       </div>
+      {isAdmin && shifts.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12, padding: '9px 14px', background: gaps.length ? 'rgba(176,92,60,0.06)' : 'var(--a-card)', border: `1px solid ${gaps.length ? '#e3b6ad' : 'var(--a-line)'}`, borderRadius: 12, fontSize: 12 }}>
+          <span style={{ fontWeight: 600, color: 'var(--a-ink)' }}>Coverage</span>
+          <span style={{ color: 'var(--a-ink2)' }}><strong className="tnum">{staffed}</strong>/<span className="tnum">{totalCells}</span> house-days staffed</span>
+          {gaps.length > 0 ? (
+            <span style={{ color: 'var(--a-clay)' }}>
+              ⚠ <strong className="tnum">{gaps.length}</strong> gap{gaps.length === 1 ? '' : 's'}
+              <span style={{ color: 'var(--a-ink3)', fontWeight: 400 }}> · {gaps.slice(0, 6).map(g => `${g.short} ${g.dow} ${g.num}`).join(', ')}{gaps.length > 6 ? ` +${gaps.length - 6} more` : ''}</span>
+            </span>
+          ) : (
+            <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>✓ Every house covered all week</span>
+          )}
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Drag a shift to move it to another day</span>
+        </div>
+      )}
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
           <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>House</div>
@@ -339,7 +392,7 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
             </div>
           ))}
         </div>
-        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} onMoveShift={isAdmin ? moveShift : undefined} />)}
       </div>
       <WeekSummary shifts={shifts} weekDates={weekDates} />
     </>
