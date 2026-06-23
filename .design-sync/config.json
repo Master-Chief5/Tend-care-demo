@@ -1,0 +1,11 @@
+{
+  "pkg": "tend-design-system",
+  "globalName": "TendDS",
+  "shape": "package",
+  "buildCmd": "npm run build",
+  "cssEntry": "src/styles.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Pill": { "cardMode": "column" }
+  }
+}
