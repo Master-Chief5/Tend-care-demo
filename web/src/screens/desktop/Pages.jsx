@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { HOUSES, CHAT_DATA } from '../../data/constants'
-import { fetchStaff, removeStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts } from '../../lib/db'
+import { fetchStaff, removeStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts, fetchIncidents } from '../../lib/db'
 import { StaffFormModal, StaffStatus } from '../../components/StaffFormModal'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
@@ -172,6 +172,10 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
   }
   const openIncidentCount = visibleCards.reduce((n, c) => n + (alerts[c.house.id] || []).filter(a => a.kind === 'incident').length, 0)
   const attentionShown = attention.slice(0, 7)
+  // Single source of truth for the "things need you" count — house alerts plus
+  // unfilled shifts (i.e. attention.length). Mobile Home derives the same way
+  // (totalAlerts + openShifts.length), so the two dashboards always agree.
+  const needsCount = attention.length
 
   // ── Real "Low on supplies" (Shop alerts across houses) ───────────────
   const lowSupplies = []
@@ -186,7 +190,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
       <Toast msg={toast} />
       <DTopBar
         title={<>{greeting}, <em style={{ color: 'var(--a-sage)', fontStyle: 'italic' }}>{firstName}</em></>}
-        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'}{isManager ? ' · manager view' : totalNeeds > 0 ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{totalNeeds} {totalNeeds === 1 ? 'thing needs' : 'things need'} you</span></> : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all clear</span></>}</>}
+        sub={<>{dateLabel} · {visibleCards.length} {visibleCards.length === 1 ? 'house' : 'houses'}{isManager ? ' · manager view' : needsCount > 0 ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{needsCount} {needsCount === 1 ? 'thing needs' : 'things need'} you</span></> : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all clear</span></>}</>}
         actions={<button onClick={() => onNavigate?.('schedule')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
@@ -194,7 +198,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
           <DStat label="Shift coverage" value={`${coverage}%`} sub={openShifts.length > 0 ? `${openShifts.length} shift${openShifts.length === 1 ? '' : 's'} open` : 'fully staffed today'} tone={coverage >= 100 ? 'good' : 'warn'} big />
           <DStat label="Open shifts" value={openShifts.length} sub="today · need filling" tone={openShifts.length > 0 ? 'warn' : 'good'} />
           <DStat label="Drives today" value={vTrips.length} sub={`${milesToday.toFixed(0)} mi · ~$${reimbToday.toFixed(0)}`} />
-          <DStat label="Needs attention" value={totalNeeds} sub={openIncidentCount > 0 ? `${openIncidentCount} open incident${openIncidentCount === 1 ? '' : 's'}` : totalNeeds > 0 ? 'across houses' : 'all clear'} tone={totalNeeds > 0 ? 'bad' : 'good'} />
+          <DStat label="Needs attention" value={needsCount} sub={openIncidentCount > 0 ? `${openIncidentCount} open incident${openIncidentCount === 1 ? '' : 's'}` : needsCount > 0 ? 'across houses' : 'all clear'} tone={needsCount > 0 ? 'bad' : 'good'} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -626,11 +630,14 @@ export function PageOrientationDesktop({ onNavigate }) {
 // aggregation: flatten every staff member's certs across all houses, score
 // each with the shared certStatus() logic, and list worst-first.
 
-export function PageComplianceDesktop({ user, houses = [] }) {
+export function PageComplianceDesktop({ user, houses = [], onHouseClick }) {
   const [staffList, setStaffList] = useState([])
   const [loading, setLoading] = useState(true)
   const [houseFilter, setHouseFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('all')   // all | expired | soon | valid | nodate
+  const [section, setSection] = useState('incidents')        // 'incidents' | 'certs' — incidents lead (time-sensitive)
+  const [incidents, setIncidents] = useState([])
+  const [incLoading, setIncLoading] = useState(true)
 
   useEffect(() => {
     if (!user?.orgId) { setLoading(false); return }
@@ -639,6 +646,34 @@ export function PageComplianceDesktop({ user, houses = [] }) {
     const houseId = user.role === 'manager' ? user.houseId : null
     fetchStaff(user.orgId, houseId).then(data => { setStaffList(data || []); setLoading(false) })
   }, [user?.orgId, user?.houseId, user?.role])
+
+  // Org-wide open incidents. Fetch per house so each row carries its house
+  // (slug/name/color) for the tappable link; managers stay scoped to their house.
+  useEffect(() => {
+    if (!user?.orgId || !houses.length) { setIncidents([]); setIncLoading(false); return }
+    let alive = true
+    setIncLoading(true)
+    const scoped = user.role === 'manager'
+      ? houses.filter(h => h.id === user?.houseSlug)
+      : houses
+    Promise.all(scoped.map(h =>
+      // fetchIncidents is keyed by the house UUID (h._uuid); h.id stays the slug
+      // used for onHouseClick routing. Same key the mobile Houses panel uses.
+      Promise.resolve(fetchIncidents(user.orgId, h._uuid))
+        .then(rows => (rows || [])
+          .filter(i => i.status === 'open')
+          .map(i => ({ ...i, house: h })))
+        .catch(() => [])
+    )).then(lists => {
+      if (!alive) return
+      const all = lists.flat()
+      // Newest first — prefer the incident date, fall back to created-at.
+      all.sort((a, b) => String(b.date || b.at || '').localeCompare(String(a.date || a.at || '')))
+      setIncidents(all)
+      setIncLoading(false)
+    })
+    return () => { alive = false }
+  }, [user?.orgId, user?.houseSlug, user?.role, houses.map(h => h.id).join(',')])
 
   // Flatten certs → one row per (staff member, cert).
   const rows = []
@@ -694,15 +729,69 @@ export function PageComplianceDesktop({ user, houses = [] }) {
   return (
     <>
       <DTopBar
-        title="Compliance"
+        title="Compliance & incidents"
         sub={loading
-          ? 'Loading certifications…'
-          : <>{total} certification{total === 1 ? '' : 's'} tracked across the org{expiringSoonTotal > 0
-            ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{expiringSoonTotal} need{expiringSoonTotal === 1 ? 's' : ''} attention</span></>
-            : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all current</span></>}</>}
+          ? 'Loading…'
+          : <>{incidents.length} open incident{incidents.length === 1 ? '' : 's'} · {total} certification{total === 1 ? '' : 's'} tracked{incidents.length > 0
+            ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{incidents.length} need{incidents.length === 1 ? 's' : ''} review</span></>
+            : expiringSoonTotal > 0
+              ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{expiringSoonTotal} cert{expiringSoonTotal === 1 ? '' : 's'} need attention</span></>
+              : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all current</span></>}</>}
         search={false}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
+        {/* Section toggle — incidents lead because they're time-sensitive. */}
+        <div style={{ display: 'flex', background: 'var(--a-paper)', borderRadius: 999, padding: 3, border: '1px solid var(--a-line)', width: 'fit-content', marginBottom: 18 }}>
+          {[
+            { id: 'incidents', label: `Incidents${incidents.length ? ` (${incidents.length})` : ''}` },
+            { id: 'certs', label: 'Certifications' },
+          ].map(t => (
+            <button key={t.id} onClick={() => setSection(t.id)} style={{
+              border: 0, background: t.id === section ? 'var(--a-ink)' : 'transparent',
+              color: t.id === section ? 'var(--a-card)' : 'var(--a-ink2)',
+              padding: '6px 16px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Geist',
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {section === 'incidents' ? (
+          incLoading ? (
+            <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>Loading incidents…</div>
+          ) : incidents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
+              <IconCheck size={30} sw={1.6} />
+              <div style={{ fontSize: 15, fontWeight: 600, marginTop: 10, marginBottom: 6, color: 'var(--a-ink)' }}>No open incidents</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>Open incidents across every house show up here, newest first, until they're reviewed.</div>
+            </div>
+          ) : (
+            <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+              {incidents.map((r, i) => {
+                const sevBad = /severe|major|critical/i.test(r.severity || '')
+                return (
+                  <button
+                    key={r.id || i}
+                    onClick={() => onHouseClick && onHouseClick(r.house.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: i < incidents.length - 1 ? '1px solid var(--a-line)' : '', fontFamily: 'Geist', cursor: 'pointer' }}>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, color: r.house.color, letterSpacing: '0.06em', textTransform: 'uppercase', background: `${r.house.color}1a`, padding: '3px 7px', borderRadius: 4, flexShrink: 0, minWidth: 64, textAlign: 'center' }}>{r.house.short}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.type || 'Incident'}{r.resident ? <span style={{ fontWeight: 500, color: 'var(--a-ink2)' }}> · {r.resident}</span> : null}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.house.name}{r.text ? ` — ${r.text}` : ''}</div>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', textAlign: 'right', flexShrink: 0, minWidth: 92 }}>
+                      {r.date || r.at ? new Date(r.date || r.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    </div>
+                    {r.severity && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: sevBad ? 'var(--a-clay)' : '#a47012', background: sevBad ? 'var(--status-bad-bg, #fadcd7)' : 'var(--status-warn-bg, #f5e9d6)', padding: '3px 9px', borderRadius: 999, flexShrink: 0, minWidth: 56, textAlign: 'center' }}>{r.severity}</span>
+                    )}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--a-clay)', background: 'var(--status-bad-bg, #fadcd7)', padding: '3px 9px', borderRadius: 999, flexShrink: 0 }}>Open</span>
+                    <IconChev size={16} color="var(--a-ink3)" />
+                  </button>
+                )
+              })}
+            </div>
+          )
+        ) : (
+        <>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
           <DStat label="Expired" value={counts.expired} sub={counts.expired > 0 ? 'renew now' : 'none expired'} tone={counts.expired > 0 ? 'bad' : 'good'} big />
           <DStat label="Expiring soon" value={counts.soon} sub="within 60 days" tone={counts.soon > 0 ? 'warn' : 'good'} />
@@ -760,6 +849,8 @@ export function PageComplianceDesktop({ user, houses = [] }) {
               </div>
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </>
