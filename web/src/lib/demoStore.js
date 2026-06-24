@@ -105,10 +105,14 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   // One open overnight to show a coverage gap.
   const open = demoAddShift(oak.id, { personName: '', role: 'DSP', startHour: 23, endHour: 7, date: dateFor(0) })
   demoUpdateShift(open.id, { status: 'open' })
-  // An upcoming open day shift at Maple (the demo staff's house) so the DSP
-  // claim flow is demoable — unpublished open shifts stay claimable.
-  const mapleOpen = demoAddShift(maple.id, { personName: '', role: 'DSP', startHour: 15, endHour: 23, date: dateFor(1) })
+  // An open evening shift at Maple (the demo staff's house) TODAY so the DSP
+  // claim flow is visible the moment they open the Schedule (default day view)
+  // — unpublished open shifts stay claimable. A second one tomorrow shows the
+  // gap persists across the week.
+  const mapleOpen = demoAddShift(maple.id, { personName: '', role: 'DSP', startHour: 15, endHour: 23, date: dateFor(0) })
   demoUpdateShift(mapleOpen.id, { status: 'open' })
+  const mapleOpen2 = demoAddShift(maple.id, { personName: '', role: 'DSP', startHour: 15, endHour: 23, date: dateFor(1) })
+  demoUpdateShift(mapleOpen2.id, { status: 'open' })
 
   // Staff certifications with varied expiry so the org-wide Compliance dashboard
   // has real data (a couple expired, a couple expiring soon, the rest valid).

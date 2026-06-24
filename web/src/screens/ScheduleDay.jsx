@@ -154,8 +154,9 @@ function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
         {mine && <span style={{ fontSize: 8, fontWeight: 800, color: houseColor, background: '#fff', padding: '0 4px', borderRadius: 3, letterSpacing: '0.06em' }}>YOU</span>}
         {late && <span style={{ fontSize: 8, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.9)', padding: '0 4px', borderRadius: 3 }}>LATE</span>}
         {swap && <span style={{ fontSize: 8, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.18)', padding: '0 4px', borderRadius: 3 }}>SWAP</span>}
+        {open && <span style={{ fontSize: 8, fontWeight: 800, color: '#fff', background: houseColor, padding: '0 4px', borderRadius: 3, letterSpacing: '0.06em' }}>CLAIM</span>}
       </div>
-      <div style={{ fontSize: expanded ? 14 : 11, fontWeight: 700, lineHeight: 1.1, color: open ? houseColor : '#fff' }}>{mine ? 'You' : person}</div>
+      <div style={{ fontSize: expanded ? 14 : 11, fontWeight: 700, lineHeight: 1.1, color: open ? houseColor : '#fff' }}>{mine ? 'You' : (open ? 'Open shift' : person)}</div>
       {height > 48 && <div style={{ fontSize: expanded ? 11 : 9, opacity: open ? 0.8 : 0.7, fontWeight: 500 }}>{role}</div>}
       {shift.note && height > 78 && <div style={{ fontSize: expanded ? 10.5 : 9, opacity: 0.78, fontStyle: 'italic', marginTop: 2, lineHeight: 1.25, overflow: 'hidden' }}>“{shift.note}”</div>}
     </div>
