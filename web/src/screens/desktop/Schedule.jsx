@@ -4,7 +4,8 @@ import { buildWeek, fmtDayLabel, fmtNow, fmtTime, expandRepeatDates } from '../.
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../../hooks/useNowMinute'
-import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff } from '../../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchTimeOffRequests } from '../../lib/db'
+import { approvedLeaveOn, findOverlap } from '../../lib/scheduleSafety'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
 import { SuggestInput } from '../../components/SuggestInput'
@@ -217,7 +218,7 @@ function DesktopTimeGrid({ shifts, houses = [], nowFrac = 9.8, onShiftClick }) {
 
 const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-function ScheduleRow({ house, weekShifts, weekDates, onShiftClick, onMoveShift }) {
+function ScheduleRow({ house, weekShifts, weekDates, onShiftClick, onMoveShift, timeOff = [] }) {
   const [overDate, setOverDate] = useState(null)   // dateStr being dragged over (this house's row)
   const canDrag = !!onMoveShift
   return (
@@ -251,13 +252,18 @@ function ScheduleRow({ house, weekShifts, weekDates, onShiftClick, onMoveShift }
               <div style={{ color: 'var(--a-ink3)', fontSize: 11, padding: '4px 4px', opacity: 0.45 }}>—</div>
             ) : dayShifts.map((s, j) => {
               const open = s.status === 'open'
+              // Approved-leave conflict: this person is on approved time off this day.
+              const offLeave = !open && approvedLeaveOn(timeOff, { staffId: s.staffId, name: s.person, dateStr: dateStr }).length > 0
               return (
                 <div key={s.id ?? j} draggable={canDrag}
                   onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', JSON.stringify({ id: s.id, house: s.house, date: s.date })) } : undefined}
-                  onClick={() => onShiftClick?.(s)} title={canDrag ? 'Click to edit · drag to move to another day' : 'Click to edit'}
-                  style={{ cursor: canDrag ? 'grab' : 'pointer', background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
+                  onClick={() => onShiftClick?.(s)} title={canDrag ? (offLeave ? 'On approved leave this day · click to edit' : 'Click to edit · drag to move to another day') : 'Click to edit'}
+                  style={{ position: 'relative', cursor: canDrag ? 'grab' : 'pointer', background: open ? 'transparent' : house.color, border: open ? `1.5px dashed ${house.color}` : offLeave ? '1.5px solid #a93a25' : 'none', color: open ? house.color : '#fff', borderRadius: 6, padding: '4px 7px', fontSize: 11, fontWeight: open ? 600 : 500 }}>
                   <div style={{ fontSize: 9.5, opacity: open ? 1 : 0.8, fontWeight: 600 }}>{fmtTime(s.start)}–{fmtTime(s.end)}</div>
                   <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{s.person}</div>
+                  {offLeave && (
+                    <div style={{ marginTop: 2, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', color: '#fff', background: '#a93a25', display: 'inline-block', padding: '1px 5px', borderRadius: 3 }}>OFF · ON LEAVE</div>
+                  )}
                 </div>
               )
             })}
@@ -330,7 +336,7 @@ function DayScheduleView({ week, selectedDate, onPickDay, onPrev, onNext, onToda
   )
 }
 
-function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday, user, onChanged }) {
+function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday, user, onChanged, timeOff = [] }) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
   const openCount = shifts.filter(s => s.status === 'open').length
@@ -392,7 +398,7 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
             </div>
           ))}
         </div>
-        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} onMoveShift={isAdmin ? moveShift : undefined} />)}
+        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} onMoveShift={isAdmin ? moveShift : undefined} timeOff={timeOff} />)}
       </div>
       <WeekSummary shifts={shifts} weekDates={weekDates} houses={houses} />
     </>
@@ -449,7 +455,7 @@ function MonthScheduleView({ anchorDate, shifts = [], houses = [], onPrev, onNex
   )
 }
 
-function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, editShift, onClose, onSaved, onDeleted }) {
+function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, editShift, timeOff = [], weekShifts = [], onClose, onSaved, onDeleted }) {
   const hourToTime = (h) => {
     const total = Math.round((Number(h) || 0) * 60)
     const hh = Math.floor(total / 60) % 24, mm = total % 60
@@ -491,6 +497,14 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
   const sH = timeToHour(startTime), eH = timeToHour(endTime)
   const dur = Math.round((eH - sH) * 10) / 10
   const repeatCount = editShift ? 1 : expandRepeatDates(date, repeatDays, weeks).length
+
+  // Scheduler-safety: warn (don't block) on approved leave or a same-day overlap.
+  const candidateStaffId = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase())?.id || null
+  const trimmedName = personName.trim()
+  const onLeave = trimmedName ? approvedLeaveOn(timeOff, { staffId: candidateStaffId, name: trimmedName, dateStr: date }) : []
+  const overlap = (trimmedName && dur > 0)
+    ? findOverlap(weekShifts, { staffId: candidateStaffId, name: trimmedName, dateStr: date, start: sH, end: eH, exceptId: editShift?.id })
+    : null
 
   const submit = async (e) => {
     e.preventDefault()
@@ -569,6 +583,16 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
               ? <><strong>{hourLabel(sH)}</strong> → <strong>{hourLabel(eH)}</strong> · {dur}h{eH > 24 ? ' (overnight)' : ''}</>
               : 'End time must be after start time'}
           </div>
+          {onLeave.length > 0 && (
+            <div style={{ fontSize: 12.5, color: '#a93a25', background: 'rgba(176,92,60,0.08)', border: '1px solid #e3b6ad', borderRadius: 8, padding: '8px 12px', lineHeight: 1.35 }}>
+              <strong>On approved leave.</strong> {trimmedName} has approved {onLeave[0].kind} time off on this day. Assigning anyway will double-count them.
+            </div>
+          )}
+          {overlap && (
+            <div style={{ fontSize: 12.5, color: '#b9892f', background: 'rgba(185,137,47,0.08)', border: '1px solid #e6d4a8', borderRadius: 8, padding: '8px 12px', lineHeight: 1.35 }}>
+              <strong>Already booked</strong> {fmtTime(overlap.start)}–{fmtTime(overlap.end)}{(houses.find(h => h.id === overlap.house)?.name) ? ` at ${houses.find(h => h.id === overlap.house).name}` : ''} this day. This shift overlaps it.
+            </div>
+          )}
           <div>
             <div style={labelStyle}>Note (optional)</div>
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Med pass at 8, cover lunch" style={fieldStyle} />
@@ -618,6 +642,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
   const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
   const [rangeShifts, setRangeShifts] = useState([])
+  const [timeOff, setTimeOff] = useState([])   // approved time-off rows for safety checks
   const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', shift }
 
   const week = buildWeek(anchorDate)
@@ -634,6 +659,8 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
     if (!user?.orgId) return
     const houseId = isManager ? (user.houseId || null) : null
     fetchShiftsWeek(user.orgId, houseId, rangeStart, rangeEnd).then(setRangeShifts)
+    // Approved time-off so the grid can flag staff/days that are on leave.
+    fetchTimeOffRequests(user.orgId, { status: 'approved' }).then(setTimeOff).catch(() => setTimeOff([]))
   }, [user?.orgId, user?.houseId, isManager, rangeKey])
 
   useEffect(() => { reload() }, [reload])
@@ -667,7 +694,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         )}
         {view === 'week' && (
           <WeekScheduleView week={week} houses={houses} shifts={rangeShifts} {...nav}
-            user={user} onChanged={reload}
+            user={user} onChanged={reload} timeOff={timeOff}
             onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
         )}
         {view === 'month' && (
@@ -683,6 +710,8 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
           editShift={modal.mode === 'edit' ? modal.shift : null}
           defaultHouseUuid={houses.find(h => h.id === houseFilter)?._uuid}
           defaultDate={selectedDate}
+          timeOff={timeOff}
+          weekShifts={rangeShifts}
           onClose={() => setModal(null)}
           onSaved={closeAndReload}
           onDeleted={closeAndReload}

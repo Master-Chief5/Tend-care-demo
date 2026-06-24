@@ -18,7 +18,7 @@ import { ScreenA_Tasks } from '../../screens/Tasks'
 import { ScreenA_Directory } from '../../screens/Directory'
 import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
 import { TendLogo } from '../ui/TendLogo'
-import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
+import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop, PageComplianceDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { countPendingRequests, countPendingTimeOff, countUnreadAnnouncements, countOpenShifts } from '../../lib/db'
 import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock, IconActivity, IconMegaphone, IconStar, IconClipboard, IconChart, IconCheck, IconPhone, IconHelp } from '../icons'
@@ -61,6 +61,7 @@ const ALL_TABS = [
   { id: 'driving',     label: 'Transport',   icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager', 'staff'] },
   { id: 'staff',       label: 'Staff',       icon: IconPeople,  roles: ['supervisor'] },
+  { id: 'compliance',  label: 'Compliance',  icon: IconCheck,   roles: ['supervisor', 'manager'] },
   { id: 'orientation', label: 'Orientation', icon: IconBook,    roles: ['supervisor'] },
 ]
 
@@ -85,6 +86,7 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
   if (tab === 'staff')       return <PageStaffDesktop user={user} houses={houses} />
+  if (tab === 'compliance')  return <PageComplianceDesktop user={user} houses={houses} />
   if (tab === 'orientation') return <PageOrientationDesktop onNavigate={onNavigate} />
   return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
 }

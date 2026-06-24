@@ -13,6 +13,7 @@ const NEED_KINDS = {
   med:     { tag: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
   note:    { tag: 'Note',  bg: '#e7dfe9', tc: '#5a3a6b' },
   drive:   { tag: 'Drive', bg: '#dde6f0', tc: '#3c5887' },
+  appt:    { tag: 'Appt',  bg: '#dde6f0', tc: '#3c5887' },
   maint:   { tag: 'Maint', bg: '#dee6df', tc: '#3f604d' },
 }
 

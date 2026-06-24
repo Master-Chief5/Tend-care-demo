@@ -350,6 +350,15 @@ function Submissions({ orgId, houseId, templates, rows, setRows, loading }) {
     return t?.name || 'Form'
   }, [templates])
 
+  // Resolve a submission's template_id → a key→label map, so SubmissionCard can
+  // render question labels instead of raw answer keys.
+  const tplLabels = useCallback((id) => {
+    const t = (templates || []).find(x => x && x.id === id)
+    const map = {}
+    fieldsOf(t).forEach((f, i) => { map[keyOf(f, i)] = f?.label || `Field ${i + 1}` })
+    return map
+  }, [templates])
+
   const markReviewed = (row, reviewedByName) => {
     setRows(prev => (prev || []).map(x => x && x.id === row.id
       ? { ...x, status: 'reviewed', reviewed_by_name: reviewedByName } : x))
@@ -359,11 +368,11 @@ function Submissions({ orgId, houseId, templates, rows, setRows, loading }) {
   const list = (rows || []).filter(Boolean)
 
   return (
-    <SubmissionsInner orgId={orgId} list={list} loading={loading} tplName={tplName} onReview={markReviewed} />
+    <SubmissionsInner orgId={orgId} list={list} loading={loading} tplName={tplName} tplLabels={tplLabels} onReview={markReviewed} />
   )
 }
 
-function SubmissionsInner({ list, loading, tplName, onReview }) {
+function SubmissionsInner({ list, loading, tplName, tplLabels, onReview }) {
   return (
     <>
       {loading && list.length === 0 && (
@@ -374,15 +383,16 @@ function SubmissionsInner({ list, loading, tplName, onReview }) {
           title="No submissions yet." sub="Completed forms will land here for review." />
       )}
       {list.map(row => (
-        <SubmissionCard key={row.id} row={row} tplName={tplName} onReview={onReview} />
+        <SubmissionCard key={row.id} row={row} tplName={tplName} tplLabels={tplLabels} onReview={onReview} />
       ))}
     </>
   )
 }
 
-function SubmissionCard({ row, tplName, onReview }) {
+function SubmissionCard({ row, tplName, tplLabels, onReview }) {
   const reviewed = row?.status === 'reviewed'
   const answers = row?.answers && typeof row.answers === 'object' ? row.answers : {}
+  const labels = (tplLabels ? tplLabels(row?.template_id) : null) || {}
   const entries = Object.entries(answers)
 
   const fmtVal = (v) => {
@@ -411,7 +421,7 @@ function SubmissionCard({ row, tplName, onReview }) {
         <div style={{ background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', marginBottom: reviewed ? 10 : 12 }}>
           {entries.map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, padding: '3px 0' }}>
-              <span style={{ color: 'var(--a-ink3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k}</span>
+              <span style={{ color: 'var(--a-ink3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labels[k] || k}</span>
               <span style={{ color: 'var(--a-ink)', fontWeight: 500, textAlign: 'right' }}>{fmtVal(v)}</span>
             </div>
           ))}

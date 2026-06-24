@@ -7,9 +7,9 @@ import { getGreeting } from '../../lib/utils'
 import { useToast } from '../../hooks/useToast'
 import { Toast } from '../../components/ui/Toast'
 import { Pill } from '../../components/ui/Pill'
-import { StaffCard } from '../People'
+import { StaffCard, certStatus } from '../People'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
-import { IconPlus, IconSearch, IconChev, IconChat, IconArrow } from '../../components/icons'
+import { IconPlus, IconSearch, IconChev, IconChat, IconArrow, IconCheck } from '../../components/icons'
 import { TeamChat } from '../../components/TeamChat'
 import { StaffRanking } from './StaffRanking'
 
@@ -36,7 +36,7 @@ function Stat({ label, big, sub }) {
 function NeedRow({ kind, text, color }) {
   const kindMap = {
     grocery: { dot: '#a47012' }, med: { dot: '#a93a25' },
-    drive: { dot: '#3c5887' }, note: { dot: 'var(--a-ink3)' }, maint: { dot: '#a47012' },
+    drive: { dot: '#3c5887' }, appt: { dot: '#3c5887' }, note: { dot: 'var(--a-ink3)' }, maint: { dot: '#a47012' },
   }
   const dot = kindMap[kind]?.dot || color
   return (
@@ -90,7 +90,7 @@ function useHouseSnapshot(user, houses) {
 const NEED_TAG = {
   grocery: { tag: 'Shop', tone: 'warn' }, med: { tag: 'Med', tone: 'bad' },
   note: { tag: 'Note', tone: 'info' }, drive: { tag: 'Drive', tone: 'info' },
-  maint: { tag: 'Maint', tone: 'warn' },
+  appt: { tag: 'Appt', tone: 'info' }, maint: { tag: 'Maint', tone: 'warn' },
 }
 
 function CenteredColumn({ children, width = 760, side }) {
@@ -606,6 +606,151 @@ export function PageOrientationDesktop({ onNavigate }) {
             <RootWeek num={4} title="Solo + sign-off" items={['Solo shift #1', 'Solo shift #2', 'Mentor sign-off', '30-day review']} />
           </div>
         </div>
+      </div>
+    </>
+  )
+}
+
+// ── Compliance / certifications ───────────────────────────────────────
+// Org-wide certification & license expiration dashboard. Pure read-side
+// aggregation: flatten every staff member's certs across all houses, score
+// each with the shared certStatus() logic, and list worst-first.
+
+export function PageComplianceDesktop({ user, houses = [] }) {
+  const [staffList, setStaffList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [houseFilter, setHouseFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('all')   // all | expired | soon | valid | nodate
+
+  useEffect(() => {
+    if (!user?.orgId) { setLoading(false); return }
+    setLoading(true)
+    // Supervisors see the whole org; managers are scoped to their house.
+    const houseId = user.role === 'manager' ? user.houseId : null
+    fetchStaff(user.orgId, houseId).then(data => { setStaffList(data || []); setLoading(false) })
+  }, [user?.orgId, user?.houseId, user?.role])
+
+  // Flatten certs → one row per (staff member, cert).
+  const rows = []
+  for (const s of staffList) {
+    for (const c of (s.certs || [])) {
+      rows.push({
+        key: `${s.id}-${c.name}-${c.expires || ''}`,
+        staffName: s.name,
+        staffRole: s.role,
+        house: s.houseName || 'No house',
+        houseColor: s.houseColor || '#888',
+        cert: c.name,
+        expires: c.expires || '',
+        st: certStatus(c.expires),
+      })
+    }
+  }
+
+  // Worst-first: expired (rank 3) → expiring soon (2) → no date (1) → valid (0),
+  // then by soonest expiry within a tier.
+  rows.sort((a, b) =>
+    (b.st.rank - a.st.rank) ||
+    ((a.expires || '9999').localeCompare(b.expires || '9999'))
+  )
+
+  const counts = {
+    expired: rows.filter(r => r.st.rank === 3).length,
+    soon:    rows.filter(r => r.st.rank === 2).length,
+    valid:   rows.filter(r => r.st.rank === 0).length,
+    nodate:  rows.filter(r => r.st.rank === 1).length,
+  }
+  const total = rows.length
+  const expiringSoonTotal = counts.expired + counts.soon
+
+  const houseFilterTabs = ['All', ...houses.map(h => h.name)]
+  const statusTabs = [
+    { id: 'all',    label: `All (${total})` },
+    { id: 'expired', label: `Expired (${counts.expired})` },
+    { id: 'soon',    label: `Expiring soon (${counts.soon})` },
+    { id: 'valid',   label: `Valid (${counts.valid})` },
+  ]
+  const matchStatus = (r) =>
+    statusFilter === 'all' ||
+    (statusFilter === 'expired' && r.st.rank === 3) ||
+    (statusFilter === 'soon' && r.st.rank === 2) ||
+    (statusFilter === 'valid' && r.st.rank === 0) ||
+    (statusFilter === 'nodate' && r.st.rank === 1)
+
+  const visible = rows.filter(r =>
+    (houseFilter === 'All' || r.house === houseFilter) && matchStatus(r)
+  )
+
+  return (
+    <>
+      <DTopBar
+        title="Compliance"
+        sub={loading
+          ? 'Loading certifications…'
+          : <>{total} certification{total === 1 ? '' : 's'} tracked across the org{expiringSoonTotal > 0
+            ? <> · <span style={{ color: 'var(--a-clay)', fontWeight: 600 }}>{expiringSoonTotal} need{expiringSoonTotal === 1 ? 's' : ''} attention</span></>
+            : <> · <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>all current</span></>}</>}
+        search={false}
+      />
+      <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+          <DStat label="Expired" value={counts.expired} sub={counts.expired > 0 ? 'renew now' : 'none expired'} tone={counts.expired > 0 ? 'bad' : 'good'} big />
+          <DStat label="Expiring soon" value={counts.soon} sub="within 60 days" tone={counts.soon > 0 ? 'warn' : 'good'} />
+          <DStat label="Valid" value={counts.valid} sub="up to date" tone="good" />
+          <DStat label="No date set" value={counts.nodate} sub={counts.nodate > 0 ? 'needs an expiry' : 'all dated'} tone={counts.nodate > 0 ? 'warn' : undefined} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          {statusTabs.map(t => (
+            <button key={t.id} onClick={() => setStatusFilter(t.id)} style={{
+              border: t.id === statusFilter ? '0' : '1px solid var(--a-line)',
+              background: t.id === statusFilter ? 'var(--a-ink)' : 'transparent',
+              color: t.id === statusFilter ? 'var(--a-card)' : 'var(--a-ink2)',
+              padding: '6px 14px', borderRadius: 999, fontSize: 12, fontFamily: 'Geist', fontWeight: 500, cursor: 'pointer',
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {houses.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {houseFilterTabs.map(b => (
+              <button key={b} onClick={() => setHouseFilter(b)} style={{
+                border: b === houseFilter ? '0' : '1px solid var(--a-line)',
+                background: b === houseFilter ? 'var(--a-sage)' : 'transparent',
+                color: b === houseFilter ? '#fff' : 'var(--a-ink3)',
+                padding: '5px 12px', borderRadius: 999, fontSize: 11.5, fontFamily: 'Geist', fontWeight: 500, cursor: 'pointer',
+              }}>{b}</button>
+            ))}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>Loading…</div>
+        ) : total === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
+            <IconCheck size={30} sw={1.6} />
+            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 10, marginBottom: 6, color: 'var(--a-ink)' }}>No certifications tracked yet</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}>Add certifications & training to staff profiles and they'll be tracked here org-wide.</div>
+          </div>
+        ) : visible.length === 0 ? (
+          <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>No certifications match this filter.</div>
+        ) : (
+          <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
+            {visible.map((r, i) => (
+              <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < visible.length - 1 ? '1px solid var(--a-line)' : '' }}>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: r.houseColor, letterSpacing: '0.06em', textTransform: 'uppercase', background: `${r.houseColor}1a`, padding: '3px 7px', borderRadius: 4, flexShrink: 0, minWidth: 64, textAlign: 'center' }}>{r.house.split(' ')[0]}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.cert}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1 }}>{r.staffName} · {r.staffRole}</div>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', textAlign: 'right', flexShrink: 0, minWidth: 92 }}>
+                  {r.expires ? new Date(r.expires).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: r.st.tc, background: r.st.bg, padding: '3px 9px', borderRadius: 999, flexShrink: 0, minWidth: 56, textAlign: 'center' }}>{r.st.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   )

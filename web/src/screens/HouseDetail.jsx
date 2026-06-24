@@ -12,6 +12,8 @@ import { Goals } from '../components/Goals'
 import { HealthLogs } from '../components/HealthLogs'
 import { ShiftDocPanel } from '../components/ShiftDocPanel'
 import { ProgressPanel } from '../components/ProgressPanel'
+import { Appointments } from '../components/Appointments'
+import { ResidentFunds } from '../components/ResidentFunds'
 
 const HOUSE_SECTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -19,6 +21,7 @@ const HOUSE_SECTIONS = [
   { id: 'meds', label: 'Meds' },
   { id: 'goals', label: 'Goals' },
   { id: 'health', label: 'Health' },
+  { id: 'funds', label: 'Funds' },
   { id: 'log', label: 'Log' },
   { id: 'progress', label: 'Progress' },
   { id: 'compliance', label: 'Compliance' },
@@ -394,7 +397,11 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
 
           {section === 'shift' && <ShiftDocPanel user={user} houseUuid={houseUuid} houseColor={c} houseName={house.name} residents={residents} onOpenSection={setSection} />}
           {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}          {section === 'goals' && <Goals user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
-          {section === 'health' && <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'health' && (<>
+            <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
+            <Appointments user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
+          </>)}
+          {section === 'funds' && <ResidentFunds user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'log' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'progress' && <ProgressPanel user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}

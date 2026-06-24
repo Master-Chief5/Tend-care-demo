@@ -172,20 +172,47 @@ function Results({ row }) {
       </div>
       {!row?.anonymous && count > 0 && questions.map((q, i) => {
         const tallies = (q?._tallies && typeof q._tallies === 'object') ? q._tallies : null
+        const isRating = q?.type === 'rating'
+        const avg = (isRating && q?._avg != null) ? Number(q._avg) : null
+        // Ratings show fixed 1–5 rows in order; other types show their own keys.
+        const entries = isRating
+          ? [1, 2, 3, 4, 5].map(n => [String(n), Number((tallies || {})[String(n)]) || 0])
+          : (tallies ? Object.entries(tallies) : [])
+        const total = entries.reduce((s, [, v]) => s + (Number(v) || 0), 0)
+        const hasData = tallies && total > 0
         return (
-          <div key={i} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--a-ink)', marginBottom: 5 }}>
-              {i + 1}. {q?.q || 'Question'}
-              <span style={{ fontWeight: 500, color: 'var(--a-ink3)' }}> · {TYPE_LABEL[q?.type] || q?.type}</span>
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--a-ink)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ minWidth: 0 }}>
+                {i + 1}. {q?.q || 'Question'}
+                <span style={{ fontWeight: 500, color: 'var(--a-ink3)' }}> · {TYPE_LABEL[q?.type] || q?.type}</span>
+              </span>
+              {avg != null && (
+                <span style={{ flexShrink: 0, fontWeight: 700, color: 'var(--a-clay)', fontVariantNumeric: 'tabular-nums' }}>
+                  {avg.toFixed(1)} / 5
+                </span>
+              )}
             </div>
-            {tallies && Object.keys(tallies).length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {Object.entries(tallies).map(([k, v]) => (
-                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: 'var(--a-ink2)' }}>
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k}</span>
-                    <span style={{ color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{v}</span>
-                  </div>
-                ))}
+            {hasData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {entries.map(([k, v]) => {
+                  const n = Number(v) || 0
+                  const pct = total > 0 ? Math.round((n / total) * 100) : 0
+                  const label = isRating ? `${k} ★` : k
+                  return (
+                    <div key={k} style={{
+                      position: 'relative', overflow: 'hidden',
+                      background: 'var(--a-paper)', border: '1px solid var(--a-line)',
+                      borderRadius: 8, padding: '7px 10px',
+                    }}>
+                      <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: 'rgba(0,0,0,0.05)' }} />
+                      <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                        <span style={{ color: 'var(--a-ink2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        <span style={{ color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{n} · {pct}%</span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--a-ink3)' }}>Free-text responses collected.</div>

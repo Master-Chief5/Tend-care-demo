@@ -9,7 +9,7 @@ import { SuggestInput } from '../components/SuggestInput'
 
 const CERT_SUGGESTIONS = ['CPR', 'First Aid', 'Medication Administration', 'CPI / Crisis Prevention', 'Bloodborne Pathogens', 'Abuse & Neglect Prevention', 'Fire Safety', 'Mandated Reporter']
 // Status of a certification by expiry date.
-function certStatus(expires) {
+export function certStatus(expires) {
   if (!expires) return { label: 'No date', bg: 'var(--a-paper)', tc: 'var(--a-ink3)', rank: 1 }
   const days = Math.floor((new Date(expires).getTime() - Date.now()) / 86400000)
   if (days < 0) return { label: `Expired`, bg: '#fadcd7', tc: '#a93a25', rank: 3 }

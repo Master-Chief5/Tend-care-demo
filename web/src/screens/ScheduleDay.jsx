@@ -4,7 +4,8 @@ import { summarizeWeek, fmtHrs } from '../lib/scheduleSummary'
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift } from '../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift, fetchTimeOffRequests } from '../lib/db'
+import { approvedLeaveOn, findOverlap } from '../lib/scheduleSafety'
 
 // "7:00 AM" style label from a decimal hour — so AM/PM is always explicit.
 function hourLabel(h) {
@@ -346,7 +347,7 @@ function ScreenA_ScheduleMonth({ anchorDate, houses, shifts = [], setView, onPre
   )
 }
 
-function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onClose, onSaved, onDeleted }) {
+function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, timeOff = [], weekShifts = [], onClose, onSaved, onDeleted }) {
   const hourToTime = (h) => {
     const total = Math.round((Number(h) || 0) * 60)
     const hh = Math.floor(total / 60) % 24, mm = total % 60
@@ -381,6 +382,15 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onCl
   const sH = timeToHour(startTime), eH = timeToHour(endTime)
   const dur = Math.round((eH - sH) * 10) / 10
   const repeatCount = editShift ? 1 : expandRepeatDates(date, repeatDays, weeks).length
+
+  // Scheduler-safety: warn (don't block) if this assignment lands on approved
+  // leave or double-books the same person on the same day.
+  const candidateStaffId = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase())?.id || null
+  const trimmedName = personName.trim()
+  const onLeave = trimmedName ? approvedLeaveOn(timeOff, { staffId: candidateStaffId, name: trimmedName, dateStr: date }) : []
+  const overlap = (trimmedName && dur > 0)
+    ? findOverlap(weekShifts, { staffId: candidateStaffId, name: trimmedName, dateStr: date, start: sH, end: eH, exceptId: editShift?.id })
+    : null
 
   const submit = async (e) => {
     e.preventDefault()
@@ -441,6 +451,16 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onCl
           <div style={{ fontSize: 12.5, color: dur > 0 ? 'var(--a-ink2)' : 'var(--a-clay)', background: 'var(--a-paper)', borderRadius: 8, padding: '8px 12px' }}>
             {dur > 0 ? <><strong>{hourLabel(sH)}</strong> → <strong>{hourLabel(eH)}</strong> · {dur}h</> : 'End time must be after start time'}
           </div>
+          {onLeave.length > 0 && (
+            <div style={{ fontSize: 12.5, color: '#a93a25', background: 'rgba(176,92,60,0.08)', border: '1px solid #e3b6ad', borderRadius: 8, padding: '8px 12px', lineHeight: 1.35 }}>
+              <strong>On approved leave.</strong> {trimmedName} has approved {onLeave[0].kind} time off on this day. Assigning anyway will double-count them.
+            </div>
+          )}
+          {overlap && (
+            <div style={{ fontSize: 12.5, color: '#b9892f', background: 'rgba(185,137,47,0.08)', border: '1px solid #e6d4a8', borderRadius: 8, padding: '8px 12px', lineHeight: 1.35 }}>
+              <strong>Already booked</strong> {fmtTime(overlap.start)}–{fmtTime(overlap.end)}{(houses.find(h => h.slug === overlap.house || h.id === overlap.house)?.name) ? ` at ${houses.find(h => h.slug === overlap.house || h.id === overlap.house).name}` : ''} this day. This shift overlaps it.
+            </div>
+          )}
           <select value={role} onChange={e => setRole(e.target.value)}
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
             {['DSP', 'Lead', 'Mgr', 'PT', 'Awake OT'].map(r => <option key={r} value={r}>{r}</option>)}
@@ -516,6 +536,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
   const [weekShifts, setWeekShifts] = useState([])   // holds the visible range (week, or month grid)
+  const [timeOff, setTimeOff] = useState([])         // approved time-off rows for safety checks
   const [houseList, setHouseList] = useState([])   // real DB houses: { id: UUID, slug, name, color, short }
   const [modal, setModal] = useState(null)         // null | { mode:'add' } | { mode:'edit', shift }
   const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
@@ -552,6 +573,8 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
     const houseId = isSupervisor ? null : (user.houseId || null)
     fetchShiftsWeek(user.orgId, houseId, toDateStr(rangeStart), toDateStr(rangeEnd)).then(setWeekShifts)
     fetchHouses(user.orgId).then(setHouseList)
+    // Approved time-off so the assignment flow can warn on leave overlaps.
+    fetchTimeOffRequests(user.orgId, { status: 'approved' }).then(setTimeOff).catch(() => setTimeOff([]))
   }, [user?.orgId, user?.houseId, isSupervisor, rangeKey])
 
   useEffect(() => { reload() }, [reload])
@@ -584,11 +607,19 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const nav = { onPrev: () => step(-1), onNext: () => step(1), onToday: () => setAnchorDate(new Date()) }
   const pickDay = (date) => { setAnchorDate(date); setView('day') }
 
-  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} week={week} weekShifts={weekShifts} weekDates={weekDates} {...nav} />
-  if (view === 'month') return <ScreenA_ScheduleMonth anchorDate={anchorDate} houses={displayHouses} shifts={weekShifts} setView={setView} onPickDay={pickDay} {...nav} />
+  // Publish gate: a DSP (role 'staff') must only see PUBLISHED shifts — draft
+  // (unpublished) shifts aren't final and shouldn't show as if they were.
+  // Supervisors/managers always see the full draft. Open shifts stay visible so
+  // they remain claimable.
+  const publishGate = (s) => !isStaff || s.status === 'open' || !!s.publishedAt
+  const schedulePublished = !isStaff || weekShifts.every(s => s.status === 'open' || !!s.publishedAt)
+  const visibleWeekShifts = isStaff ? weekShifts.filter(publishGate) : weekShifts
+
+  if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} week={week} weekShifts={visibleWeekShifts} weekDates={weekDates} {...nav} />
+  if (view === 'month') return <ScreenA_ScheduleMonth anchorDate={anchorDate} houses={displayHouses} shifts={visibleWeekShifts} setView={setView} onPickDay={pickDay} {...nav} />
 
   // Each day shows ONLY its own shifts (filtered from the week by date).
-  const dayShifts = weekShifts.filter(s => s.date === selectedDate)
+  const dayShifts = visibleWeekShifts.filter(s => s.date === selectedDate)
   const visibleHouses = houseFilter === 'all' ? displayHouses : displayHouses.filter(h => h.id === houseFilter)
   const filteredShifts = houseFilter === 'all' ? dayShifts : dayShifts.filter(s => s.house === houseFilter)
 
@@ -597,7 +628,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   // DSP view: this worker's own shifts in the loaded range, soonest first.
   const todayStr = toDateStr(new Date())
   const myUpcoming = employee
-    ? weekShifts.filter(isMine)
+    ? visibleWeekShifts.filter(isMine)
         .filter(s => s.date > todayStr || (s.date === todayStr && s.end >= nowFrac))
         .sort((a, b) => a.date === b.date ? a.start - b.start : a.date.localeCompare(b.date))
     : []
@@ -649,6 +680,19 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           </div>
         )}
 
+        {isStaff && (
+          <div style={{ padding: '4px 22px 10px' }}>
+            <div style={{ background: 'var(--a-card)', border: `1px solid ${schedulePublished ? 'var(--a-line)' : '#e6d4a8'}`, borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: schedulePublished ? 'var(--a-sage)' : '#b9892f' }} />
+              <span style={{ fontSize: 11, color: 'var(--a-ink2)', flex: 1 }}>
+                {schedulePublished
+                  ? <><strong style={{ color: 'var(--a-sage)' }}>Published.</strong> This week’s schedule is final.</>
+                  : <><strong style={{ color: '#b9892f' }}>Schedule not yet published.</strong> Your manager is still finalizing this week — shifts may change.</>}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div style={{ padding: '0 22px 8px' }}><ScheduleNav {...nav} /></div>
         <DayStrip week={week} selectedDate={selectedDate} onPick={setAnchorDate} />
         <HouseFilterChips houses={displayHouses} active={houseFilter} setActive={setHouseFilter} />
@@ -690,6 +734,8 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           editShift={modal.mode === 'edit' ? modal.shift : null}
           defaultDate={selectedDate}
           defaultHouseId={houseFilter !== 'all' ? (pickerHouses.find(h => h.id === houseFilter || h.slug === houseFilter)?.id) : undefined}
+          timeOff={timeOff}
+          weekShifts={weekShifts}
           onClose={() => setModal(null)}
           onSaved={closeAndReload}
           onDeleted={closeAndReload}

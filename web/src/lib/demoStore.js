@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [] }
 }
 
 function load() {
@@ -109,6 +109,16 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   const mapleOpen = demoAddShift(maple.id, { personName: '', role: 'DSP', startHour: 15, endHour: 23, date: dateFor(1) })
   demoUpdateShift(mapleOpen.id, { status: 'open' })
 
+  // Staff certifications with varied expiry so the org-wide Compliance dashboard
+  // has real data (a couple expired, a couple expiring soon, the rest valid).
+  const setCerts = (name, certs) => { const id = staffId(name); if (id) demoUpdateStaff(id, { certs }) }
+  setCerts('Aisha Mendez', [{ name: 'CPR / First Aid', expires: dateFor(28) }, { name: 'Medication Administration', expires: dateFor(310) }])
+  setCerts('Jay Brooks',   [{ name: 'CPR / First Aid', expires: dateFor(-12) }])
+  setCerts('Reni Tate',    [{ name: 'Medication Administration', expires: dateFor(45) }, { name: 'CPR / First Aid', expires: dateFor(260) }])
+  setCerts('Sam Okafor',   [{ name: 'CPR / First Aid', expires: dateFor(190) }])
+  setCerts('Priya Nair',   [{ name: 'First Aid', expires: dateFor(340) }, { name: 'Medication Administration', expires: dateFor(-3) }])
+  setCerts('Marcus Lewis', [{ name: 'CPR / First Aid', expires: dateFor(70) }])
+
   // A couple of incidents + safety drills (surface on each house's Care tab).
   demoAddIncident({ houseId: maple.id, residentId: null, type: 'Fall',       severity: 'Minor',    text: 'Resident slipped on a wet bathroom floor; no injury observed.',          actions: 'Completed body check, no first aid required, notified on-call nurse.', by: 'Aisha Mendez' })
   demoAddIncident({ houseId: oak.id,   residentId: null, type: 'Behavioral', severity: 'Moderate', text: 'Escalation during the afternoon transition; redirected per behavior plan.', actions: 'Followed BSP de-escalation, offered a quiet space, 1:1 support for ~20 min.', by: 'Reni Tate' })
@@ -140,6 +150,8 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoSeedQuickTasks(orgId)
   demoSeedContacts(orgId)
   demoSeedTickets(orgId)
+  demoSeedAppointments(orgId)
+  demoSeedResidentFunds(orgId)
 
   persist()
 }
@@ -1418,6 +1430,121 @@ export function demoCountMyUpcomingEvents(orgId, { houseId = null, role = null, 
   return demoFetchEvents(orgId, { houseId, role, staffId }).filter(e => e._myRsvp === 'going').length
 }
 
+// ── Medical appointments ─────────────────────────────────────────────────────
+// Per-resident medical appointments (dental, physical, psychiatry, etc.) with a
+// provider, transport flag, and an outcome recorded once completed.
+export function demoSeedAppointments(orgId) {
+  if (store.appointments.length > 0) return
+  const at = (offDays, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + offDays); d.setHours(h, m, 0, 0); return d.toISOString() }
+  const oak = store.houses.find(h => h.short === 'OAK')
+  const maple = store.houses.find(h => h.short === 'MAP')
+  const james = store.residents.find(r => r.name === 'James Whitaker')
+  const robert = store.residents.find(r => r.name === 'Robert Hayes')
+  if (james) {
+    store.appointments.push({
+      id: uid('appt'), org_id: orgId, house_id: oak ? oak.id : null,
+      resident_id: james.id, resident_name: james.name,
+      appt_at: at(3, 10, 30), provider: 'Riverside Dental', type: 'dental',
+      reason: 'Routine cleaning & exam', status: 'scheduled', outcome: null,
+      transport_needed: true, created_by_name: 'Marcus Lewis', created_at: now(),
+    })
+  }
+  if (robert) {
+    store.appointments.push({
+      id: uid('appt'), org_id: orgId, house_id: maple ? maple.id : null,
+      resident_id: robert.id, resident_name: robert.name,
+      appt_at: at(6, 14, 0), provider: 'Dr. Patel — Primary Care', type: 'physical',
+      reason: 'Annual physical', status: 'scheduled', outcome: null,
+      transport_needed: true, created_by_name: 'Priya Nair', created_at: now(),
+    })
+  }
+  persist()
+}
+
+export function demoFetchAppointments(orgId, { houseId = null, residentId = null, includeCompleted = true } = {}) {
+  demoSeedAppointments(orgId)
+  return store.appointments
+    .filter(a => (!houseId || a.house_id === houseId) && (!residentId || a.resident_id === residentId))
+    .filter(a => includeCompleted || a.status !== 'completed')
+    .sort((a, b) => (a.appt_at || '').localeCompare(b.appt_at || ''))
+    .map(a => ({ ...a, houses: houseJoin(a.house_id) }))
+}
+
+export function demoCreateAppointment(orgId, { houseId, residentId, residentName, apptAt, provider, type, reason, transportNeeded, createdByName } = {}) {
+  const row = {
+    id: uid('appt'), org_id: orgId, house_id: houseId || null,
+    resident_id: residentId || null, resident_name: residentName || null,
+    appt_at: apptAt || null, provider: provider || null, type: type || 'other',
+    reason: reason || null, status: 'scheduled', outcome: null,
+    transport_needed: !!transportNeeded, created_by_name: createdByName || null, created_at: now(),
+  }
+  store.appointments.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoUpdateAppointment(id, updates = {}) {
+  const a = store.appointments.find(x => x.id === id)
+  if (!a) return null
+  for (const k of ['status', 'outcome', 'provider', 'type', 'reason', 'appt_at', 'transport_needed']) {
+    if (updates[k] !== undefined) a[k] = updates[k]
+  }
+  persist()
+  return { ...a, houses: houseJoin(a.house_id) }
+}
+
+export function demoDeleteAppointment(id) {
+  store.appointments = store.appointments.filter(a => a.id !== id); persist(); return true
+}
+
+// ── Resident personal funds (PNI) ledger ─────────────────────────────────────
+// One row per deposit / withdrawal against a resident's personal funds. A
+// running balance is the sum of deposits minus withdrawals.
+export function demoSeedResidentFunds(orgId) {
+  if (store.residentFunds.length > 0) return
+  const dt = (offDays) => { const d = new Date(); d.setDate(d.getDate() + offDays); return _ds(d) }
+  const oak = store.houses.find(h => h.short === 'OAK')
+  const james = store.residents.find(r => r.name === 'James Whitaker')
+  if (james) {
+    const push = (entry) => store.residentFunds.push({
+      id: uid('fund'), org_id: orgId, house_id: oak ? oak.id : null,
+      resident_id: james.id, resident_name: james.name, created_at: now(), ...entry,
+    })
+    push({ entry_date: dt(-21), type: 'deposit',    amount: 120.00, category: 'SSI allowance', note: 'Monthly personal-needs allowance', recorded_by_name: 'Marcus Lewis' })
+    push({ entry_date: dt(-14), type: 'withdrawal', amount: 18.50,  category: 'Clothing',      note: 'New socks & undershirts',          recorded_by_name: 'Marcus Lewis' })
+    push({ entry_date: dt(-5),  type: 'withdrawal', amount: 12.00,  category: 'Outing',        note: 'Movie ticket & snack',             recorded_by_name: 'Reni Tate' })
+  }
+  persist()
+}
+
+export function demoFetchResidentFunds(orgId, { houseId = null, residentId = null } = {}) {
+  demoSeedResidentFunds(orgId)
+  return store.residentFunds
+    .filter(f => (!houseId || f.house_id === houseId) && (!residentId || f.resident_id === residentId))
+    .sort((a, b) => (b.entry_date || '').localeCompare(a.entry_date || '') || (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(f => ({ ...f, houses: houseJoin(f.house_id) }))
+}
+
+export function demoAddResidentFundEntry(orgId, { houseId, residentId, residentName, entryDate, type, amount, category, note, recordedByName } = {}) {
+  const row = {
+    id: uid('fund'), org_id: orgId, house_id: houseId || null,
+    resident_id: residentId || null, resident_name: residentName || null,
+    entry_date: entryDate || todayStr(), type: type || 'deposit',
+    amount: Number(amount) || 0, category: category || null, note: note || null,
+    recorded_by_name: recordedByName || null, created_at: now(),
+  }
+  store.residentFunds.push(row); persist()
+  return { ...row, houses: houseJoin(row.house_id) }
+}
+
+export function demoDeleteResidentFundEntry(id) {
+  store.residentFunds = store.residentFunds.filter(f => f.id !== id); persist(); return true
+}
+
+// Running balance = sum(deposits) − sum(withdrawals) over a list of entries.
+export function residentFundsBalance(entries = []) {
+  return (entries || []).reduce((bal, f) => bal + (f.type === 'withdrawal' ? -1 : 1) * (Number(f.amount) || 0), 0)
+}
+
 // ── Schedule templates / tools ───────────────────────────────────────────────
 // A template-shift is a day-of-week pattern object:
 //   { dayIndex: 0-6, startHour, endHour, role, personName, staffId, note }
@@ -1640,14 +1767,56 @@ export function demoSeedSurveys(orgId) {
   persist()
 }
 
+// Build per-question tallies from collected answers (keyed by question index).
+// Returns a CLONE of the questions array with _tallies / _avg attached; never
+// mutates the stored template.
+function _surveyTallies(questions, responses) {
+  const qs = Array.isArray(questions) ? questions : []
+  return qs.map((q, i) => {
+    if (!q || typeof q !== 'object') return q
+    const type = q.type
+    if (type === 'multiple' || type === 'yesno') {
+      const tallies = {}
+      for (const r of responses) {
+        const v = r?.answers ? r.answers[i] : undefined
+        if (v == null || String(v).trim() === '') continue
+        const key = String(v)
+        tallies[key] = (tallies[key] || 0) + 1
+      }
+      return { ...q, _tallies: tallies }
+    }
+    if (type === 'rating') {
+      const tallies = {}
+      let sum = 0, n = 0
+      for (const r of responses) {
+        const raw = r?.answers ? r.answers[i] : undefined
+        const num = Number(raw)
+        if (!Number.isFinite(num) || num < 1 || num > 5) continue
+        const key = String(Math.round(num))
+        tallies[key] = (tallies[key] || 0) + 1
+        sum += num; n += 1
+      }
+      return { ...q, _tallies: tallies, _avg: n > 0 ? sum / n : null }
+    }
+    return { ...q }
+  })
+}
+
 function _augmentSurvey(s, staffId) {
   let count = 0, mine = false
+  const responses = []
   for (const r of store.surveyResponses) {
     if (r.survey_id !== s.id) continue
     count += 1
+    responses.push(r)
     if (staffId && r.staff_id === staffId) mine = true
   }
-  return { ...s, _responseCount: count, _myResponded: mine }
+  return {
+    ...s,
+    questions: _surveyTallies(s.questions, responses),
+    _responseCount: count,
+    _myResponded: mine,
+  }
 }
 
 export function demoFetchSurveys(orgId, { houseId = null, role = null, staffId = null } = {}) {

@@ -1264,11 +1264,12 @@ export async function fetchHouseAlerts(orgId) {
   if (!orgId) return empty
   const today = toDateStr(new Date())
 
-  const [resources, meds, notes, trips] = await Promise.all([
+  const [resources, meds, notes, trips, appts] = await Promise.all([
     fetchResources(orgId, null),
     fetchMedAlerts(orgId, null),
     fetchShiftNotes(orgId, null),
     fetchTrips(orgId, null, today),
+    fetchAppointments(orgId, { includeCompleted: false }),
   ])
 
   const map = {}
@@ -1312,6 +1313,18 @@ export async function fetchHouseAlerts(orgId) {
   for (const t of trips) {
     const driver = t.driver_name ? ` (${t.driver_name})` : ''
     push(t.houses?.slug, { kind: 'drive', text: `${t.resident_name || 'Resident'} to ${t.destination}${driver}` })
+  }
+
+  // Appt — upcoming medical appointments within the next 7 days (transport flagged).
+  const weekMs = Date.now() + 7 * 86400000
+  for (const a of appts) {
+    if (!a.appt_at) continue
+    const ms = new Date(a.appt_at).getTime()
+    if (isNaN(ms) || ms > weekMs) continue
+    const when = fmtClock(a.appt_at)
+    const tx = a.transport_needed ? ' · transport needed' : ''
+    const prov = a.provider ? ` — ${a.provider}` : ''
+    push(a.houses?.slug, { kind: 'appt', text: `${a.resident_name || 'Resident'}${prov} (${when})${tx}` })
   }
 
   return map
@@ -1919,6 +1932,102 @@ export async function countMyUpcomingEvents(orgId, { houseId = null, role = null
   return rows.filter(e => e._myRsvp === 'going').length
 }
 
+// ── Medical appointments ─────────────────────────────────────────────────────
+// Per-resident medical appointments (dental, physical, psychiatry, etc.) with a
+// provider, transport flag, and an outcome recorded once the visit completes.
+// Returned soonest-first; rows carry the houses(...) join for the slug.
+export async function fetchAppointments(orgId, { houseId = null, residentId = null, includeCompleted = true } = {}) {
+  if (isDemoMode) return demo.demoFetchAppointments(orgId, { houseId, residentId, includeCompleted })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('appointments').select('*, houses(slug, name, color, short)').eq('org_id', orgId)
+  if (houseId) q = q.eq('house_id', houseId)
+  if (residentId) q = q.eq('resident_id', residentId)
+  if (!includeCompleted) q = q.neq('status', 'completed')
+  const { data, error } = await q.order('appt_at', { ascending: true }).limit(200)
+  if (error) { console.error('fetchAppointments:', error.message); return [] }
+  return data || []
+}
+
+export async function createAppointment(orgId, { houseId, residentId, residentName, apptAt, provider, type, reason, transportNeeded, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateAppointment(orgId, { houseId, residentId, residentName, apptAt, provider, type, reason, transportNeeded, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('appointments').insert({
+    org_id: orgId, house_id: houseId || null, resident_id: residentId || null, resident_name: residentName || null,
+    appt_at: apptAt || null, provider: provider || null, type: type || 'other', reason: reason || null,
+    status: 'scheduled', transport_needed: !!transportNeeded, created_by_name: createdByName || null,
+  }).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('createAppointment:', error.message); return null }
+  return data
+}
+
+export async function updateAppointment(id, { status, outcome, provider, type, reason, apptAt, transportNeeded } = {}) {
+  if (isDemoMode) return demo.demoUpdateAppointment(id, {
+    status, outcome, provider, type, reason,
+    ...(apptAt !== undefined ? { appt_at: apptAt } : {}),
+    ...(transportNeeded !== undefined ? { transport_needed: transportNeeded } : {}),
+  })
+  if (!supabase || !id) return null
+  const patch = {}
+  if (status !== undefined) patch.status = status
+  if (outcome !== undefined) patch.outcome = outcome
+  if (provider !== undefined) patch.provider = provider
+  if (type !== undefined) patch.type = type
+  if (reason !== undefined) patch.reason = reason
+  if (apptAt !== undefined) patch.appt_at = apptAt
+  if (transportNeeded !== undefined) patch.transport_needed = transportNeeded
+  const { data, error } = await supabase.from('appointments').update(patch).eq('id', id)
+    .select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('updateAppointment:', error.message); return null }
+  return data
+}
+
+export async function deleteAppointment(id) {
+  if (isDemoMode) return demo.demoDeleteAppointment(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('appointments').delete().eq('id', id)
+  if (error) { console.error('deleteAppointment:', error.message); return false }
+  return true
+}
+
+// ── Resident personal funds (PNI) ledger ─────────────────────────────────────
+// Regulatory deposit/withdrawal ledger per resident. Running balance is the sum
+// of deposits minus withdrawals. Returned newest-first; rows carry houses(...).
+export async function fetchResidentFunds(orgId, { houseId = null, residentId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchResidentFunds(orgId, { houseId, residentId })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('resident_funds').select('*, houses(slug, name, color, short)').eq('org_id', orgId)
+  if (houseId) q = q.eq('house_id', houseId)
+  if (residentId) q = q.eq('resident_id', residentId)
+  const { data, error } = await q.order('entry_date', { ascending: false }).order('created_at', { ascending: false }).limit(500)
+  if (error) { console.error('fetchResidentFunds:', error.message); return [] }
+  return data || []
+}
+
+export async function addResidentFundEntry(orgId, { houseId, residentId, residentName, entryDate, type, amount, category, note, recordedByName } = {}) {
+  if (isDemoMode) return demo.demoAddResidentFundEntry(orgId, { houseId, residentId, residentName, entryDate, type, amount, category, note, recordedByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('resident_funds').insert({
+    org_id: orgId, house_id: houseId || null, resident_id: residentId || null, resident_name: residentName || null,
+    entry_date: entryDate || toDateStr(new Date()), type: type || 'deposit', amount: Number(amount) || 0,
+    category: category || null, note: note || null, recorded_by_name: recordedByName || null,
+  }).select('*, houses(slug, name, color, short)').single()
+  if (error) { console.error('addResidentFundEntry:', error.message); return null }
+  return data
+}
+
+export async function deleteResidentFundEntry(id) {
+  if (isDemoMode) return demo.demoDeleteResidentFundEntry(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('resident_funds').delete().eq('id', id)
+  if (error) { console.error('deleteResidentFundEntry:', error.message); return false }
+  return true
+}
+
+// Running balance helper (deposits − withdrawals), shared by demo + Supabase.
+export function residentFundsBalance(entries = []) {
+  return demo.residentFundsBalance(entries)
+}
+
 // ── Forms (no-code form templates + submissions) ─────────────────────────────
 // Templates are org-wide (house_id null) or house-scoped; everyone reads/submits,
 // supervisors/managers build & review. RLS scopes by house + role.
@@ -1986,6 +2095,41 @@ export async function reviewFormSubmission(id, { reviewedByName } = {}) {
 // ── Surveys (staff pulse / training feedback) ────────────────────────────────
 // Org-wide or house-scoped. Returned AUGMENTED: _responseCount (int),
 // _myResponded (bool). RLS scopes by house + role; responses org-readable.
+
+// Build per-question tallies from a survey's collected answers (keyed by
+// question index). Returns a CLONE of the questions with _tallies / _avg
+// attached; never mutates the stored template.
+function _surveyTalliesFromAnswers(questions, answersList) {
+  const qs = Array.isArray(questions) ? questions : []
+  return qs.map((q, i) => {
+    if (!q || typeof q !== 'object') return q
+    const type = q.type
+    if (type === 'multiple' || type === 'yesno') {
+      const tallies = {}
+      for (const ans of answersList) {
+        const v = ans ? ans[i] : undefined
+        if (v == null || String(v).trim() === '') continue
+        const key = String(v)
+        tallies[key] = (tallies[key] || 0) + 1
+      }
+      return { ...q, _tallies: tallies }
+    }
+    if (type === 'rating') {
+      const tallies = {}
+      let sum = 0, n = 0
+      for (const ans of answersList) {
+        const num = Number(ans ? ans[i] : undefined)
+        if (!Number.isFinite(num) || num < 1 || num > 5) continue
+        const key = String(Math.round(num))
+        tallies[key] = (tallies[key] || 0) + 1
+        sum += num; n += 1
+      }
+      return { ...q, _tallies: tallies, _avg: n > 0 ? sum / n : null }
+    }
+    return { ...q }
+  })
+}
+
 export async function fetchSurveys(orgId, { houseId = null, role = null, staffId = null } = {}) {
   if (isDemoMode) return demo.demoFetchSurveys(orgId, { houseId, role, staffId })
   if (!supabase || !orgId) return []
@@ -1996,17 +2140,24 @@ export async function fetchSurveys(orgId, { houseId = null, role = null, staffId
   const rows = data || []
   if (rows.length === 0) return []
   const ids = rows.map(r => r.id)
-  const count = {}, mine = {}
+  const count = {}, mine = {}, answersBySurvey = {}
   try {
     const { data: resps, error: rErr } = await supabase
-      .from('survey_responses').select('survey_id, staff_id').in('survey_id', ids)
+      .from('survey_responses').select('survey_id, staff_id, answers').in('survey_id', ids)
     if (rErr) throw rErr
     for (const r of (resps || [])) {
       count[r.survey_id] = (count[r.survey_id] || 0) + 1
       if (staffId && r.staff_id === staffId) mine[r.survey_id] = true
+      if (!answersBySurvey[r.survey_id]) answersBySurvey[r.survey_id] = []
+      answersBySurvey[r.survey_id].push(r.answers && typeof r.answers === 'object' ? r.answers : {})
     }
   } catch (e) { console.error('fetchSurveys responses:', e.message) }
-  return rows.map(s => ({ ...s, _responseCount: count[s.id] || 0, _myResponded: !!mine[s.id] }))
+  return rows.map(s => ({
+    ...s,
+    questions: _surveyTalliesFromAnswers(s.questions, answersBySurvey[s.id] || []),
+    _responseCount: count[s.id] || 0,
+    _myResponded: !!mine[s.id],
+  }))
 }
 
 export async function createSurvey(orgId, { houseId, title, questions, anonymous, createdByName } = {}) {
