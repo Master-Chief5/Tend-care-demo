@@ -8,11 +8,16 @@
   --a-card: #fbf6ec;
   --a-ink: #1d1a14;
   --a-ink2: #4a4438;
-  --a-ink3: #807766;
+  /* WCAG AA fix: was #807766 (~3.4:1 on cream — fails AA for text).
+     #6b6253 → ~4.7:1 on --a-card / ~4.6:1 on --a-bg → passes AA. */
+  --a-ink3: #6b6253;
   --a-line: #d8ccb1;
   --a-sage: #4a6b56;
   --a-sage-dim: #6f8a78;
   --a-clay: #b8552f;
+  /* AA-safe clay TEXT shade (#9c4222 → ~4.6:1 on cream). Use --a-clay for
+     fills/bars/now-line, --a-clay-text for clay-colored text + small accents. */
+  --a-clay-text: #9c4222;
   --a-clay-dim: #d97a55;
   --a-honey: #d49a3a;
   --a-plum: #6c3a55;
@@ -22,7 +27,48 @@
   --house-oak: #d4a64a;
   --house-willow: #2f9489;
   --house-maple: #cf4f3b;
+  --house-ash: #4a6cc7;
   --house-cedar: #6e4d8f;
+  /* Default per-container accent; set --house on any container to theme it. */
+  --house: var(--a-sage);
+
+  /* ── Status tint pairs (bg / text / border) ── */
+  --status-good-bg: #dee6df;  --status-good-tc: #3f604d;  --status-good-bd: #9fc0ab;
+  --status-warn-bg: #f5e9d6;  --status-warn-tc: #8a5e0f;  --status-warn-bd: #e6c98f;
+  --status-bad-bg:  #fadcd7;  --status-bad-tc:  #a93a25;  --status-bad-bd:  #e0b4ab;
+  --status-info-bg: #ebe2cf;  --status-info-tc: #4a4438;
+
+  /* ── Typography (match the families already hardcoded at call sites) ── */
+  --font-sans:  'Geist', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+  --font-mono:  'Geist Mono', ui-monospace, monospace;
+
+  /* Type scale — NOTHING below 12px */
+  --fs-12: 12px;  --fs-13: 13px;  --fs-14: 14px;  --fs-15: 15px;
+  --fs-17: 17px;  --fs-20: 20px;  --fs-24: 24px;  --fs-28: 28px;  --fs-34: 34px;
+  --lh-tight: 1.1;  --lh-snug: 1.3;  --lh-body: 1.45;
+  --ls-caps: 0.08em;
+
+  /* ── Spacing ── */
+  --sp-2: 2px;   --sp-4: 4px;   --sp-6: 6px;   --sp-8: 8px;
+  --sp-10: 10px; --sp-12: 12px; --sp-14: 14px; --sp-16: 16px;
+  --sp-20: 20px; --sp-24: 24px; --sp-32: 32px;
+
+  /* ── Radii ── */
+  --r-badge: 4px;  --r-input: 10px;  --r-btn: 12px;  --r-card: 14px;  --r-pill: 999px;
+
+  /* ── Borders ── */
+  --bd-hair: 1px solid var(--a-line);
+  --bd-accent-w: 3px;
+
+  /* ── Shadows ── */
+  --sh-none: none;
+  --sh-soft: 0 2px 8px rgba(0,0,0,0.06);
+  --sh-pop:  0 6px 20px rgba(0,0,0,0.12);
+  --sh-nav:  0 -2px 12px rgba(29,26,20,0.06);
+
+  /* ── Focus ── */
+  --focus: 2px solid var(--a-sage);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -145,3 +191,399 @@ html, body, #root {
 
 /* Shared spinner keyframe */
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===========================================================================
+   HEARTH REDESIGN — SHELL COMPONENT CLASSES (Phase 1, Steps 1–2)
+   ---------------------------------------------------------------------------
+   Additive, reusable component classes ported from
+   mockups/redesign-phase0/shell.css + the approved screen mockups. These power
+   the new redesign screens (Home dashboard, Care hub, Resident profile, grouped
+   desktop sidebar) and are NAMESPACED so they don't touch existing global
+   classes. Nothing here redefines .serif/.mono/.tnum, the base .pill, .tab-bar,
+   .web-tab-bar, .phone-screen, or .desktop — only the additive .pill--* status
+   modifiers are added on top of the existing .pill base.
+   ======================================================================== */
+
+/* ── Text/color utilities (additive; none exist yet) ── */
+.muted { color: var(--a-ink3); }
+.ink2  { color: var(--a-ink2); }
+.accent-sage { color: var(--a-sage); }
+.accent-clay { color: var(--a-clay-text); }
+
+/* ── Headings (serif display scale) ── */
+.display { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-34); font-weight: 400; line-height: var(--lh-tight); margin: 0; }
+.h1 { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-24); font-weight: 400; line-height: var(--lh-snug); margin: 0; }
+.h2 { font-size: var(--fs-20); font-weight: 600; line-height: var(--lh-snug); margin: 0; }
+.h3 { font-size: var(--fs-17); font-weight: 600; line-height: var(--lh-snug); margin: 0; }
+
+/* ── App bar (opt-in screen header; existing screens keep their own) ── */
+.appbar {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--sp-12); padding: var(--sp-16) var(--sp-16) var(--sp-12);
+  background: var(--a-bg);
+}
+.appbar-title { font-size: var(--fs-17); font-weight: 600; line-height: var(--lh-snug); margin: 0; }
+.appbar-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+.appbar-actions { display: flex; align-items: center; gap: var(--sp-8); }
+
+/* Serif greeting block (Home screens) */
+.greeting { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-34); font-weight: 400; line-height: var(--lh-tight);
+  letter-spacing: -0.01em; margin: var(--sp-4) 0 0; }
+.greeting--sm { font-size: var(--fs-28); }
+.greeting-name { color: var(--a-sage); font-style: italic; }
+
+/* ── Section header ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: var(--sp-16) var(--sp-16) var(--sp-8);
+}
+.section-label {
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3);
+}
+.section-action {
+  font-size: var(--fs-12); font-weight: 600; color: var(--a-clay-text);
+  background: none; border: 0; padding: 0;
+}
+
+/* ── Cards / surfaces ── */
+.card {
+  background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card);
+  padding: var(--sp-14) var(--sp-16);
+}
+.card--accent { border-top: var(--bd-accent-w) solid var(--house); }
+.surface { background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card); }
+.panel   { background: var(--a-paper); border: var(--bd-hair); border-radius: var(--r-card);
+  padding: var(--sp-14) var(--sp-16); }
+
+/* ── List rows ── */
+.list { display: flex; flex-direction: column; }
+.list > .row + .row { border-top: var(--bd-hair); }
+.row {
+  display: flex; align-items: center; gap: var(--sp-12);
+  padding: var(--sp-12) var(--sp-16); background: transparent;
+  width: 100%; text-align: left; border: 0;
+}
+.row-main { flex: 1; min-width: 0; }
+.row-title { font-size: var(--fs-15); font-weight: 600; color: var(--a-ink); line-height: var(--lh-snug); }
+.row-sub { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-end { display: flex; align-items: center; gap: var(--sp-8); flex-shrink: 0; }
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-sage); color: #fff;
+  font-size: var(--fs-13); font-weight: 600; letter-spacing: 0.02em;
+}
+
+/* ── Status pill MODIFIERS (additive — layer on the existing base .pill) ── */
+.pill--good    { background: var(--status-good-bg); color: var(--status-good-tc); border: 1px solid var(--status-good-bd); }
+.pill--warn    { background: var(--status-warn-bg); color: var(--status-warn-tc); border: 1px solid var(--status-warn-bd); }
+.pill--bad     { background: var(--status-bad-bg);  color: var(--status-bad-tc);  border: 1px solid var(--status-bad-bd); }
+.pill--info    { background: var(--status-info-bg); color: var(--status-info-tc); border: 1px solid var(--a-line); }
+.pill--neutral { background: var(--a-paper); color: var(--a-ink2); border: 1px solid var(--a-line); }
+.pill--house   { background: transparent; color: var(--house); border: 1px solid var(--house); }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: var(--fs-12); font-weight: 700; line-height: 1.4;
+  padding: var(--sp-2) var(--sp-8); border-radius: var(--r-badge);
+  background: var(--a-paper); color: var(--a-ink2); letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge--solid { background: var(--house); color: #fff; }
+.badge--count {
+  min-width: 20px; height: 20px; padding: 0 var(--sp-6); justify-content: center;
+  border-radius: var(--r-pill); background: var(--a-clay); color: #fff;
+  font-size: var(--fs-12); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-6);
+  font-size: var(--fs-14); font-weight: 600; line-height: var(--lh-tight);
+  padding: var(--sp-10) var(--sp-16); border-radius: var(--r-btn);
+  border: 1px solid transparent; background: transparent; color: var(--a-ink);
+  text-decoration: none; white-space: nowrap;
+}
+.btn--primary   { background: var(--a-ink); color: var(--a-card); }
+.btn--accent    { background: var(--a-clay); color: #fff; }
+.btn--secondary { background: var(--a-card); color: var(--a-ink); border-color: var(--a-line); }
+.btn--ghost     { background: transparent; color: var(--a-ink2); }
+.btn--house     { background: var(--house); color: #fff; }
+.btn--sm    { font-size: var(--fs-12); padding: var(--sp-6) var(--sp-12); border-radius: var(--r-btn); }
+.btn--lg    { font-size: var(--fs-15); padding: var(--sp-12) var(--sp-20); }
+.btn--block { display: flex; width: 100%; }
+
+/* ── Stats ── */
+.stat { display: flex; flex-direction: column; min-width: 0; }
+.stat-label { font-size: var(--fs-12); font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3); }
+.stat-value { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-28); font-weight: 400; line-height: var(--lh-tight);
+  color: var(--a-ink); margin-top: var(--sp-4); font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+.stat-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-12);
+  padding: var(--sp-12) 0; border-top: 1px dashed var(--a-line);
+  border-bottom: 1px dashed var(--a-line);
+}
+
+/* ── Progress bar ── */
+.progress { height: 7px; border-radius: var(--r-pill); background: var(--a-paper);
+  overflow: hidden; width: 100%; }
+.progress-fill { height: 100%; border-radius: var(--r-pill); background: var(--a-sage);
+  transition: width 0.25s ease; }
+
+/* ── Inputs / chips ── */
+.field { display: flex; flex-direction: column; gap: var(--sp-6); }
+.field-label { font-size: var(--fs-12); color: var(--a-ink3); }
+.field-input {
+  font-family: inherit; font-size: var(--fs-14); color: var(--a-ink);
+  background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-input);
+  padding: var(--sp-10) var(--sp-12); width: 100%;
+}
+.field-input::placeholder { color: var(--a-ink3); }
+.chip-row { display: flex; gap: var(--sp-8); overflow-x: auto; padding: var(--sp-2) 0; }
+.chip {
+  flex-shrink: 0; font-size: var(--fs-12); font-weight: 600; line-height: 1;
+  padding: var(--sp-8) var(--sp-14); border-radius: var(--r-pill);
+  border: var(--bd-hair); background: transparent; color: var(--a-ink2);
+}
+.chip--active { background: var(--a-ink); color: var(--a-card); border-color: var(--a-ink); }
+
+/* ── Icons (inline <svg>, 1.5 stroke, currentColor; NO emoji) ── */
+.icon { display: inline-block; width: 22px; height: 22px; flex-shrink: 0; vertical-align: middle; }
+.icon svg, svg.icon { width: 100%; height: 100%; display: block; }
+.icon--sm { width: 16px; height: 16px; }
+.icon--lg { width: 28px; height: 28px; }
+
+/* ── Desktop left sidebar — grouped nav ── */
+.sidebar {
+  background: var(--a-card); border-right: var(--bd-hair);
+  display: flex; flex-direction: column;
+  padding: var(--sp-20) var(--sp-12); gap: var(--sp-20);
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: var(--sp-8);
+  padding: 0 var(--sp-8) var(--sp-4);
+  font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-20); font-weight: 500; color: var(--a-ink);
+}
+.sidebar-brand .brand-mark {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--a-sage); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sidebar-brand .brand-mark .icon { width: 17px; height: 17px; color: #fff; }
+.nav-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+.nav-group-label {
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3);
+  padding: 0 var(--sp-10) var(--sp-6);
+}
+.nav-item {
+  display: flex; align-items: center; gap: var(--sp-10);
+  padding: var(--sp-8) var(--sp-10); border-radius: var(--r-input);
+  background: none; border: 0; width: 100%; text-align: left;
+  font-size: var(--fs-14); font-weight: 500; color: var(--a-ink2);
+  text-decoration: none;
+}
+.nav-item .icon { width: 20px; height: 20px; color: var(--a-ink3); }
+.nav-item:hover { background: var(--a-paper); }
+.nav-item.is-active {
+  background: var(--a-paper); color: var(--a-ink); font-weight: 600;
+  box-shadow: inset var(--bd-accent-w) 0 0 var(--a-sage);
+}
+.nav-item.is-active .icon { color: var(--a-sage); }
+.nav-item .badge--count { margin-left: auto; }
+
+/* ── Layout utilities ── */
+.row-gap { display: flex; gap: var(--sp-8); align-items: center; }
+.col-gap { display: flex; flex-direction: column; gap: var(--sp-12); }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.stack-16 > * + * { margin-top: var(--sp-16); }
+.stack-12 > * + * { margin-top: var(--sp-12); }
+
+/* ===========================================================================
+   SCREEN-LOCAL COMPONENTS — Home dashboard (01-home mockup)
+   ======================================================================== */
+.glance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-12); }
+.glance {
+  display: flex; flex-direction: column; gap: var(--sp-6);
+  background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card);
+  padding: var(--sp-14) var(--sp-14); text-align: left; width: 100%;
+}
+.glance-top { display: flex; align-items: center; gap: var(--sp-8); }
+.glance-ico {
+  width: 32px; height: 32px; border-radius: var(--r-input); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.glance-ico .icon { width: 18px; height: 18px; }
+.glance-ico--warn { background: var(--status-warn-bg); color: var(--status-warn-tc); }
+.glance-ico--bad  { background: var(--status-bad-bg);  color: var(--status-bad-tc); }
+.glance-ico--good { background: var(--status-good-bg); color: var(--status-good-tc); }
+.glance-ico--info { background: var(--a-paper);        color: var(--a-sage); }
+.glance-value { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-28); font-weight: 400; line-height: var(--lh-tight);
+  color: var(--a-ink); font-variant-numeric: tabular-nums; }
+.glance-label { font-size: var(--fs-13); color: var(--a-ink2); line-height: var(--lh-snug); }
+.glance-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: auto; }
+.glance-sub--warn { color: var(--status-warn-tc); font-weight: 600; }
+.glance-sub--bad  { color: var(--status-bad-tc);  font-weight: 600; }
+
+/* Priority rows (Home variant: chevron list inside a card).
+   Namespaced as .prio-row (NOT a bare .prio) so it never collides with the
+   Care-hub bordered .prio-card-care card defined further below. */
+.prio-card { padding: 0; overflow: hidden; }
+.prio-row {
+  display: flex; align-items: center; gap: var(--sp-12);
+  padding: var(--sp-12) var(--sp-14); width: 100%; text-align: left;
+  background: transparent; border: 0;
+}
+.prio-row + .prio-row { border-top: var(--bd-hair); }
+.prio-rail { width: 4px; align-self: stretch; border-radius: var(--r-pill); flex-shrink: 0;
+  background: var(--house, var(--a-sage)); }
+.prio--open .prio-rail { background: var(--a-clay); }
+.prio-ico {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-paper); color: var(--a-ink2);
+}
+.prio-ico .icon { width: 18px; height: 18px; }
+.prio-ico--bad  { background: var(--status-bad-bg);  color: var(--status-bad-tc); }
+.prio-ico--warn { background: var(--status-warn-bg); color: var(--status-warn-tc); }
+.prio-main { flex: 1; min-width: 0; }
+.prio-title { font-size: var(--fs-15); font-weight: 600; color: var(--a-ink); line-height: var(--lh-snug); }
+.prio-sub { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prio-chev { color: var(--a-ink3); display: inline-flex; }
+
+/* Houses summary rows */
+.house-card { padding: 0; overflow: hidden; }
+.house-row { display: flex; align-items: center; gap: var(--sp-12);
+  padding: var(--sp-12) var(--sp-14); width: 100%; text-align: left;
+  background: transparent; border: 0; }
+.house-row + .house-row { border-top: var(--bd-hair); }
+.house-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  background: var(--house, var(--a-sage)); }
+.house-main { flex: 1; min-width: 0; }
+.house-name { display: flex; align-items: center; gap: var(--sp-8); }
+.house-name .badge { font-size: var(--fs-12); }
+.house-meta { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2); }
+.house-end { display: flex; align-items: center; gap: var(--sp-8); flex-shrink: 0; }
+.house-chev { color: var(--a-ink3); display: inline-flex; }
+
+/* Quick actions grid */
+.qa-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-8); }
+.qa {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-6);
+  padding: var(--sp-12) var(--sp-6);
+  background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card);
+  color: var(--a-ink2); font-size: var(--fs-12); font-weight: 600; text-align: center;
+}
+.qa .qa-ico {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-paper); color: var(--a-sage);
+}
+.qa .icon { width: 20px; height: 20px; }
+
+/* ===========================================================================
+   SCREEN-LOCAL COMPONENTS — Care hub + Resident profile (03-care-hub mockup)
+   ---------------------------------------------------------------------------
+   NOTE: the Care-hub .prio is a standalone bordered card (border-left status
+   rail), distinct from the Home .prio row above. Care-hub priorities use the
+   .prio + .prio-ic + .prio-body + .prio-meta shape with .prio--bad/warn/info
+   driving a --prio left rail; that markup does not collide with the Home rows
+   (Home uses .prio-rail/.prio-ico/.prio-main/.prio-title). The shared selectors
+   below (.prio--bad/warn/info, .prio-title, .prio-sub) are written to satisfy
+   both; the Care-hub card adds its own container styling via .prio-card-care.
+   ======================================================================== */
+.prio-card-care {
+  display: flex; gap: var(--sp-12); align-items: flex-start;
+  padding: var(--sp-12) var(--sp-14);
+  border: var(--bd-hair); border-radius: var(--r-card);
+  background: var(--a-card); width: 100%; text-align: left;
+  border-left: var(--bd-accent-w) solid var(--prio, var(--a-line));
+}
+.prio-card-care + .prio-card-care { margin-top: var(--sp-8); }
+.prio--bad  { --prio: var(--a-clay); }
+.prio--warn { --prio: var(--a-honey); }
+.prio--info { --prio: var(--a-sage); }
+.prio-ic {
+  width: 34px; height: 34px; border-radius: var(--r-pill); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; background: var(--prio, var(--a-ink3));
+}
+.prio-ic .icon { width: 18px; height: 18px; }
+.prio-body { flex: 1; min-width: 0; }
+.prio-meta { font-size: var(--fs-12); font-weight: 600; color: var(--a-ink3);
+  white-space: nowrap; flex-shrink: 0; align-self: center; }
+
+/* Module grid (Meds / Goals / Health / Incidents / Notes / Docs deep links) */
+.mod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-10); }
+.mod {
+  display: flex; flex-direction: column; gap: var(--sp-8);
+  padding: var(--sp-12); border: var(--bd-hair); border-radius: var(--r-card);
+  background: var(--a-card); text-align: left; min-height: 84px; position: relative;
+}
+.mod-ic {
+  width: 36px; height: 36px; border-radius: var(--r-input);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-paper); color: var(--a-sage);
+}
+.mod-ic .icon { width: 20px; height: 20px; }
+.mod-label { font-size: var(--fs-13); font-weight: 600; color: var(--a-ink); line-height: var(--lh-tight); }
+.mod-sub { font-size: var(--fs-12); color: var(--a-ink3); }
+.mod .badge--count {
+  position: absolute; top: var(--sp-8); right: var(--sp-8);
+  min-width: 18px; height: 18px;
+}
+
+/* Care-area status dots (resident row trailing) */
+.dots { display: inline-flex; gap: 4px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-line); }
+.dot--bad  { background: var(--a-clay); }
+.dot--warn { background: var(--a-honey); }
+.dot--good { background: var(--a-sage); }
+
+/* Resident profile header band */
+.pro-head {
+  display: flex; gap: var(--sp-12); align-items: center;
+  padding: var(--sp-16); border-bottom: var(--bd-hair); background: var(--a-card);
+}
+.pro-av {
+  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--house, var(--a-sage)); color: #fff;
+  font-size: var(--fs-20); font-weight: 600; letter-spacing: 0.02em;
+  font-family: var(--font-serif);
+}
+.flag-row { display: flex; flex-wrap: wrap; gap: var(--sp-6); margin-top: var(--sp-6); }
+
+/* Key-info two-column grid inside profile */
+.kv { display: grid; grid-template-columns: 86px 1fr; gap: var(--sp-6) var(--sp-12);
+  font-size: var(--fs-13); }
+.kv dt { color: var(--a-ink3); }
+.kv dd { margin: 0; color: var(--a-ink2); font-weight: 500; }
+
+/* Profile section tabs + care-area rows */
+.seg { border-bottom: var(--bd-hair); }
+.tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--a-clay); margin-left: 4px; vertical-align: top; }
+.area-row {
+  display: flex; align-items: center; gap: var(--sp-12);
+  padding: var(--sp-12) var(--sp-16); width: 100%; text-align: left;
+  border: 0; background: transparent;
+}
+.list--bordered > .area-row + .area-row { border-top: var(--bd-hair); }
+.area-ic { color: var(--a-sage); }
+.area-main { flex: 1; min-width: 0; }
+.area-title { font-size: var(--fs-14); font-weight: 600; color: var(--a-ink); }
+.area-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+.chev { color: var(--a-ink3); }

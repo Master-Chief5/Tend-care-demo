@@ -21,6 +21,9 @@ import { ScreenA_Surveys } from '../../screens/Surveys'
 import { ScreenA_Tasks } from '../../screens/Tasks'
 import { ScreenA_Directory } from '../../screens/Directory'
 import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
+import { ScreenA_Home } from '../../screens/Home'
+import { ScreenA_CareHub } from '../../screens/CareHub'
+import { ResidentProfile } from '../../screens/ResidentProfile'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone, IconBook, IconStar, IconDots, IconChev, IconClipboard, IconChart, IconPhone, IconHelp } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
@@ -40,10 +43,11 @@ function normalizeHouse(h) {
   }
 }
 
-function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses, addHouseToState) {
+function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses, addHouseToState, onOpenResident) {
   if (role === 'staff') {
     switch (tab) {
       case 'home':  return <ScreenA_MyDay user={user} />
+      case 'care':  return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} />
       case 'house': return <ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => switchTab('home')} houses={houses} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
       case 'time':  return <ScreenA_Timesheets user={user} houses={houses} />
@@ -58,12 +62,14 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
       case 'tasks': return <ScreenA_Tasks user={user} />
       case 'directory': return <ScreenA_Directory user={user} />
       case 'helpdesk': return <ScreenA_HelpDesk user={user} />
-      case 'more':  return <MoreMenu onNavigate={switchTab} />
+      case 'more':  return <MoreMenu onNavigate={switchTab} role={role} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
     }
   }
   switch (tab) {
-    case 'home':   return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
+    case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} />
+    case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} />
+    case 'houses': return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
     case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
     case 'time':   return <ScreenA_Timesheets user={user} houses={houses} />
@@ -79,16 +85,33 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'tasks': return <ScreenA_Tasks user={user} />
     case 'directory': return <ScreenA_Directory user={user} />
     case 'helpdesk': return <ScreenA_HelpDesk user={user} />
-    case 'more':   return <MoreMenu onNavigate={switchTab} />
+    case 'more':   return <MoreMenu onNavigate={switchTab} role={role} />
     case 'staff':  return <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
     case 'me':     return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
   }
-  return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
+  return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} />
 }
 
 // Overflow menu for secondary modules, keeping the bottom bar uncluttered.
-function MoreMenu({ onNavigate }) {
+// Every module demoted from the old 10-tab bar lives here so nothing is lost.
+// Built per-role: supervisor sees house setup / staff / houses admin too.
+function MoreMenu({ onNavigate, role = 'supervisor' }) {
+  const isStaff = role === 'staff'
+  const isSupervisor = role === 'supervisor'
   const items = [
+    { id: 'updates',  label: 'Updates',  icon: IconMegaphone, sub: 'Announcements & shoutouts' },
+    { id: 'team',     label: 'Team',     icon: IconChat,      sub: 'Messages & house channels' },
+    { id: 'drive',    label: 'Transport', icon: IconCar,      sub: 'Trips, mileage & vehicles' },
+    { id: 'supply',   label: 'Supplies', icon: IconCart,      sub: 'House inventory & shopping' },
+    // Supervisor/manager-only operational views.
+    ...(!isStaff ? [
+      { id: 'houses',   label: 'Houses',   icon: IconHome,     sub: 'Every house at a glance' },
+      { id: 'activity', label: 'Activity', icon: IconActivity, sub: 'Live map & on-shift status' },
+    ] : []),
+    ...(isSupervisor ? [
+      { id: 'staff',    label: 'Staff',    icon: IconPeople,   sub: 'Roster, roles & certifications' },
+      { id: 'setup',    label: 'Add house', icon: IconHome,    sub: 'Create & configure a house' },
+    ] : []),
     { id: 'handbook', label: 'Handbook', icon: IconBook, sub: 'Policies, SOPs & house binders' },
     { id: 'events',   label: 'Events',   icon: IconStar, sub: 'Trainings & house meetings' },
     { id: 'forms',    label: 'Forms',    icon: IconClipboard, sub: 'Checklists, audits & walkthroughs' },
@@ -96,6 +119,7 @@ function MoreMenu({ onNavigate }) {
     { id: 'tasks',    label: 'Tasks',    icon: IconCheck, sub: 'Assignable one-off tasks' },
     { id: 'directory', label: 'Directory', icon: IconPhone, sub: 'Pharmacy, physicians & contacts' },
     { id: 'helpdesk', label: 'Help Desk', icon: IconHelp, sub: 'HR, payroll, IT & maintenance' },
+    { id: 'me',       label: 'Me',       icon: IconPeople, sub: 'Profile, on-duty & sign out' },
   ]
   return (
     <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -173,6 +197,9 @@ export function MobileShell({ user, onLogout }) {
   const [tab, setTab] = useState('home')
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false)
   const [houseDetail, setHouseDetail] = useState(null)
+  // Resident drill-in opened from the Care hub (mirrors houseDetail). Holds the
+  // full resident row so ResidentProfile can render without a re-fetch.
+  const [residentDetail, setResidentDetail] = useState(null)
   const [houses, setHouses] = useState([])
 
   useEffect(() => {
@@ -196,32 +223,20 @@ export function MobileShell({ user, onLogout }) {
     refreshHouses()
   }
 
-  const switchTab = (t) => { setTab(t); setHouseDetail(null) }
-  const handleRoleChange = (newRole) => { setRole(newRole); setHouseDetail(null); setTab('home') }
-  const isStaff = role === 'staff'
+  const switchTab = (t) => { setTab(t); setHouseDetail(null); setResidentDetail(null) }
+  const handleRoleChange = (newRole) => { setRole(newRole); setHouseDetail(null); setResidentDetail(null); setTab('home') }
 
-  const tabs = isStaff ? [
-    { id: 'home',   label: 'My Day',   icon: IconHome },
-    { id: 'house',  label: 'Care',     icon: IconHeart },
-    { id: 'sched',  label: 'Schedule', icon: IconCal },
-    { id: 'time',   label: 'Time',     icon: IconClock },
-    { id: 'updates', label: 'Updates', icon: IconMegaphone },
-    { id: 'team',   label: 'Team',     icon: IconChat },
-    { id: 'drive',  label: 'Transport', icon: IconCar },
-    { id: 'supply', label: 'Supplies', icon: IconCart },
-    { id: 'more',   label: 'More',     icon: IconDots },
-    { id: 'me',     label: 'Me',       icon: IconPeople },
-  ] : [
-    { id: 'home',   label: 'Houses',   icon: IconHome },
-    { id: 'sched',  label: 'Schedule', icon: IconCal },
-    { id: 'time',   label: 'Time',     icon: IconClock },
-    { id: 'activity', label: 'Activity', icon: IconActivity },
-    { id: 'updates', label: 'Updates', icon: IconMegaphone },
-    { id: 'team',   label: 'Team',     icon: IconChat },
-    { id: 'drive',  label: 'Transport', icon: IconCar },
-    { id: 'supply', label: 'Supplies', icon: IconCart },
-    { id: 'more',   label: 'More',     icon: IconDots },
-    { id: 'me',     label: 'Me',       icon: IconPeople },
+  // Five primary tabs for every role: Home · Schedule · Care · Time · More.
+  // The Home and Care targets differ by role inside pickScreen (staff Home →
+  // My Day; supervisor/manager Home → dashboard); every demoted module stays
+  // reachable through the expanded MoreMenu. Care drills into a resident
+  // profile via the residentDetail nav state below.
+  const tabs = [
+    { id: 'home',  label: 'Home',     icon: IconHome },
+    { id: 'sched', label: 'Schedule', icon: IconCal },
+    { id: 'care',  label: 'Care',     icon: IconHeart },
+    { id: 'time',  label: 'Time',     icon: IconClock },
+    { id: 'more',  label: 'More',     icon: IconDots },
   ]
 
   // Demo manager/staff personas carry no house assignment; scope them to the
@@ -235,9 +250,11 @@ export function MobileShell({ user, onLogout }) {
   // App-level on-duty location sharing (staff only; gated by the on-duty toggle).
   useDutyTracking(effUser)
 
-  const screen = houseDetail
+  const screen = residentDetail
+    ? <ResidentProfile resident={residentDetail} user={effUser} houses={houses} onBack={() => setResidentDetail(null)} />
+    : houseDetail
     ? <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
-    : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState)
+    : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState, setResidentDetail)
 
   return (
     <div className="web-app web-mobile" style={{
@@ -253,13 +270,17 @@ export function MobileShell({ user, onLogout }) {
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}
       </div>
-      <div className="web-tab-bar" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => switchTab(t.id)} className={tab === t.id && !houseDetail ? 'active' : ''}>
+      <div className="web-tab-bar" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        {tabs.map(t => {
+          const isActive = tab === t.id && !houseDetail && !residentDetail
+          return (
+          <button key={t.id} onClick={() => switchTab(t.id)} className={isActive ? 'active' : ''}
+            aria-label={t.label} aria-current={isActive ? 'page' : undefined}>
             <t.icon size={22} sw={1.7} />
             <span>{t.label}</span>
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
