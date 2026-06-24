@@ -1195,7 +1195,7 @@ export async function fetchIncidents(orgId, houseId) {
   if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) { console.error('fetchIncidents:', error.message); return [] }
-  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at, reportable: i.reportable, notified_at: i.notified_at, corrective_action: i.corrective_action, follow_up_due: i.follow_up_due, witnesses: i.witnesses, involved_persons: i.involved_persons, investigation_notes: i.investigation_notes, recommendations: i.recommendations, ane_flag: i.ane_flag, investigator: i.investigator, investigated_at: i.investigated_at }))
+  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at, reportable: i.reportable, notified_at: i.notified_at, corrective_action: i.corrective_action, follow_up_due: i.follow_up_due, witnesses: i.witnesses, involved_persons: i.involved_persons, investigation_notes: i.investigation_notes, recommendations: i.recommendations, ane_flag: i.ane_flag, investigator: i.investigator, investigated_at: i.investigated_at, occurred_at: i.occurred_at, photo: i.photo }))
 }
 export async function addIncident(orgId, inc) {
   if (isDemoMode) return demo.demoAddIncident(inc)
@@ -1209,6 +1209,7 @@ export async function addIncident(orgId, inc) {
     witnesses: inc.witnesses || null, involved_persons: inc.involvedPersons || null,
     investigation_notes: inc.investigationNotes || null, recommendations: inc.recommendations || null,
     ane_flag: inc.aneFlag || null,
+    occurred_at: inc.occurredAt || null, photo: inc.photo || null,
   }).select().single()
   if (error) { console.error('addIncident:', error.message); return null }
   return data
@@ -1355,27 +1356,59 @@ export async function markShiftNoteRead(id) {
   if (error) console.error('markShiftNoteRead:', error.message)
 }
 
+// Fetch OPEN incidents (not yet reviewed/resolved) with their house slug so the
+// dashboards can surface them as "Needs attention" rows. Returns a lightweight
+// shape: { slug, resident, type, severity, text }. Mode-aware so it works in both
+// the demo store and Supabase backends.
+async function fetchOpenIncidentsForAlerts(orgId) {
+  if (isDemoMode) {
+    const rows = await demo.demoFetchIncidents(null)
+    return (rows || [])
+      .filter(i => i.status === 'open')
+      .map(i => ({ slug: i.house_id || null, resident: i.resident || null, type: i.type, severity: i.severity, text: i.text }))
+  }
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('incidents')
+    .select('type, severity, narrative, status, residents(name), houses(slug)')
+    .eq('org_id', orgId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+  if (error) { console.error('fetchOpenIncidentsForAlerts:', error.message); return [] }
+  return (data || []).map(i => ({ slug: i.houses?.slug || null, resident: i.residents?.name || null, type: i.type, severity: i.severity, text: i.narrative }))
+}
+
 // Build the per-house "Needs attention" rows for the Houses dashboard from real
 // data. Returns a map keyed by house slug → [{ kind, text }], where kind is one
-// of 'grocery' | 'med' | 'note' | 'drive'. Each house is capped at a few rows so
-// cards stay scannable; the UI shows a "+N more" affordance for the rest.
+// of 'incident' | 'grocery' | 'med' | 'note' | 'drive' | 'appt'. Each house is
+// capped at a few rows so cards stay scannable; the UI shows a "+N more"
+// affordance for the rest.
 export async function fetchHouseAlerts(orgId) {
   const empty = {}
   if (!orgId) return empty
   const today = toDateStr(new Date())
 
-  const [resources, meds, notes, trips, appts] = await Promise.all([
+  const [resources, meds, notes, trips, appts, incidents] = await Promise.all([
     fetchResources(orgId, null),
     fetchMedAlerts(orgId, null),
     fetchShiftNotes(orgId, null),
     fetchTrips(orgId, null, today),
     fetchAppointments(orgId, { includeCompleted: false }),
+    fetchOpenIncidentsForAlerts(orgId),
   ])
 
   const map = {}
   const push = (slug, row) => {
     if (!slug) return
     ;(map[slug] ||= []).push(row)
+  }
+
+  // Incident — open (un-reviewed) incidents lead the list so they're never
+  // crowded out by routine supplies/appointments. Label carries resident/type/severity.
+  for (const i of incidents) {
+    const who = i.resident ? `${i.resident} — ` : ''
+    const sev = i.severity ? ` · ${i.severity}` : ''
+    push(i.slug, { kind: 'incident', text: `${who}${i.type || 'Incident'}${sev}` })
   }
 
   // Shop — flag low/out supply items per house (qty 0 = out, 1–2 = low).

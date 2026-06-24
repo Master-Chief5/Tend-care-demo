@@ -17,6 +17,7 @@ const TONE = {
 
 // Map an alert kind to a tag + tone, mirroring the desktop "Needs attention" list.
 const NEED_TAG = {
+  incident:{ tag: 'Incident', tone: 'bad'  },
   grocery: { tag: 'Shop',  tone: 'warn' },
   med:     { tag: 'Med',   tone: 'bad'  },
   note:    { tag: 'Note',  tone: 'info' },
@@ -250,14 +251,32 @@ export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick }) {
   for (const c of houseAlertList) {
     for (const a of c.list) if (a.kind === 'med') medRows.push({ house: c.house, text: a.text })
   }
-  // Incidents & alerts surfaced from house alerts (med + maint = action items).
+  // Incidents & alerts — open incidents lead, then med/maint action items.
   const incidentRows = []
+  for (const c of houseAlertList) {
+    for (const a of c.list) if (a.kind === 'incident') incidentRows.push({ house: c.house, ...a })
+  }
   for (const c of houseAlertList) {
     for (const a of c.list) if (a.kind === 'med' || a.kind === 'maint') incidentRows.push({ house: c.house, ...a })
   }
 
-  // ── Ranked care priorities (open shifts first, then alerts) ──────────
+  // ── Ranked care priorities (open incidents first, then shifts, then alerts) ──
   const priorities = []
+  // Open incidents lead — an un-reviewed incident outranks routine items.
+  for (const c of houseAlertList) {
+    for (const a of c.list) {
+      if (a.kind !== 'incident') continue
+      priorities.push({
+        key: `incident-${c.house.id}-${a.text}`,
+        rail: 'var(--a-clay)',
+        icon: IconFlag, iconTone: 'bad',
+        title: `Incident — ${c.house.name}`,
+        sub: a.text,
+        pill: 'Incident', pillTone: 'bad',
+        onClick: () => onHouseClick?.(c.house.id),
+      })
+    }
+  }
   for (const s of openShifts) {
     const h = houseOf(s.house)
     priorities.push({

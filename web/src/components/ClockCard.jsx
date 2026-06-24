@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { clockIn, clockOut, fetchActivePunch } from '../lib/db'
 import { setMyDuty } from '../hooks/useDutyTracking'
+import { IconClock, IconPin } from './icons'
 
 // Compact time-clock card for the staff "My Day" screen. Lets a worker punch in
 // and out; while clocked in it shows a live-ticking elapsed timer. Clocking in/out
@@ -114,7 +115,7 @@ export function ClockCard({ user }) {
           width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
           background: isClockedIn ? 'rgba(255,255,255,0.22)' : 'var(--a-paper)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
-        }}>⏱️</div>
+        }}><IconClock size={17} color={isClockedIn ? '#fff' : 'var(--a-ink)'} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, color: isClockedIn ? '#fff' : 'var(--a-ink)' }}>
             {isClockedIn ? 'On the clock' : 'Time clock'}
@@ -138,8 +139,8 @@ export function ClockCard({ user }) {
       </div>
 
       {!loading && isClockedIn && (punch.in_lat != null) && (
-        <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.82)', marginTop: 8, marginLeft: 46 }}>
-          📍 Location captured
+        <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.82)', marginTop: 8, marginLeft: 46, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <IconPin size={11} color="rgba(255,255,255,0.82)" /> Location captured
         </div>
       )}
 

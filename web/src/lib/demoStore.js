@@ -791,6 +791,7 @@ export function demoAddIncident(inc) {
     witnesses: inc.witnesses || null, involved_persons: inc.involvedPersons || null,
     investigation_notes: inc.investigationNotes || null, recommendations: inc.recommendations || null,
     ane_flag: inc.aneFlag || null, investigator: null, investigated_at: null,
+    occurred_at: inc.occurredAt || null, photo: inc.photo || null,
   }
   store.incidents.unshift(row); persist()
   return row

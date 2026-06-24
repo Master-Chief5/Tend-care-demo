@@ -45,11 +45,15 @@ function normalizeHouse(h) {
   }
 }
 
-function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses, addHouseToState, onOpenResident) {
+function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, refreshHouses, addHouseToState, onOpenResident, onOpenHouseSection) {
+  // The DSP's assigned house DB uuid, used to scope the Care hub and deep-link
+  // the "Report incident" quick action.
+  const staffHouseUuid = user.houseId || houses.find(h => h.id === user.houseSlug)?._uuid || null
+  const staffHouseSlug = user.houseSlug || houses.find(h => h._uuid === user.houseId)?.id || null
   if (role === 'staff') {
     switch (tab) {
-      case 'home':  return <ScreenA_MyDay user={user} />
-      case 'care':  return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} />
+      case 'home':  return <ScreenA_MyDay user={user} onReportIncident={staffHouseSlug && onOpenHouseSection ? () => onOpenHouseSection(staffHouseSlug, 'compliance', true) : undefined} />
+      case 'care':  return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} scopeHouseId={staffHouseUuid} />
       case 'house': return <ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => switchTab('home')} houses={houses} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
       case 'time':  return <ScreenA_Timesheets user={user} houses={houses} />
@@ -71,7 +75,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
   }
   switch (tab) {
     case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} />
-    case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} />
+    case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} />
     case 'houses': return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
     case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
@@ -210,6 +214,9 @@ export function MobileShell({ user, onLogout }) {
   const [role, setRole] = useState(user.role ?? user.id)
   const [tab, setTab] = useState('home')
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false)
+  // houseDetail is either a house slug string (legacy: opens at Overview) or an
+  // object { id, section, autoOpenReport } to deep-link into a section (e.g. the
+  // Care hub module tiles, or the DSP "Report incident" quick action).
   const [houseDetail, setHouseDetail] = useState(null)
   // Resident drill-in opened from the Care hub (mirrors houseDetail). Holds the
   // full resident row so ResidentProfile can render without a re-fetch.
@@ -240,6 +247,14 @@ export function MobileShell({ user, onLogout }) {
   const switchTab = (t) => { setTab(t); setHouseDetail(null); setResidentDetail(null) }
   const handleRoleChange = (newRole) => { setRole(newRole); setHouseDetail(null); setResidentDetail(null); setTab('home') }
 
+  // Open a house's HouseDetail at a specific section pill (used by the Care hub
+  // module tiles + priority cards). autoOpenReport pops the Compliance report
+  // form when arriving to report an incident.
+  const openHouseSection = (houseSlug, section, autoOpenReport = false) => {
+    setResidentDetail(null)
+    setHouseDetail({ id: houseSlug, section, autoOpenReport })
+  }
+
   // Five primary tabs for every role: Home · Schedule · Care · Time · More.
   // The Home and Care targets differ by role inside pickScreen (staff Home →
   // My Day; supervisor/manager Home → dashboard); every demoted module stays
@@ -253,22 +268,47 @@ export function MobileShell({ user, onLogout }) {
     { id: 'more',  label: 'More',     icon: IconDots },
   ]
 
-  // Demo manager/staff personas carry no house assignment; scope them to the
-  // first house so their schedule / resources / to-do aren't blank.
-  const effUser = (user.role && user.role !== 'supervisor' && !user.houseSlug && houses[0])
-    ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
-    : user
+  // Demo manager/staff personas may carry a houseSlug (Maple, from ROLES) but no
+  // DB uuid, or no house at all. Resolve a full house assignment so their
+  // schedule / resources / to-do / clock-in house aren't blank: keep an explicit
+  // houseSlug and backfill its uuid, else fall back to the first house.
+  //
+  // The "Preview as" chip switches `role` in-place without changing the logged-in
+  // `user`, so a previewed DSP/manager would otherwise inherit the supervisor's
+  // (absent) houseSlug. Layer the previewed persona's houseSlug on top of `user`
+  // so scoping follows the currently-previewed role, not the login identity.
+  const effUser = (() => {
+    // Only the demo "Preview as" chip swaps role in-place; in real auth the
+    // user's own houseSlug is authoritative and must never be overridden by a
+    // demo persona that happens to share a role id.
+    const persona = isDemoMode ? ROLES.find(r => r.id === role) : null
+    const base = persona && persona.houseSlug && persona.houseSlug !== user.houseSlug
+      ? { ...user, houseSlug: persona.houseSlug, houseId: undefined }
+      : user
+    if (!role || role === 'supervisor') return base
+    if (base.houseSlug) {
+      if (base.houseId) return base
+      const h = houses.find(x => x.id === base.houseSlug)
+      return h ? { ...base, houseId: h._uuid } : base
+    }
+    return houses[0] ? { ...base, houseSlug: houses[0].id, houseId: houses[0]._uuid } : base
+  })()
 
   // App-level live trip tracking — runs regardless of which tab is open.
   useTripTracking(effUser)
   // App-level on-duty location sharing (staff only; gated by the on-duty toggle).
   useDutyTracking(effUser)
 
+  // houseDetail may be a bare slug (Overview) or { id, section, autoOpenReport }.
+  const hdId = typeof houseDetail === 'object' && houseDetail ? houseDetail.id : houseDetail
+  const hdSection = typeof houseDetail === 'object' && houseDetail ? houseDetail.section : undefined
+  const hdAutoReport = typeof houseDetail === 'object' && houseDetail ? !!houseDetail.autoOpenReport : false
+
   const screen = residentDetail
     ? <ResidentProfile resident={residentDetail} user={effUser} houses={houses} onBack={() => setResidentDetail(null)} />
     : houseDetail
-    ? <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
-    : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState, setResidentDetail)
+    ? <ScreenA_HouseDetail houseId={hdId} initialSection={hdSection} autoOpenReport={hdAutoReport} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
+    : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState, setResidentDetail, openHouseSection)
 
   return (
     <div className="web-app web-mobile" style={{
@@ -284,7 +324,11 @@ export function MobileShell({ user, onLogout }) {
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}
       </div>
-      <div className="web-tab-bar" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      {/* position/zIndex keep the bottom tabs tappable even when a deep-linked
+          HouseDetail pops a fixed full-screen overlay (e.g. the auto-opened
+          "Report incident" modal, z-index 200): tapping a tab clears houseDetail
+          and escapes the overlay instead of being trapped under it. */}
+      <div className="web-tab-bar" style={{ gridTemplateColumns: 'repeat(5, 1fr)', position: 'relative', zIndex: 300 }}>
         {tabs.map(t => {
           const isActive = tab === t.id && !houseDetail && !residentDetail
           return (

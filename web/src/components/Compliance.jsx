@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchIncidents, addIncident, updateIncident, reviewIncident, deleteIncident, fetchDrills, addDrill, deleteDrill } from '../lib/db'
 import { IconPlus, IconCheck } from './icons'
 
-const INCIDENT_TYPES = ['Injury', 'Fall', 'Med error', 'Behavioral', 'Restraint', 'Elopement', 'Property', 'Other']
+const INCIDENT_TYPES = ['Injury', 'Fall', 'Med error', 'Missed med', 'Seizure', 'Self-injury', 'Behavioral', 'Restraint', 'Elopement', 'Property', 'Other']
 const SEVERITY = { Minor: { bg: '#dee6df', tc: '#3f604d' }, Moderate: { bg: '#f5e9d6', tc: '#a47012' }, Serious: { bg: '#fadcd7', tc: '#a93a25' } }
 // Abuse / Neglect / Exploitation classification — any of these auto-flags the
 // incident as Serious + state-reportable and requires an investigation.
@@ -15,6 +15,8 @@ const FIRE_INTERVAL_DAYS = 90
 const parseDate = (d) => new Date(typeof d === 'string' && d.length === 10 ? d + 'T00:00:00' : d)
 const todayLocal = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}` }
 const fmtDate = (d) => { const x = parseDate(d); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }
+// occurred_at carries a time component ('YYYY-MM-DDTHH:mm') — show date + time.
+const fmtDateTime = (d) => { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ', ' + x.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) }
 const daysSince = (d) => Math.floor((Date.now() - parseDate(d).getTime()) / 86400000)
 
 function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
@@ -27,7 +29,12 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   const [reportable, setReportable] = useState(false)
   const [reportableTouched, setReportableTouched] = useState(false)
   const [aneFlag, setAneFlag] = useState('None')
+  // When the incident actually happened (separate from the auto report date).
+  const [occurredDate, setOccurredDate] = useState(todayLocal())
+  const [occurredTime, setOccurredTime] = useState(() => { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}` })
+  const [photo, setPhoto] = useState('') // data URL or pasted image URL
   const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
   // Serious incidents and certain types are usually state-reportable — pre-tick
@@ -42,15 +49,46 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
     if (isANE(f)) { setSeverity('Serious'); setReportable(true) }
     else if (!reportableTouched) setReportable(severity === 'Serious' || ['Elopement', 'Restraint', 'Med error'].includes(type))
   }
+  const onPhoto = (e) => {
+    const f = e.target.files && e.target.files[0]
+    if (!f) return
+    const r = new FileReader()
+    r.onload = () => setPhoto(r.result)
+    r.readAsDataURL(f)
+  }
   const save = async (e) => {
-    e.preventDefault(); if (!text.trim() || saving) return
+    e.preventDefault(); if (!text.trim() || saving || done) return
     setSaving(true)
-    await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, by: user?.name || 'Staff' })
-    setSaving(false); onSaved()
+    // occurred_at + photo ride in the existing detail/fields (no new column / migration).
+    const occurredAt = occurredDate ? `${occurredDate}T${occurredTime || '00:00'}` : null
+    await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, occurredAt, photo: photo || null, by: user?.name || 'Staff' })
+    setSaving(false)
+    // Show a clear confirmation, then reset/close so a "Report incident" deep-link feels complete.
+    setDone(true)
+  }
+  const reset = () => {
+    setType('Injury'); setResidentId(''); setSeverity('Minor'); setText(''); setActions(''); setNotified('')
+    setReportable(false); setReportableTouched(false); setAneFlag('None')
+    setOccurredDate(todayLocal())
+    const n = new Date(); setOccurredTime(`${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`)
+    setPhoto(''); setDone(false)
   }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+        {done ? (
+          <div style={{ textAlign: 'center', padding: '14px 4px 6px' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 999, margin: '0 auto 14px', background: '#dee6df', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCheck size={28} sw={2.5} color="#3f604d" />
+            </div>
+            <div className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Incident reported</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5, marginBottom: 18 }}>Your manager has been notified.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={reset} style={{ flex: 1, background: 'var(--a-card)', color: 'var(--a-ink)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Report another</button>
+              <button type="button" onClick={onClose} style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Done</button>
+            </div>
+          </div>
+        ) : (<>
         <div className="serif" style={{ fontSize: 22, marginBottom: 14 }}>Report incident</div>
         <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div><div style={lbl}>Type</div>
@@ -80,6 +118,27 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
           <div><div style={lbl}>What happened</div><textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="Describe the incident…" style={{ ...input, resize: 'vertical' }} /></div>
           <div><div style={lbl}>Actions taken</div><input value={actions} onChange={e => setActions(e.target.value)} placeholder="e.g. First aid, area cleared" style={input} /></div>
           <div><div style={lbl}>Who was notified</div><input value={notified} onChange={e => setNotified(e.target.value)} placeholder="e.g. Nurse, on-call mgr, guardian" style={input} /></div>
+          <div><div style={lbl}>When it happened</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <input type="date" value={occurredDate} max={todayLocal()} onChange={e => setOccurredDate(e.target.value)} style={input} />
+              <input type="time" value={occurredTime} onChange={e => setOccurredTime(e.target.value)} style={input} />
+            </div>
+          </div>
+          <div><div style={lbl}>Photo (optional)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', color: 'var(--a-ink2)' }}>
+                <IconPlus size={13} sw={2.2} /> Add photo
+                <input type="file" accept="image/*" onChange={onPhoto} style={{ display: 'none' }} />
+              </label>
+              <input value={photo && photo.startsWith('data:') ? '' : photo} onChange={e => setPhoto(e.target.value)} placeholder="…or paste an image URL" style={{ ...input, flex: 1, minWidth: 140 }} />
+            </div>
+            {photo && (
+              <div style={{ position: 'relative', display: 'inline-block', marginTop: 8 }}>
+                <img src={photo} alt="Incident attachment" style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--a-line)' }} />
+                <button type="button" onClick={() => setPhoto('')} aria-label="Remove photo" style={{ position: 'absolute', top: -7, right: -7, width: 22, height: 22, borderRadius: 999, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 14, lineHeight: '22px', cursor: 'pointer', fontFamily: 'Geist' }}>×</button>
+              </div>
+            )}
+          </div>
           <button type="button" onClick={() => { setReportable(r => !r); setReportableTouched(true) }} style={{
             display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer', fontFamily: 'Geist',
             background: reportable ? '#fadcd7' : 'var(--a-card)', border: `1px solid ${reportable ? '#e0b4ab' : 'var(--a-line)'}`, borderRadius: 10, padding: '11px 13px',
@@ -92,6 +151,7 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
           </button>
           <button type="submit" disabled={!text.trim() || saving} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: text.trim() ? 'pointer' : 'default', opacity: text.trim() ? 1 : 0.5 }}>{saving ? 'Saving…' : 'File report'}</button>
         </form>
+        </>)}
       </div>
     </div>
   )
@@ -215,7 +275,7 @@ function FollowUpSheet({ incident, user, onClose, onSaved }) {
   )
 }
 
-export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', residents = [] }) {
+export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', residents = [], autoOpenReport = false }) {
   const isSup = user?.role === 'supervisor' || user?.role === 'manager'
   const [incidents, setIncidents] = useState([])
   const [drills, setDrills] = useState([])
@@ -229,6 +289,8 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
     fetchDrills(user.orgId, houseUuid).then(setDrills)
   }, [user?.orgId, houseUuid])
   useEffect(() => { reload() }, [reload])
+  // Deep-link support: a "Report incident" link lands straight on the Report form.
+  useEffect(() => { if (autoOpenReport) setShowIncident(true) }, [autoOpenReport])
 
   const review = async (id) => { await reviewIncident(id, user?.name || 'Supervisor'); reload() }
   const delInc = async (id) => { await deleteIncident(id); reload() }
@@ -272,6 +334,8 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
                 <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 700, color: it.status === 'closed' ? '#3f604d' : it.status === 'reviewed' ? '#3f604d' : '#a93a25', background: it.status === 'open' ? '#fadcd7' : '#dee6df', padding: '1px 7px', borderRadius: 999 }}>{(it.status || 'open').toUpperCase()}</span>
               </div>
               <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.4 }}>{it.text}</div>
+              {it.occurred_at && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 3 }}>Occurred: {fmtDateTime(it.occurred_at)}</div>}
+              {it.photo && <img src={it.photo} alt="Incident attachment" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--a-line)', marginTop: 5 }} />}
               {it.actions && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 3 }}>Actions: {it.actions}</div>}
               {it.notified && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>Notified: {it.notified}</div>}
               {it.corrective_action && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>Corrective: {it.corrective_action}</div>}

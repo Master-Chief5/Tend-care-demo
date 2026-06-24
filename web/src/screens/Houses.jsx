@@ -9,6 +9,7 @@ import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts, fetchResidents, 
 
 // One "Needs attention" row — a tinted tag (Shop / Med / Note / Drive) + text.
 const NEED_KINDS = {
+  incident:{ tag: 'Incident', bg: '#fadcd7', tc: '#a93a25' },
   grocery: { tag: 'Shop',  bg: '#f5e9d6', tc: '#a47012' },
   med:     { tag: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
   note:    { tag: 'Note',  bg: '#e7dfe9', tc: '#5a3a6b' },

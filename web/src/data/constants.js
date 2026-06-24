@@ -7,10 +7,13 @@ export const HOUSES = [
   { id: 'cedar',  name: 'Cedar Ridge', short: 'CDR', color: '#6e4d8f', addr: '904 Cedar Road',   branch: 'South', manager: 'Tomas R.', residents: 5 },
 ];
 
+// Demo "Preview as" personas. Subtitles + houseSlug align to the seeded houses
+// (Maple / Oak / Birch — see demoStore). The DSP persona (Aisha) is seeded at
+// Maple, so manager + DSP are scoped there; supervisor spans every house.
 export const ROLES = [
   { id: 'supervisor', name: 'Lina R.',  initial: 'L', color: 'var(--a-clay)',    role: 'Supervisor' },
-  { id: 'manager',    name: 'Devon P.', initial: 'D', color: '#2f9489',          role: 'House Mgr · Willow' },
-  { id: 'staff',      name: 'Aisha M.', initial: 'A', color: 'var(--a-sage)',    role: 'DSP Lead · Oak' },
+  { id: 'manager',    name: 'Devon P.', initial: 'D', color: '#2f9489',          role: 'House Mgr · Maple', houseSlug: 'maple-house' },
+  { id: 'staff',      name: 'Aisha M.', initial: 'A', color: 'var(--a-sage)',    role: 'DSP · Maple',       houseSlug: 'maple-house' },
 ];
 
 export const STAFF_LIST = [

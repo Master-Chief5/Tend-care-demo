@@ -88,10 +88,15 @@ function useHouseSnapshot(user, houses) {
 
 // Map an alert kind to the badge style used in the "Needs attention" list.
 const NEED_TAG = {
+  incident: { tag: 'Incident', tone: 'bad' },
   grocery: { tag: 'Shop', tone: 'warn' }, med: { tag: 'Med', tone: 'bad' },
   note: { tag: 'Note', tone: 'info' }, drive: { tag: 'Drive', tone: 'info' },
   appt: { tag: 'Appt', tone: 'info' }, maint: { tag: 'Maint', tone: 'warn' },
 }
+
+// Rank order for the "Needs attention" list — open incidents lead, then meds,
+// then routine supplies/notes/drives/appointments. Lower number = higher priority.
+const NEED_RANK = { incident: 0, med: 1, maint: 2, grocery: 3, note: 4, drive: 5, appt: 6 }
 
 function CenteredColumn({ children, width = 760, side }) {
   return (
@@ -151,16 +156,21 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
   const residentsTotal = visibleCards.reduce((n, c) => n + (c.house.residents || 0), 0)
 
   // ── Real "Needs attention" list (house alerts + unfilled shifts) ─────
-  const attention = []
+  // Alert rows are ranked so open incidents lead and never get crowded out by
+  // routine supplies/appointments; open shifts are appended after.
+  const alertRows = []
   for (const c of visibleCards) {
     for (const a of (alerts[c.house.id] || [])) {
       const t = NEED_TAG[a.kind] || { tag: 'Note', tone: 'info' }
-      attention.push({ tag: t.tag, tone: t.tone, who: c.house.name, why: a.text, hid: c.house.id })
+      alertRows.push({ tag: t.tag, tone: t.tone, who: c.house.name, why: a.text, hid: c.house.id, rank: NEED_RANK[a.kind] ?? 9 })
     }
   }
+  alertRows.sort((x, y) => x.rank - y.rank)
+  const attention = [...alertRows]
   for (const s of openShifts) {
     attention.push({ tag: 'Open shift', tone: 'warn', who: nameOf(s.house), why: `${s.role || 'Shift'} — unfilled`, hid: s.house })
   }
+  const openIncidentCount = visibleCards.reduce((n, c) => n + (alerts[c.house.id] || []).filter(a => a.kind === 'incident').length, 0)
   const attentionShown = attention.slice(0, 7)
 
   // ── Real "Low on supplies" (Shop alerts across houses) ───────────────
@@ -184,7 +194,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
           <DStat label="Shift coverage" value={`${coverage}%`} sub={openShifts.length > 0 ? `${openShifts.length} shift${openShifts.length === 1 ? '' : 's'} open` : 'fully staffed today'} tone={coverage >= 100 ? 'good' : 'warn'} big />
           <DStat label="Open shifts" value={openShifts.length} sub="today · need filling" tone={openShifts.length > 0 ? 'warn' : 'good'} />
           <DStat label="Drives today" value={vTrips.length} sub={`${milesToday.toFixed(0)} mi · ~$${reimbToday.toFixed(0)}`} />
-          <DStat label="Needs attention" value={totalNeeds} sub={totalNeeds > 0 ? 'across houses' : 'all clear'} tone={totalNeeds > 0 ? 'bad' : 'good'} />
+          <DStat label="Needs attention" value={totalNeeds} sub={openIncidentCount > 0 ? `${openIncidentCount} open incident${openIncidentCount === 1 ? '' : 's'}` : totalNeeds > 0 ? 'across houses' : 'all clear'} tone={totalNeeds > 0 ? 'bad' : 'good'} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>

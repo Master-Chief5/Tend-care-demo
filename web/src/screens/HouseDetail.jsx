@@ -243,7 +243,7 @@ function GeofenceCard({ user, house, color }) {
   )
 }
 
-export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] }) {
+export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [], initialSection, autoOpenReport = false }) {
   const house = houses.find(h => h.id === houseId) || houses[0] || null
   if (!house) return (
     <div className="phone-screen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, padding: 32, textAlign: 'center' }}>
@@ -258,7 +258,12 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
   const [residents, setResidents]   = useState([])
   const [drives, setDrives]         = useState(0)
   const [residentModal, setResidentModal] = useState(null) // null | {mode:'add'} | {mode:'view'|'edit', resident}
-  const [section, setSection] = useState('overview')
+  // Open directly on a deep-linked section when one is supplied (Care hub tiles,
+  // DSP "Report incident"); otherwise default to Overview. Guarded against
+  // unknown ids so a stale link can't blank the screen.
+  const [section, setSection] = useState(
+    initialSection && HOUSE_SECTIONS.some(s => s.id === initialSection) ? initialSection : 'overview'
+  )
 
   // The house's real DB UUID comes through on the normalized house object as `_uuid`.
   const houseUuid = house._uuid
@@ -414,7 +419,7 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
           {section === 'funds' && <ResidentFunds user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'log' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'progress' && <ProgressPanel user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
-          {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'compliance' && <Compliance user={user} houseUuid={houseUuid} houseColor={c} residents={residents} autoOpenReport={autoOpenReport} />}
         </div>
       </div>
       <Toast msg={toast} />

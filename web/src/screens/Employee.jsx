@@ -6,7 +6,7 @@ import { OnDutyCard } from '../components/OnDutyCard'
 import { ClockCard } from '../components/ClockCard'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconCheck, IconCal, IconCar, IconChat, IconPlus, IconPeople } from '../components/icons'
+import { IconCheck, IconCal, IconCar, IconChat, IconPlus, IconPeople, IconAlert, IconChev } from '../components/icons'
 
 const kindMap = {
   med:   { label: 'Med',   bg: '#fadcd7', tc: '#a93a25' },
@@ -95,7 +95,7 @@ function AddTaskModal({ user, onClose, onAdded }) {
   )
 }
 
-export function ScreenA_MyDay({ user }) {
+export function ScreenA_MyDay({ user, onReportIncident }) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(!!user?.staffId)
   const [showAdd, setShowAdd] = useState(false)
@@ -160,6 +160,26 @@ export function ScreenA_MyDay({ user }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
+          {/* Prominent, always-visible path to incident reporting — the cold-start
+              test found DSPs couldn't discover where to report one. Deep-links to
+              their house's Compliance section with the report form auto-opened. */}
+          {onReportIncident && (
+            <button onClick={onReportIncident} style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'Geist',
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
+              background: 'var(--status-bad-bg, #fadcd7)', border: '1px solid var(--a-clay)',
+              borderRadius: 12, padding: '12px 14px',
+            }}>
+              <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: 'var(--a-clay)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconAlert size={19} color="#fff" />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>Report incident</span>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 1 }}>Log an incident or injury — opens the report form</span>
+              </span>
+              <IconChev size={16} color="var(--a-clay)" />
+            </button>
+          )}
           {overdueQuick > 0 && (
             <div style={{
               background: 'var(--status-bad-bg, #fadcd7)', border: '1px solid var(--a-clay)', borderRadius: 12,
@@ -240,9 +260,11 @@ export function ScreenA_MyDay({ user }) {
 export function ScreenA_Me({ user, onLogout, onNavigate }) {
   const name = user?.name || 'Aisha Mendez'
   const initial = name[0] || 'A'
+  // Title-case the house slug for display (e.g. 'maple' → 'Maple').
+  const houseLabel = user?.houseSlug ? user.houseSlug.charAt(0).toUpperCase() + user.houseSlug.slice(1) : null
   const sub = user?.role === 'supervisor' ? 'Supervisor'
-    : user?.role === 'manager' ? `House Mgr · ${user.houseSlug || 'House'}`
-    : `DSP Lead · ${user?.houseSlug || 'Oak House'}`
+    : user?.role === 'manager' ? `House Mgr · ${houseLabel || 'House'}`
+    : `DSP · ${houseLabel || 'Maple'}`
 
   const isAdmin = user?.role === 'supervisor' || user?.role === 'manager'
   const navRows = isAdmin ? [
