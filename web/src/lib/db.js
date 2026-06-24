@@ -1186,7 +1186,7 @@ export async function fetchIncidents(orgId, houseId) {
   if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) { console.error('fetchIncidents:', error.message); return [] }
-  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at, reportable: i.reportable, notified_at: i.notified_at, corrective_action: i.corrective_action, follow_up_due: i.follow_up_due }))
+  return (data || []).map(i => ({ id: i.id, type: i.type, severity: i.severity, text: i.narrative, actions: i.actions, notified: i.notified, status: i.status, by: i.reported_by, at: i.created_at, date: i.incident_date, resident: i.residents?.name || null, reviewed_by: i.reviewed_by, reviewed_at: i.reviewed_at, reportable: i.reportable, notified_at: i.notified_at, corrective_action: i.corrective_action, follow_up_due: i.follow_up_due, witnesses: i.witnesses, involved_persons: i.involved_persons, investigation_notes: i.investigation_notes, recommendations: i.recommendations, ane_flag: i.ane_flag, investigator: i.investigator, investigated_at: i.investigated_at }))
 }
 export async function addIncident(orgId, inc) {
   if (isDemoMode) return demo.demoAddIncident(inc)
@@ -1197,6 +1197,9 @@ export async function addIncident(orgId, inc) {
     actions: inc.actions || null, notified: inc.notified || null, reported_by: inc.by || null,
     reportable: inc.reportable || false, corrective_action: inc.correctiveAction || null,
     follow_up_due: inc.followUpDue || null,
+    witnesses: inc.witnesses || null, involved_persons: inc.involvedPersons || null,
+    investigation_notes: inc.investigationNotes || null, recommendations: inc.recommendations || null,
+    ane_flag: inc.aneFlag || null,
   }).select().single()
   if (error) { console.error('addIncident:', error.message); return null }
   return data
@@ -1213,6 +1216,13 @@ export async function updateIncident(id, updates) {
   if (updates.markNotifiedNow)                 patch.notified_at = new Date().toISOString()
   if (updates.correctiveAction !== undefined)  patch.corrective_action = updates.correctiveAction
   if (updates.followUpDue !== undefined)       patch.follow_up_due = updates.followUpDue || null
+  if (updates.witnesses !== undefined)         patch.witnesses = updates.witnesses
+  if (updates.involvedPersons !== undefined)   patch.involved_persons = updates.involvedPersons
+  if (updates.investigationNotes !== undefined) patch.investigation_notes = updates.investigationNotes
+  if (updates.recommendations !== undefined)   patch.recommendations = updates.recommendations
+  if (updates.aneFlag !== undefined)           patch.ane_flag = updates.aneFlag
+  if (updates.investigator !== undefined)      patch.investigator = updates.investigator
+  if (updates.markInvestigatedNow)             patch.investigated_at = new Date().toISOString()
   const { data, error } = await supabase.from('incidents').update(patch).eq('id', id).select().single()
   if (error) { console.error('updateIncident:', error.message); return null }
   return data
@@ -2338,6 +2348,83 @@ export async function deleteSurvey(id) {
   return true
 }
 
+// ── Courses / Training ───────────────────────────────────────────────────────
+// Assignable training courses with sections + an optional quiz. Rows are returned
+// AUGMENTED with _myCompleted (bool), _myScore (int|null), _myCompletedAt, and
+// _completionCount (int). house_id null = org-wide. Completions are one per
+// (course, staff). Mirrors surveys/knowledge.
+export async function fetchCourses(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchCourses(orgId, { houseId, role, staffId })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('courses').select('*').eq('org_id', orgId)
+    .order('required', { ascending: false }).order('created_at', { ascending: false }).limit(200)
+  if (error) { console.error('fetchCourses:', error.message); return [] }
+  const rows = data || []
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+  const count = {}, mine = {}
+  try {
+    const { data: comps, error: cErr } = await supabase
+      .from('course_completions').select('course_id, staff_id, score, completed_at').in('course_id', ids)
+    if (cErr) throw cErr
+    for (const r of (comps || [])) {
+      count[r.course_id] = (count[r.course_id] || 0) + 1
+      if (staffId && r.staff_id === staffId) mine[r.course_id] = r
+    }
+  } catch (e) { console.error('fetchCourses completions:', e.message) }
+  return rows.map(c => ({
+    ...c,
+    _myCompleted: !!mine[c.id],
+    _myScore: mine[c.id] ? mine[c.id].score : null,
+    _myCompletedAt: mine[c.id] ? mine[c.id].completed_at : null,
+    _completionCount: count[c.id] || 0,
+  }))
+}
+
+export async function createCourse(orgId, { houseId, title, description, sections, quiz, required, assignRoles, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateCourse(orgId, { houseId, title, description, sections, quiz, required, assignRoles, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('courses').insert({
+    org_id: orgId, house_id: houseId || null, title: title || '', description: description || '',
+    sections: Array.isArray(sections) ? sections : [], quiz: Array.isArray(quiz) ? quiz : [],
+    required: !!required, assign_roles: Array.isArray(assignRoles) ? assignRoles : [],
+    created_by_name: createdByName || null,
+  }).select().single()
+  if (error) { console.error('createCourse:', error.message); return null }
+  return { ...data, _myCompleted: false, _myScore: null, _myCompletedAt: null, _completionCount: 0 }
+}
+
+export async function deleteCourse(id) {
+  if (isDemoMode) return demo.demoDeleteCourse(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('courses').delete().eq('id', id)
+  if (error) { console.error('deleteCourse:', error.message); return false }
+  return true
+}
+
+export async function completeCourse(orgId, { courseId, staffId, staffName, score } = {}) {
+  if (isDemoMode) return demo.demoCompleteCourse(orgId, { courseId, staffId, staffName, score })
+  if (!supabase || !orgId || !courseId) return null
+  const { data, error } = await supabase.from('course_completions').upsert(
+    { org_id: orgId, course_id: courseId, staff_id: staffId || null,
+      staff_name: staffName || null, score: score == null ? null : score,
+      completed_at: new Date().toISOString() },
+    { onConflict: 'course_id,staff_id' }).select().single()
+  if (error) { console.error('completeCourse:', error.message); return null }
+  return data
+}
+
+export async function fetchCourseCompletions(orgId, { courseId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchCourseCompletions(orgId, { courseId })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('course_completions').select('*').eq('org_id', orgId)
+  if (courseId) q = q.eq('course_id', courseId)
+  const { data, error } = await q.limit(1000)
+  if (error) { console.error('fetchCourseCompletions:', error.message); return [] }
+  return data || []
+}
+
 // ── Quick tasks (assignable one-off tasks with due dates) ────────────────────
 export async function fetchQuickTasks(orgId, { houseId = null, assignedStaffId = null, status = null } = {}) {
   if (isDemoMode) return demo.demoFetchQuickTasks(orgId, { houseId, assignedStaffId, status })
@@ -2388,6 +2475,82 @@ export async function deleteQuickTask(id) {
   const { error } = await supabase.from('quick_tasks').delete().eq('id', id)
   if (error) { console.error('deleteQuickTask:', error.message); return false }
   return true
+}
+
+// Count of open quick tasks past their due date (org-wide or scoped to a house
+// and/or assignee). Powers the Overdue chip + count and the Home/MyDay surfacing.
+export async function countOverdueQuickTasks(orgId, { houseId = null, assignedStaffId = null } = {}) {
+  if (isDemoMode) return demo.demoCountOverdueQuickTasks(orgId, { houseId, assignedStaffId })
+  if (!supabase || !orgId) return 0
+  let q = supabase.from('quick_tasks').select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId).eq('status', 'open').lt('due_at', new Date().toISOString())
+  if (assignedStaffId) q = q.eq('assigned_staff_id', assignedStaffId)
+  const { count, error } = await q
+  if (error) { console.error('countOverdueQuickTasks:', error.message); return 0 }
+  return count || 0
+}
+
+// ── Smart groups (reusable saved audiences) ──────────────────────────────────
+// A saved audience definition that expands to a set of staff via house + roles
+// + an optional required cert. A convenience layer over the existing ad-hoc
+// targeting in Updates — picking a group pre-fills the audience scope.
+export async function fetchSmartGroups(orgId) {
+  if (isDemoMode) return demo.demoFetchSmartGroups(orgId)
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('smart_groups').select('*').eq('org_id', orgId)
+    .order('name', { ascending: true }).limit(200)
+  if (error) { console.error('fetchSmartGroups:', error.message); return [] }
+  return (data || []).map(g => ({
+    id: g.id, orgId: g.org_id, houseId: g.house_id ?? null, name: g.name,
+    roles: Array.isArray(g.roles) ? g.roles : [], requiredCert: g.required_cert ?? null,
+    createdByName: g.created_by_name ?? null, createdAt: g.created_at,
+  }))
+}
+
+export async function createSmartGroup(orgId, { houseId, name, roles, requiredCert, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateSmartGroup(orgId, { houseId, name, roles, requiredCert, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('smart_groups').insert({
+    org_id: orgId, house_id: houseId || null, name: name || '',
+    roles: Array.isArray(roles) ? roles : [], required_cert: requiredCert || null,
+    created_by_name: createdByName || null,
+  }).select().single()
+  if (error) { console.error('createSmartGroup:', error.message); return null }
+  return {
+    id: data.id, orgId: data.org_id, houseId: data.house_id ?? null, name: data.name,
+    roles: Array.isArray(data.roles) ? data.roles : [], requiredCert: data.required_cert ?? null,
+    createdByName: data.created_by_name ?? null, createdAt: data.created_at,
+  }
+}
+
+export async function deleteSmartGroup(id) {
+  if (isDemoMode) return demo.demoDeleteSmartGroup(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('smart_groups').delete().eq('id', id)
+  if (error) { console.error('deleteSmartGroup:', error.message); return false }
+  return true
+}
+
+// Expand a saved group to the set of matching staff ids, via house + roles +
+// required cert. Mirrors demoResolveSmartGroup — re-uses fetchStaff so the
+// matching logic stays in one place (rawRole + certs).
+export async function resolveSmartGroup(orgId, groupId) {
+  if (isDemoMode) return demo.demoResolveSmartGroup(orgId, groupId)
+  if (!supabase || !orgId || !groupId) return []
+  const { data, error } = await supabase.from('smart_groups').select('*').eq('id', groupId).single()
+  if (error || !data) { if (error) console.error('resolveSmartGroup:', error.message); return [] }
+  const roles = Array.isArray(data.roles) ? data.roles : []
+  const cert = data.required_cert || null
+  const today = toDateStr(new Date())
+  const staff = await fetchStaff(orgId, data.house_id || null)
+  return (staff || [])
+    .filter(s => roles.length === 0 || roles.includes(s.rawRole))
+    .filter(s => {
+      if (!cert) return true
+      return (s.certs || []).some(c => c && c.name === cert && (!c.expires || c.expires >= today))
+    })
+    .map(s => s.id)
 }
 
 // ── Directory (external contacts) ────────────────────────────────────────────

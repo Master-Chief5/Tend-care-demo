@@ -18,13 +18,14 @@ import { ScreenA_Knowledge } from '../../screens/Knowledge'
 import { ScreenA_Events } from '../../screens/Events'
 import { ScreenA_Forms } from '../../screens/Forms'
 import { ScreenA_Surveys } from '../../screens/Surveys'
+import { ScreenA_Courses } from '../../screens/Courses'
 import { ScreenA_Tasks } from '../../screens/Tasks'
 import { ScreenA_Directory } from '../../screens/Directory'
 import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
 import { ScreenA_Home } from '../../screens/Home'
 import { ScreenA_CareHub } from '../../screens/CareHub'
 import { ResidentProfile } from '../../screens/ResidentProfile'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone, IconBook, IconStar, IconDots, IconChev, IconClipboard, IconChart, IconPhone, IconHelp } from '../icons'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone, IconBook, IconStar, IconDots, IconChev, IconClipboard, IconChart, IconPhone, IconHelp, IconAward } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -59,6 +60,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
       case 'events': return <ScreenA_Events user={user} />
       case 'forms': return <ScreenA_Forms user={user} />
       case 'surveys': return <ScreenA_Surveys user={user} />
+      case 'courses': return <ScreenA_Courses user={user} />
       case 'tasks': return <ScreenA_Tasks user={user} />
       case 'directory': return <ScreenA_Directory user={user} />
       case 'helpdesk': return <ScreenA_HelpDesk user={user} />
@@ -82,6 +84,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'events': return <ScreenA_Events user={user} />
     case 'forms': return <ScreenA_Forms user={user} />
     case 'surveys': return <ScreenA_Surveys user={user} />
+    case 'courses': return <ScreenA_Courses user={user} />
     case 'tasks': return <ScreenA_Tasks user={user} />
     case 'directory': return <ScreenA_Directory user={user} />
     case 'helpdesk': return <ScreenA_HelpDesk user={user} />
@@ -116,6 +119,7 @@ function MoreMenu({ onNavigate, role = 'supervisor' }) {
     { id: 'events',   label: 'Events',   icon: IconStar, sub: 'Trainings & house meetings' },
     { id: 'forms',    label: 'Forms',    icon: IconClipboard, sub: 'Checklists, audits & walkthroughs' },
     { id: 'surveys',  label: 'Surveys',  icon: IconChart, sub: 'Staff pulse & training feedback' },
+    { id: 'courses',  label: 'Training', icon: IconAward, sub: 'Courses & completion tracking' },
     { id: 'tasks',    label: 'Tasks',    icon: IconCheck, sub: 'Assignable one-off tasks' },
     { id: 'directory', label: 'Directory', icon: IconPhone, sub: 'Pharmacy, physicians & contacts' },
     { id: 'helpdesk', label: 'Help Desk', icon: IconHelp, sub: 'HR, payroll, IT & maintenance' },

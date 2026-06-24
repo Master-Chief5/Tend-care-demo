@@ -4,6 +4,10 @@ import { IconPlus, IconCheck } from './icons'
 
 const INCIDENT_TYPES = ['Injury', 'Fall', 'Med error', 'Behavioral', 'Restraint', 'Elopement', 'Property', 'Other']
 const SEVERITY = { Minor: { bg: '#dee6df', tc: '#3f604d' }, Moderate: { bg: '#f5e9d6', tc: '#a47012' }, Serious: { bg: '#fadcd7', tc: '#a93a25' } }
+// Abuse / Neglect / Exploitation classification — any of these auto-flags the
+// incident as Serious + state-reportable and requires an investigation.
+const ANE_FLAGS = ['None', 'Abuse', 'Neglect', 'Exploitation']
+const isANE = (f) => f && f !== 'None'
 const DRILL_TYPES = ['Fire', 'Tornado', 'Evacuation', 'Lockdown']
 const FIRE_INTERVAL_DAYS = 90
 
@@ -22,6 +26,7 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   const [notified, setNotified] = useState('')
   const [reportable, setReportable] = useState(false)
   const [reportableTouched, setReportableTouched] = useState(false)
+  const [aneFlag, setAneFlag] = useState('None')
   const [saving, setSaving] = useState(false)
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
@@ -29,12 +34,18 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   // the flag (until the user overrides it) so it isn't forgotten.
   const setSev = (s) => {
     setSeverity(s)
-    if (!reportableTouched) setReportable(s === 'Serious' || ['Elopement', 'Restraint', 'Med error'].includes(type))
+    if (!reportableTouched) setReportable(s === 'Serious' || isANE(aneFlag) || ['Elopement', 'Restraint', 'Med error'].includes(type))
+  }
+  // Picking an A/N/E classification auto-escalates: Serious severity + reportable.
+  const setAne = (f) => {
+    setAneFlag(f)
+    if (isANE(f)) { setSeverity('Serious'); setReportable(true) }
+    else if (!reportableTouched) setReportable(severity === 'Serious' || ['Elopement', 'Restraint', 'Med error'].includes(type))
   }
   const save = async (e) => {
     e.preventDefault(); if (!text.trim() || saving) return
     setSaving(true)
-    await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, by: user?.name || 'Staff' })
+    await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, by: user?.name || 'Staff' })
     setSaving(false); onSaved()
   }
   return (
@@ -59,6 +70,12 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
             <div style={{ display: 'flex', gap: 6 }}>
               {Object.keys(SEVERITY).map(s => <button key={s} type="button" onClick={() => setSev(s)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: severity === s ? SEVERITY[s].bg : 'transparent', color: severity === s ? SEVERITY[s].tc : 'var(--a-ink3)', border: `1px solid ${severity === s ? SEVERITY[s].tc + '55' : 'var(--a-line)'}` }}>{s}</button>)}
             </div>
+          </div>
+          <div><div style={lbl}>Abuse / Neglect / Exploitation</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {ANE_FLAGS.map(f => <button key={f} type="button" onClick={() => setAne(f)} style={{ padding: '6px 11px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: aneFlag === f ? (isANE(f) ? '#a93a25' : 'var(--a-ink)') : 'transparent', color: aneFlag === f ? '#fff' : 'var(--a-ink2)', border: aneFlag === f ? 0 : '1px solid var(--a-line)' }}>{f}</button>)}
+            </div>
+            {isANE(aneFlag) && <div style={{ fontSize: 10.5, color: '#a93a25', marginTop: 4, fontWeight: 600 }}>Flagged Serious & reportable — an investigation is required.</div>}
           </div>
           <div><div style={lbl}>What happened</div><textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="Describe the incident…" style={{ ...input, resize: 'vertical' }} /></div>
           <div><div style={lbl}>Actions taken</div><input value={actions} onChange={e => setActions(e.target.value)} placeholder="e.g. First aid, area cleared" style={input} /></div>
@@ -123,17 +140,29 @@ function FollowUpSheet({ incident, user, onClose, onSaved }) {
   const [markNotified, setMarkNotified] = useState(!!incident.notified_at)
   const [corrective, setCorrective] = useState(incident.corrective_action || '')
   const [followUp, setFollowUp] = useState(incident.follow_up_due || '')
+  const [witnesses, setWitnesses] = useState(incident.witnesses || '')
+  const [involved, setInvolved] = useState(incident.involved_persons || '')
+  const [investNotes, setInvestNotes] = useState(incident.investigation_notes || '')
+  const [recommendations, setRecommendations] = useState(incident.recommendations || '')
+  const [assignSelf, setAssignSelf] = useState(!!incident.investigator)
   const [saving, setSaving] = useState(false)
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
 
   const apply = async (extra = {}) => {
     setSaving(true)
+    const investTouched = witnesses.trim() || involved.trim() || investNotes.trim() || recommendations.trim() || assignSelf
     await updateIncident(incident.id, {
       notified: notified.trim(),
       markNotifiedNow: markNotified && !incident.notified_at,
       correctiveAction: corrective.trim(),
       followUpDue: followUp || null,
+      witnesses: witnesses.trim(),
+      involvedPersons: involved.trim(),
+      investigationNotes: investNotes.trim(),
+      recommendations: recommendations.trim(),
+      investigator: assignSelf ? (incident.investigator || user?.name || 'Supervisor') : (incident.investigator || null),
+      markInvestigatedNow: investTouched && !incident.investigated_at,
       ...extra,
     })
     setSaving(false); onSaved()
@@ -141,7 +170,7 @@ function FollowUpSheet({ incident, user, onClose, onSaved }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
-        <div className="serif" style={{ fontSize: 22, marginBottom: 2 }}>Reportable follow-up</div>
+        <div className="serif" style={{ fontSize: 22, marginBottom: 2 }}>Follow-up & investigation</div>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{incident.type} · {fmtDate(incident.date)}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div><div style={lbl}>Who was notified (agency / on-call / guardian)</div><input value={notified} onChange={e => setNotified(e.target.value)} placeholder="e.g. State hotline #, RN, guardian" style={input} /></div>
@@ -154,6 +183,28 @@ function FollowUpSheet({ incident, user, onClose, onSaved }) {
           </button>
           <div><div style={lbl}>Corrective action</div><textarea value={corrective} onChange={e => setCorrective(e.target.value)} rows={2} placeholder="What's being done to prevent recurrence…" style={{ ...input, resize: 'vertical' }} /></div>
           <div><div style={lbl}>Follow-up due</div><input type="date" value={followUp} onChange={e => setFollowUp(e.target.value)} style={input} /></div>
+
+          {/* Investigation — for serious / reportable incidents */}
+          <div style={{ borderTop: '1px solid var(--a-line)', paddingTop: 12, marginTop: 2 }}>
+            <div className="serif" style={{ fontSize: 16, marginBottom: 2 }}>Investigation</div>
+            <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 10 }}>
+              {incident.ane_flag ? `${incident.ane_flag} allegation — document the investigation and recommendations.` : 'Document witnesses, who was involved, and the findings.'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button type="button" onClick={() => setAssignSelf(a => !a)} disabled={!!incident.investigator} style={{
+                display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: incident.investigator ? 'default' : 'pointer', fontFamily: 'Geist',
+                background: assignSelf ? '#dee6df' : 'var(--a-card)', border: `1px solid ${assignSelf ? '#9fc0ab' : 'var(--a-line)'}`, borderRadius: 10, padding: '11px 13px',
+              }}>
+                <span style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${assignSelf ? '#3f604d' : 'var(--a-line)'}`, background: assignSelf ? '#3f604d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{assignSelf && <IconCheck size={12} sw={2.5} color="#fff" />}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: assignSelf ? '#3f604d' : 'var(--a-ink)' }}>{incident.investigator ? `Investigator: ${incident.investigator}` : `Assign me as investigator (${user?.name || 'Supervisor'})`}</span>
+              </button>
+              <div><div style={lbl}>Witnesses</div><input value={witnesses} onChange={e => setWitnesses(e.target.value)} placeholder="Names of anyone who witnessed it" style={input} /></div>
+              <div><div style={lbl}>Persons involved</div><input value={involved} onChange={e => setInvolved(e.target.value)} placeholder="Residents / staff / others involved" style={input} /></div>
+              <div><div style={lbl}>Investigation notes</div><textarea value={investNotes} onChange={e => setInvestNotes(e.target.value)} rows={3} placeholder="Findings, interviews, timeline…" style={{ ...input, resize: 'vertical' }} /></div>
+              <div><div style={lbl}>Recommendations</div><textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} rows={2} placeholder="Recommended preventive / corrective steps…" style={{ ...input, resize: 'vertical' }} /></div>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => apply()} disabled={saving} style={{ flex: 1, background: 'var(--a-card)', color: 'var(--a-ink)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>{saving ? 'Saving…' : 'Save'}</button>
             <button onClick={() => apply({ status: 'closed' })} disabled={saving} style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Save & close</button>
@@ -216,6 +267,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
                 <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--a-ink)', background: 'var(--a-paper)', padding: '1px 6px', borderRadius: 3, border: '1px solid var(--a-line)' }}>{it.type}</span>
                 <span style={{ fontSize: 9.5, fontWeight: 700, color: sv.tc, background: sv.bg, padding: '1px 6px', borderRadius: 3 }}>{it.severity}</span>
                 {it.reportable && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: '#a93a25', padding: '1px 7px', borderRadius: 3, letterSpacing: '0.04em' }}>REPORTABLE</span>}
+                {it.ane_flag && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: '#7a2a1b', padding: '1px 7px', borderRadius: 3, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{it.ane_flag}</span>}
                 {it.resident && <span style={{ fontSize: 11.5, fontWeight: 600 }}>{it.resident}</span>}
                 <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 700, color: it.status === 'closed' ? '#3f604d' : it.status === 'reviewed' ? '#3f604d' : '#a93a25', background: it.status === 'open' ? '#fadcd7' : '#dee6df', padding: '1px 7px', borderRadius: 999 }}>{(it.status || 'open').toUpperCase()}</span>
               </div>
@@ -223,6 +275,15 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
               {it.actions && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 3 }}>Actions: {it.actions}</div>}
               {it.notified && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>Notified: {it.notified}</div>}
               {it.corrective_action && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>Corrective: {it.corrective_action}</div>}
+              {it.recommendations && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)' }}>Recommendations: {it.recommendations}</div>}
+              {/* Investigation status line — serious / A·N·E / reportable incidents */}
+              {(it.ane_flag || it.severity === 'Serious') && (
+                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: it.investigated_at ? '#3f604d' : '#a93a25' }}>
+                  {it.investigated_at
+                    ? `✓ Investigated${it.investigator ? ` by ${it.investigator}` : ''} ${fmtDate(it.investigated_at)}`
+                    : '⚠ Investigation needed'}
+                </div>
+              )}
               {/* Reportable status line */}
               {it.reportable && (
                 <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: it.notified_at ? '#3f604d' : '#a93a25' }}>
@@ -232,7 +293,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
               )}
               <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 3 }}>by {it.by || 'someone'} · {fmtDate(it.date)}{it.reviewed_by ? ` · reviewed by ${it.reviewed_by}` : ''}</div>
               <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                {isSup && it.reportable && <button onClick={() => setFollowUp(it)} style={{ background: 'transparent', border: 0, color: '#a93a25', fontSize: 12, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Manage</button>}
+                {isSup && (it.reportable || it.ane_flag || it.severity === 'Serious') && <button onClick={() => setFollowUp(it)} style={{ background: 'transparent', border: 0, color: '#a93a25', fontSize: 12, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Manage</button>}
                 {isSup && it.status === 'open' && <button onClick={() => review(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><IconCheck size={12} sw={2.5} /> Mark reviewed</button>}
                 <button onClick={() => delInc(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>
               </div>

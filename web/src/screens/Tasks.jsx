@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   fetchQuickTasks, createQuickTask, completeQuickTask, reopenQuickTask, deleteQuickTask,
-  fetchStaff,
+  countOverdueQuickTasks, fetchStaff,
 } from '../lib/db'
 import { IconCheck, IconClock, IconX } from '../components/icons'
 
@@ -133,9 +133,11 @@ function Queue({ rows, loading, filter, isAdmin, onToggle, onDelete }) {
 
   const empty = filter === 'Done'
     ? { title: 'Nothing completed yet.', sub: undefined }
-    : filter === 'Assigned to me'
-      ? { title: 'Nothing waiting for you.', sub: 'Tasks assigned to you will show up here.' }
-      : { title: 'No open tasks.', sub: 'Create the first one from “New task”.' }
+    : filter === 'Overdue'
+      ? { title: 'Nothing overdue.', sub: 'Tasks past their due date will show up here.' }
+      : filter === 'Assigned to me'
+        ? { title: 'Nothing waiting for you.', sub: 'Tasks assigned to you will show up here.' }
+        : { title: 'No open tasks.', sub: 'Create the first one from “New task”.' }
 
   return (
     <>
@@ -271,11 +273,12 @@ export function ScreenA_Tasks({ user, desktop = false }) {
   const role = user?.role
   const isAdmin = role === 'supervisor' || role === 'manager'
 
-  const tabs = ['Assigned to me', 'All open', 'Done', 'New task']
+  const tabs = ['Assigned to me', 'All open', 'Overdue', 'Done', 'New task']
   const [tab, setTab] = useState('Assigned to me')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [staffList, setStaffList] = useState([])
+  const [overdueCount, setOverdueCount] = useState(0)
 
   // The active filter chip is whichever tab isn't the compose form.
   const filter = tab === 'New task' ? 'All open' : tab
@@ -286,13 +289,27 @@ export function ScreenA_Tasks({ user, desktop = false }) {
     const opts = { houseId }
     if (filter === 'Assigned to me') { opts.assignedStaffId = staffId; opts.status = 'open' }
     else if (filter === 'Done') { opts.status = 'done' }
-    else { opts.status = 'open' }
+    else { opts.status = 'open' }   // 'All open' and 'Overdue' both fetch open tasks
     return Promise.resolve(fetchQuickTasks(orgId, opts))
-      .then(r => { setRows(r || []); setLoading(false) })
+      .then(r => {
+        // "Overdue" is "All open" narrowed to tasks past their due date.
+        const list = filter === 'Overdue'
+          ? (r || []).filter(t => t && isOverdue(t.due_at))
+          : (r || [])
+        setRows(list); setLoading(false)
+      })
       .catch(() => { setRows([]); setLoading(false) })
   }, [orgId, houseId, staffId, filter])
 
   useEffect(() => { load() }, [load])
+
+  // Overdue count for the chip badge (open tasks past due, in house scope).
+  const loadOverdueCount = useCallback(() => {
+    if (!orgId) { setOverdueCount(0); return }
+    Promise.resolve(countOverdueQuickTasks(orgId, { houseId }))
+      .then(n => setOverdueCount(Number(n) || 0)).catch(() => setOverdueCount(0))
+  }, [orgId, houseId])
+  useEffect(() => { loadOverdueCount() }, [loadOverdueCount, rows])
 
   // Staff list for the assignee picker (best-effort; falls back to free text).
   useEffect(() => {
@@ -329,15 +346,28 @@ export function ScreenA_Tasks({ user, desktop = false }) {
 
   const Chips = () => (
     <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: desktop ? '0 0 4px' : '0 22px 6px' }}>
-      {tabs.map(t => (
-        <button key={t} onClick={() => setTab(t)} style={{
-          flexShrink: 0, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist',
-          cursor: 'pointer', whiteSpace: 'nowrap',
-          background: tab === t ? 'var(--a-ink)' : 'var(--a-card)',
-          color: tab === t ? 'var(--a-card)' : 'var(--a-ink2)',
-          border: `1px solid ${tab === t ? 'var(--a-ink)' : 'var(--a-line)'}`,
-        }}>{t}</button>
-      ))}
+      {tabs.map(t => {
+        const active = tab === t
+        const showBadge = t === 'Overdue' && overdueCount > 0
+        return (
+          <button key={t} onClick={() => setTab(t)} style={{
+            flexShrink: 0, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist',
+            cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: active ? 'var(--a-ink)' : 'var(--a-card)',
+            color: active ? 'var(--a-card)' : 'var(--a-ink2)',
+            border: `1px solid ${active ? 'var(--a-ink)' : 'var(--a-line)'}`,
+          }}>
+            {t}
+            {showBadge && (
+              <span style={{
+                fontSize: 10.5, fontWeight: 700, lineHeight: 1, padding: '2px 6px', borderRadius: 999,
+                background: active ? 'rgba(255,255,255,0.22)' : 'var(--a-clay)',
+                color: '#fff', fontVariantNumeric: 'tabular-nums',
+              }}>{overdueCount}</span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 

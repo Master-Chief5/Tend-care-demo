@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fmtDayLabel, getGreeting } from '../lib/utils'
-import { fetchTasks, toggleTask, addTask, fetchStaff } from '../lib/db'
+import { fetchTasks, toggleTask, addTask, fetchStaff, countOverdueQuickTasks } from '../lib/db'
 import { HouseItems } from '../components/HouseItems'
 import { OnDutyCard } from '../components/OnDutyCard'
 import { ClockCard } from '../components/ClockCard'
@@ -99,6 +99,7 @@ export function ScreenA_MyDay({ user }) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(!!user?.staffId)
   const [showAdd, setShowAdd] = useState(false)
+  const [overdueQuick, setOverdueQuick] = useState(0)
   const today = new Date()
   const firstName = user?.name?.split(' ')[0] || 'Aisha'
 
@@ -110,6 +111,13 @@ export function ScreenA_MyDay({ user }) {
       setLoading(false)
     })
   }, [user?.staffId])
+
+  // Overdue quick tasks assigned to me — a gentle nudge banner.
+  useEffect(() => {
+    if (!user?.orgId || !user?.staffId) { setOverdueQuick(0); return }
+    Promise.resolve(countOverdueQuickTasks(user.orgId, { assignedStaffId: user.staffId }))
+      .then(n => setOverdueQuick(Number(n) || 0)).catch(() => setOverdueQuick(0))
+  }, [user?.orgId, user?.staffId])
 
   const toggle = async (task, idx) => {
     const newDone = !task.done
@@ -152,6 +160,17 @@ export function ScreenA_MyDay({ user }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 22px 24px' }}>
+          {overdueQuick > 0 && (
+            <div style={{
+              background: 'var(--status-bad-bg, #fadcd7)', border: '1px solid var(--a-clay)', borderRadius: 12,
+              padding: '11px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-clay)' }}>
+                {overdueQuick} task{overdueQuick === 1 ? '' : 's'} overdue
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--a-ink2)' }}>assigned to you — see Tasks</span>
+            </div>
+          )}
           <ClockCard user={user} />
           {user?.staffId && <OnDutyCard user={user} />}
           {loading && (

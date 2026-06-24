@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { fetchActivityFeed } from '../lib/db'
-import { IconClock, IconEdit, IconLeaf, IconAlert, IconActivity } from '../components/icons'
+import { IconClock, IconEdit, IconLeaf, IconAlert, IconActivity, IconCheck } from '../components/icons'
 
 // Calm, read-only activity feed (like Connecteam's "Activity Log"). Role-aware:
 //   • admins (supervisor/manager): scoped feed for their house / all houses
@@ -41,6 +41,8 @@ const KIND_ICON = {
   time_off:        IconLeaf,
   work_hour_limit: IconAlert,
   auto_clock_out:  IconClock,
+  task_assigned:   IconCheck,
+  task_completed:  IconCheck,
 }
 
 function EmptyState({ emoji, title, sub }) {

@@ -4,6 +4,7 @@ import {
   markAnnouncementRead, voteAnnouncementPoll, deleteAnnouncement,
   fetchAnnouncementReaders, fetchStaff,
   fetchRecognitions, createRecognition,
+  fetchSmartGroups,
 } from '../lib/db'
 import { IconStar, IconHeart, IconLeaf, IconX, IconCheck, IconEye, IconChev, IconDown, IconMegaphone } from '../components/icons'
 
@@ -365,8 +366,33 @@ function Compose({ orgId, houseId, staffId, staffName, role, onPosted }) {
   const [scheduleAt, setScheduleAt] = useState('') // datetime-local value
   const [saving, setSaving] = useState(false)
 
-  const toggleRole = (val) => setAudienceRoles(prev =>
-    prev.includes(val) ? prev.filter(r => r !== val) : [...prev, val])
+  // Saved audiences ("smart groups") — a convenience layer over the manual
+  // targeting below. Picking one pre-fills the house scope + audience roles.
+  const [groups, setGroups] = useState([])
+  const [activeGroupId, setActiveGroupId] = useState('')
+  useEffect(() => {
+    if (!orgId) return
+    Promise.resolve(fetchSmartGroups(orgId)).then(g => setGroups(Array.isArray(g) ? g : [])).catch(() => setGroups([]))
+  }, [orgId])
+
+  // Apply a saved audience: pre-fill house scope + roles from the group. A
+  // group with a house_id scopes to "My house" only when it matches the user's
+  // house; otherwise it falls back to "All staff" (the post still reaches the
+  // group's members via the role filter).
+  const applyGroup = (id) => {
+    setActiveGroupId(id)
+    if (!id) return
+    const g = groups.find(x => x.id === id)
+    if (!g) return
+    if (g.houseId && houseId && g.houseId === houseId) setAudience('house')
+    else setAudience('all')
+    setAudienceRoles(Array.isArray(g.roles) ? [...g.roles] : [])
+  }
+
+  const toggleRole = (val) => {
+    setActiveGroupId('')
+    setAudienceRoles(prev => prev.includes(val) ? prev.filter(r => r !== val) : [...prev, val])
+  }
 
   const setOption = (i, v) => setPollOptions(prev => prev.map((o, idx) => idx === i ? v : o))
   const addOption = () => setPollOptions(prev => prev.length >= 4 ? prev : [...prev, ''])
@@ -422,7 +448,7 @@ function Compose({ orgId, houseId, staffId, staffName, role, onPosted }) {
   const segBtn = (val, label, disabled) => {
     const active = audience === val
     return (
-      <button type="button" disabled={disabled} onClick={() => !disabled && setAudience(val)} style={{
+      <button type="button" disabled={disabled} onClick={() => { if (!disabled) { setActiveGroupId(''); setAudience(val) } }} style={{
         flex: 1, padding: '8px', borderRadius: 8, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'Geist',
         cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
         background: active ? 'var(--a-card)' : 'transparent',
@@ -449,6 +475,24 @@ function Compose({ orgId, houseId, staffId, staffName, role, onPosted }) {
         {/* Audience scope */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-ink3)', letterSpacing: '0.04em', marginBottom: 7 }}>WHO SEES THIS</div>
+
+          {/* Saved audiences (smart groups) — pre-fills scope + roles below */}
+          {groups.length > 0 && (
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 9 }}>
+              {groups.map(g => {
+                const on = activeGroupId === g.id
+                return (
+                  <button key={g.id} type="button" onClick={() => applyGroup(on ? '' : g.id)} style={{
+                    padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer',
+                    background: on ? 'var(--a-sage)' : 'var(--a-card)',
+                    color: on ? '#fff' : 'var(--a-ink2)',
+                    border: `1px solid ${on ? 'var(--a-sage)' : 'var(--a-line)'}`,
+                  }}>{g.name}</button>
+                )
+              })}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 4, background: 'var(--a-paper)', borderRadius: 10, padding: 4 }}>
             {segBtn('all', 'All staff', false)}
             {segBtn('house', 'My house', !houseId)}
@@ -467,7 +511,9 @@ function Compose({ orgId, houseId, staffId, staffName, role, onPosted }) {
             })}
           </div>
           <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 6 }}>
-            {audienceRoles.length === 0 ? 'Everyone in scope can see this.' : 'Only selected roles will see this.'}
+            {activeGroupId
+              ? `Pre-filled from “${(groups.find(g => g.id === activeGroupId) || {}).name || 'saved audience'}”. Adjust below if needed.`
+              : audienceRoles.length === 0 ? 'Everyone in scope can see this.' : 'Only selected roles will see this.'}
           </div>
         </div>
 

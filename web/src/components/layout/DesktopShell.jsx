@@ -14,6 +14,7 @@ import { ScreenA_Knowledge } from '../../screens/Knowledge'
 import { ScreenA_Events } from '../../screens/Events'
 import { ScreenA_Forms } from '../../screens/Forms'
 import { ScreenA_Surveys } from '../../screens/Surveys'
+import { ScreenA_Courses } from '../../screens/Courses'
 import { ScreenA_Tasks } from '../../screens/Tasks'
 import { ScreenA_Directory } from '../../screens/Directory'
 import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
@@ -24,7 +25,7 @@ import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop, PageComplianceDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
 import { countPendingRequests, countPendingTimeOff, countUnreadAnnouncements, countOpenShifts } from '../../lib/db'
-import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock, IconActivity, IconMegaphone, IconStar, IconClipboard, IconChart, IconCheck, IconPhone, IconHelp } from '../icons'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock, IconActivity, IconMegaphone, IconStar, IconClipboard, IconChart, IconCheck, IconPhone, IconHelp, IconAward } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -68,6 +69,7 @@ const ALL_TABS = [
   { id: 'knowledge',   label: 'Handbook',    icon: IconBook,    roles: ['supervisor', 'manager', 'staff'], group: 'org' },
   { id: 'forms',       label: 'Forms',       icon: IconClipboard, roles: ['supervisor', 'manager', 'staff'], group: 'org' },
   { id: 'surveys',     label: 'Surveys',     icon: IconChart,   roles: ['supervisor', 'manager', 'staff'], group: 'org' },
+  { id: 'courses',     label: 'Training',    icon: IconAward,   roles: ['supervisor', 'manager', 'staff'], group: 'org' },
   { id: 'tasks',       label: 'Tasks',       icon: IconCheck,   roles: ['supervisor', 'manager', 'staff'], group: 'org' },
   { id: 'directory',   label: 'Directory',   icon: IconPhone,   roles: ['supervisor', 'manager', 'staff'], group: 'org' },
   { id: 'helpdesk',    label: 'Help Desk',   icon: IconHelp,    roles: ['supervisor', 'manager', 'staff'], group: 'org' },
@@ -99,6 +101,7 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'events')      return <ScreenA_Events user={user} desktop />
   if (tab === 'forms')       return <ScreenA_Forms user={user} desktop />
   if (tab === 'surveys')     return <ScreenA_Surveys user={user} desktop />
+  if (tab === 'courses')     return <ScreenA_Courses user={user} desktop />
   if (tab === 'tasks')       return <ScreenA_Tasks user={user} desktop />
   if (tab === 'directory')   return <ScreenA_Directory user={user} desktop />
   if (tab === 'helpdesk')    return <ScreenA_HelpDesk user={user} desktop />

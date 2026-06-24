@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { IconChev } from '../components/icons'
+import { IconChev, IconHeart } from '../components/icons'
 import { MedPass } from '../components/MedPass'
 import { Goals } from '../components/Goals'
 import { Behavior } from '../components/Behavior'
 import { HealthLogs } from '../components/HealthLogs'
 import { ProgressPanel } from '../components/ProgressPanel'
 import { DailyLog } from '../components/DailyLog'
+import { FamilyDigest } from '../components/FamilyDigest'
 
 // ── Resident profile (resident-scoped) ───────────────────────────────────────
 // A single resident's profile: identity header, key info, and "Care areas" that
@@ -65,6 +66,7 @@ function KeyInfoRow({ label, value, alert }) {
 
 export function ResidentProfile({ user, resident, houses = [], onBack }) {
   const [area, setArea] = useState('overview')
+  const [familyDigest, setFamilyDigest] = useState(false)
 
   // Resolve this resident's house for the accent color + badge. Residents carry
   // house_id (= house._uuid); fall back to the joined `houses` row (Supabase).
@@ -108,6 +110,9 @@ export function ResidentProfile({ user, resident, houses = [], onBack }) {
         <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, padding: 4, color: 'var(--a-ink2)', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
             <IconChev size={18} sw={2} style={{ transform: 'rotate(180deg)' }} /> Care
+          </button>
+          <button onClick={() => setFamilyDigest(true)} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: `1px solid ${c}66`, borderRadius: 999, padding: '5px 13px', color: c, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
+            <IconHeart size={13} color={c} /> Family update
           </button>
         </div>
 
@@ -180,6 +185,23 @@ export function ResidentProfile({ user, resident, houses = [], onBack }) {
                 </button>
               ))}
             </div>
+
+            {/* Family update — a shareable, redacted digest for the resident's
+                guardian/family (opens a print/share report, not a care tab). */}
+            <button type="button" onClick={() => setFamilyDigest(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+              marginTop: 12, padding: '13px 15px', cursor: 'pointer', fontFamily: 'Geist',
+              background: `${c}12`, border: `1px solid ${c}55`, borderRadius: 14,
+            }}>
+              <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconHeart size={17} color="#fff" /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--a-ink)' }}>Family update</span>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--a-ink3)', marginTop: 2 }}>
+                  {resident.guardian ? `Shareable digest for ${resident.guardian.split(/[·,|]/)[0].trim()}` : 'Shareable progress digest for family'}
+                </span>
+              </span>
+              <IconChev size={16} color="var(--a-ink3)" />
+            </button>
           </>)}
 
           {/* Reused care panels — each scoped to this single resident's house +
@@ -192,6 +214,10 @@ export function ResidentProfile({ user, resident, houses = [], onBack }) {
           {area === 'notes' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={scoped} />}
         </div>
       </div>
+
+      {familyDigest && (
+        <FamilyDigest user={user} resident={resident} house={house} onClose={() => setFamilyDigest(false)} />
+      )}
     </div>
   )
 }

@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], recognitions: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [], behaviorPlans: [], behaviorEvents: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], recognitions: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [], behaviorPlans: [], behaviorEvents: [], courses: [], courseCompletions: [], smartGroups: [] }
 }
 
 function load() {
@@ -155,6 +155,8 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoSeedAppointments(orgId)
   demoSeedResidentFunds(orgId)
   demoSeedBehaviorPlans(orgId)
+  demoSeedCourses(orgId)
+  demoSeedSmartGroups(orgId)
 
   persist()
 }
@@ -782,6 +784,9 @@ export function demoAddIncident(inc) {
     reviewed_by: null, reviewed_at: null,
     reportable: inc.reportable || false, notified_at: null,
     corrective_action: inc.correctiveAction || null, follow_up_due: inc.followUpDue || null,
+    witnesses: inc.witnesses || null, involved_persons: inc.involvedPersons || null,
+    investigation_notes: inc.investigationNotes || null, recommendations: inc.recommendations || null,
+    ane_flag: inc.aneFlag || null, investigator: null, investigated_at: null,
   }
   store.incidents.unshift(row); persist()
   return row
@@ -803,6 +808,13 @@ export function demoUpdateIncident(id, updates) {
   if (updates.markNotifiedNow)                 i.notified_at = now()
   if (updates.correctiveAction !== undefined)  i.corrective_action = updates.correctiveAction
   if (updates.followUpDue !== undefined)       i.follow_up_due = updates.followUpDue || null
+  if (updates.witnesses !== undefined)         i.witnesses = updates.witnesses
+  if (updates.involvedPersons !== undefined)   i.involved_persons = updates.involvedPersons
+  if (updates.investigationNotes !== undefined) i.investigation_notes = updates.investigationNotes
+  if (updates.recommendations !== undefined)   i.recommendations = updates.recommendations
+  if (updates.aneFlag !== undefined)           i.ane_flag = updates.aneFlag
+  if (updates.investigator !== undefined)      i.investigator = updates.investigator
+  if (updates.markInvestigatedNow)             i.investigated_at = now()
   persist(); return i
 }
 export function demoDeleteIncident(id) {
@@ -2024,6 +2036,112 @@ export function demoDeleteSurvey(id) {
   persist(); return true
 }
 
+// ── Courses / Training ───────────────────────────────────────────────────────
+// Assignable training courses with sections + an optional quiz. Staff complete
+// a course (passing the quiz, if any) and a completion row is recorded — one per
+// (course, staff). Org-wide (house_id null) or house-scoped; everyone takes,
+// supervisors/managers author and see the roll-up. Mirrors surveys/knowledge.
+export function demoSeedCourses(orgId) {
+  if (store.courses.length > 0) return
+  store.courses.push({
+    id: uid('crs'), org_id: orgId, house_id: null,
+    title: 'Medication Administration Basics',
+    description: 'The core safety rules every staff member must know before passing medications.',
+    sections: [
+      { title: 'The six rights', body: 'Before every medication pass, confirm the six rights: right resident, right medication, right dose, right route, right time, and right documentation. Never skip a check, even for a routine pass you have done a hundred times.' },
+      { title: 'Documentation', body: 'Sign the eMAR immediately after administering — never in advance and never in a batch at the end of shift. If a dose is missed or refused, document it and notify the on-call nurse before the end of your shift.' },
+      { title: 'Controlled medications', body: 'Count controlled medications at every shift change with a second staff witness. Both staff sign the count sheet. Any discrepancy is reported to the manager immediately.' },
+    ],
+    quiz: [
+      { q: 'How many "rights" must you confirm before every medication pass?', options: ['Three', 'Five', 'Six', 'Eight'], answer: 2 },
+      { q: 'When should you sign the eMAR?', options: ['Before administering', 'Immediately after administering', 'At the end of your shift', 'Only if asked'], answer: 1 },
+      { q: 'Controlled medications are counted at shift change with…', options: ['No witness needed', 'A second staff witness', 'The resident present', 'A photo only'], answer: 1 },
+    ],
+    required: true, assign_roles: [], created_by_name: 'Dana Whitfield', created_at: now(),
+  })
+  store.courses.push({
+    id: uid('crs'), org_id: orgId, house_id: null,
+    title: 'Fire Safety',
+    description: 'Evacuation procedure and drill expectations for every home.',
+    sections: [
+      { title: 'If the alarm sounds', body: 'Sound the alarm, evacuate all residents to the front-lawn meeting point, account for everyone, then log the evacuation time. Do not re-enter the building for belongings.' },
+      { title: 'Drills', body: 'Run a fire drill monthly in each home and record it in the app the same day. Note the evacuation time and anyone who needed extra assistance.' },
+    ],
+    quiz: [
+      { q: 'Where do residents gather during a fire evacuation?', options: ['The back yard', 'The front-lawn meeting point', 'Their bedrooms', 'The van'], answer: 1 },
+      { q: 'How often should a fire drill be run in each home?', options: ['Yearly', 'Quarterly', 'Monthly', 'Only when staff change'], answer: 2 },
+    ],
+    required: true, assign_roles: [], created_by_name: 'Dana Whitfield', created_at: now(),
+  })
+  persist()
+}
+
+function _augmentCourse(c, staffId) {
+  let mine = null, count = 0
+  for (const r of store.courseCompletions) {
+    if (r.course_id !== c.id) continue
+    count += 1
+    if (staffId && r.staff_id === staffId) mine = r
+  }
+  return {
+    ...c,
+    _myCompleted: !!mine,
+    _myScore: mine ? mine.score : null,
+    _myCompletedAt: mine ? mine.completed_at : null,
+    _completionCount: count,
+  }
+}
+
+export function demoFetchCourses(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  demoSeedCourses(orgId)
+  return store.courses
+    .filter(c => role === 'supervisor' || c.house_id == null || c.house_id === houseId)
+    .sort((a, b) => (b.required ? 1 : 0) - (a.required ? 1 : 0) || (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(c => _augmentCourse(c, staffId))
+}
+
+export function demoCreateCourse(orgId, { houseId, title, description, sections, quiz, required, assignRoles, createdByName } = {}) {
+  const row = {
+    id: uid('crs'), org_id: orgId, house_id: houseId || null,
+    title: title || '', description: description || '',
+    sections: Array.isArray(sections) ? sections : [],
+    quiz: Array.isArray(quiz) ? quiz : [],
+    required: !!required, assign_roles: Array.isArray(assignRoles) ? assignRoles : [],
+    created_by_name: createdByName || null, created_at: now(),
+  }
+  store.courses.push(row); persist()
+  return _augmentCourse(row, null)
+}
+
+export function demoDeleteCourse(id) {
+  store.courses = store.courses.filter(c => c.id !== id)
+  store.courseCompletions = store.courseCompletions.filter(r => r.course_id !== id)
+  persist(); return true
+}
+
+export function demoCompleteCourse(orgId, { courseId, staffId, staffName, score } = {}) {
+  const existing = store.courseCompletions.find(r => r.course_id === courseId && r.staff_id === (staffId || null))
+  if (existing) {
+    existing.score = score == null ? existing.score : score
+    existing.completed_at = now()
+    persist()
+    return { ...existing }
+  }
+  const row = {
+    id: uid('ccmp'), org_id: orgId, course_id: courseId || null,
+    staff_id: staffId || null, staff_name: staffName || null,
+    score: score == null ? null : score, completed_at: now(),
+  }
+  store.courseCompletions.push(row); persist()
+  return { ...row }
+}
+
+export function demoFetchCourseCompletions(orgId, { courseId = null } = {}) {
+  return store.courseCompletions
+    .filter(r => !courseId || r.course_id === courseId)
+    .map(r => ({ ...r }))
+}
+
 // ── Quick tasks (assignable one-off tasks with due dates) ────────────────────
 export function demoSeedQuickTasks(orgId) {
   if (store.quickTasks.length > 0) return
@@ -2063,6 +2181,14 @@ export function demoCreateQuickTask(orgId, { houseId, title, notes, assignedStaf
     created_by_name: createdByName || null, created_at: now(), done_at: null, done_by_name: null,
   }
   store.quickTasks.push(row); persist()
+  // Notify the assignee that a task was given to them (activity feed event).
+  if (row.assigned_name) {
+    demoAddTaskEvent(orgId, {
+      houseId: row.house_id, kind: 'task_assigned', actor: row.created_by_name || 'Someone',
+      text: `${row.created_by_name || 'Someone'} assigned ${row.assigned_name} a task — ${row.title || 'Untitled task'}`,
+      forName: row.assigned_name,
+    })
+  }
   return { ...row }
 }
 
@@ -2070,7 +2196,16 @@ export function demoCompleteQuickTask(id, doneByName) {
   const t = store.quickTasks.find(x => x.id === id)
   if (!t) return null
   t.status = 'done'; t.done_at = now(); t.done_by_name = doneByName || null
-  persist(); return { ...t }
+  persist()
+  // Notify the task's creator that it was completed (activity feed event).
+  if (t.created_by_name) {
+    demoAddTaskEvent(t.org_id, {
+      houseId: t.house_id, kind: 'task_completed', actor: doneByName || 'Someone',
+      text: `${doneByName || 'Someone'} completed a task — ${t.title || 'Untitled task'}`,
+      forName: t.created_by_name,
+    })
+  }
+  return { ...t }
 }
 
 export function demoReopenQuickTask(id) {
@@ -2180,4 +2315,102 @@ export function demoUpdateTicket(id, { status, assignedToName } = {}) {
   if (assignedToName !== undefined) t.assigned_to_name = assignedToName || null
   t.updated_at = now()
   persist(); return { ...t }
+}
+
+// ── Smart groups (reusable saved audiences) ──────────────────────────────────
+// A saved audience definition that expands to a set of staff via house + roles
+// + an optional required cert. A convenience layer over the existing ad-hoc
+// targeting in Updates — picking a group pre-fills the audience scope.
+//   { id, org_id, name, house_id (null = org-wide), roles text[],
+//     required_cert (null), created_by_name, created_at }
+// `roles` use the staff rawRole values ('manager' | 'staff'); an empty array
+// means "any role".
+export function demoSeedSmartGroups(orgId) {
+  if (store.smartGroups.length > 0) return
+  const maple = _houseByShort('MAP')
+  const mk = (name, houseId, roles, requiredCert, createdByName) => store.smartGroups.push({
+    id: uid('sg'), org_id: orgId, house_id: houseId, name,
+    roles: roles || [], required_cert: requiredCert || null,
+    created_by_name: createdByName || null, created_at: now(),
+  })
+  mk('All DSPs', null, ['staff'], null, 'Dana Whitfield')
+  mk('Maple House team', maple ? maple.id : null, [], null, 'Priya Nair')
+  mk('Med-certified staff', null, [], 'Medication Administration', 'Dana Whitfield')
+  persist()
+}
+
+export function demoFetchSmartGroups(orgId) {
+  demoSeedSmartGroups(orgId)
+  return store.smartGroups
+    .filter(g => g.org_id === orgId || !orgId)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map(g => ({
+      id: g.id, orgId: g.org_id, houseId: g.house_id || null, name: g.name,
+      roles: Array.isArray(g.roles) ? g.roles : [], requiredCert: g.required_cert || null,
+      createdByName: g.created_by_name || null, createdAt: g.created_at,
+    }))
+}
+
+export function demoCreateSmartGroup(orgId, { houseId, name, roles, requiredCert, createdByName } = {}) {
+  const row = {
+    id: uid('sg'), org_id: orgId, house_id: houseId || null,
+    name: name || '', roles: Array.isArray(roles) ? roles : [],
+    required_cert: requiredCert || null, created_by_name: createdByName || null, created_at: now(),
+  }
+  store.smartGroups.push(row); persist()
+  return {
+    id: row.id, orgId: row.org_id, houseId: row.house_id, name: row.name,
+    roles: row.roles, requiredCert: row.required_cert,
+    createdByName: row.created_by_name, createdAt: row.created_at,
+  }
+}
+
+export function demoDeleteSmartGroup(id) {
+  store.smartGroups = store.smartGroups.filter(g => g.id !== id); persist(); return true
+}
+
+// Expand a saved group to the set of matching staff ids, via house + roles +
+// required cert. A staff member matches when: (no house filter, or their house
+// matches), (no role filter, or their rawRole is in the group's roles), and
+// (no cert filter, or they hold a non-expired cert by that name).
+export function demoResolveSmartGroup(orgId, groupId) {
+  const g = store.smartGroups.find(x => x.id === groupId)
+  if (!g) return []
+  const roles = Array.isArray(g.roles) ? g.roles : []
+  const cert = g.required_cert || null
+  const today = todayStr()
+  return store.staff
+    .filter(s => s.role !== 'supervisor')
+    .filter(s => !g.house_id || s.house_id === g.house_id)
+    .filter(s => roles.length === 0 || roles.includes(s.role))
+    .filter(s => {
+      if (!cert) return true
+      return (s.certs || []).some(c => c && c.name === cert && (!c.expires || c.expires >= today))
+    })
+    .map(s => s.id)
+}
+
+// ── Task notifications (activity feed events for quick tasks) ─────────────────
+// Reuse the shiftEvents activity-feed plumbing so an assigned/completed task
+// surfaces in the same unified feed as schedule events. `forName` is the person
+// the event is addressed to (assignee on create, creator on complete).
+export function demoAddTaskEvent(orgId, { houseId, kind, actor, text, forName } = {}) {
+  store.shiftEvents.push({
+    id: uid('shev'), org_id: orgId || null, house_id: houseId || null, kind: kind || 'task',
+    actor: actor || 'Someone', text: text || '', for_name: forName || null, at: now(),
+  })
+  persist()
+}
+
+// Count of open quick tasks whose due_at is in the past (org-wide or, optionally,
+// scoped to a house and/or a specific assignee). Powers the Overdue chip + count
+// and the Home/MyDay "N tasks overdue" surfacing.
+export function demoCountOverdueQuickTasks(orgId, { houseId = null, assignedStaffId = null } = {}) {
+  demoSeedQuickTasks(orgId)
+  const nowMs = Date.now()
+  return store.quickTasks.filter(t =>
+    t.status === 'open' && t.due_at && new Date(t.due_at).getTime() < nowMs &&
+    (!houseId || t.house_id === houseId || t.house_id == null) &&
+    (!assignedStaffId || t.assigned_staff_id === assignedStaffId)
+  ).length
 }

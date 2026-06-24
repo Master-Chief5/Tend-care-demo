@@ -5,7 +5,7 @@ import {
   IconCal, IconHeart, IconFlag, IconClock, IconChev, IconPeople,
   IconChat, IconMegaphone,
 } from '../components/icons'
-import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts } from '../lib/db'
+import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts, countOverdueQuickTasks } from '../lib/db'
 
 // ── Status palette (Hearth tokens) ────────────────────────────────────
 const TONE = {
@@ -196,21 +196,24 @@ function Card({ children }) {
 export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick }) {
   const [snap, setSnap] = useState({ stats: {}, alerts: {}, shifts: [] })
   const [loading, setLoading] = useState(true)
+  const [overdueTasks, setOverdueTasks] = useState(0)
 
   const isManager = user?.role === 'manager'
   const scopedHouses = isManager ? houses.filter(h => h.id === user?.houseSlug) : houses
 
   useEffect(() => {
-    if (!user?.orgId || !houses.length) { setSnap({ stats: {}, alerts: {}, shifts: [] }); setLoading(false); return }
+    if (!user?.orgId || !houses.length) { setSnap({ stats: {}, alerts: {}, shifts: [] }); setOverdueTasks(0); setLoading(false); return }
     let alive = true
     setLoading(true)
     const today = new Date()
+    const houseScope = isManager ? (user?.houseSlug || null) : null
     Promise.all([
       fetchShifts(user.orgId, null, today),
       fetchTrips(user.orgId, null, today),
       fetchStaff(user.orgId, null),
       fetchHouseAlerts(user.orgId),
-    ]).then(([shifts, trips, staff, alerts]) => {
+      countOverdueQuickTasks(user.orgId, { houseId: houseScope }),
+    ]).then(([shifts, trips, staff, alerts, overdue]) => {
       if (!alive) return
       const stats = {}
       for (const h of houses) {
@@ -221,8 +224,9 @@ export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick }) {
         }
       }
       setSnap({ stats, alerts: alerts || {}, shifts: shifts || [] })
+      setOverdueTasks(Number(overdue) || 0)
       setLoading(false)
-    }).catch(() => { if (alive) { setSnap({ stats: {}, alerts: {}, shifts: [] }); setLoading(false) } })
+    }).catch(() => { if (alive) { setSnap({ stats: {}, alerts: {}, shifts: [] }); setOverdueTasks(0); setLoading(false) } })
     return () => { alive = false }
   }, [user?.orgId, houses.map(h => h.id).join(',')])
 
@@ -264,6 +268,18 @@ export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick }) {
       sub: `${fmtHour(s.start)}–${fmtHour(s.end)} · unassigned`,
       pill: 'Open', pillTone: 'warn',
       onClick: () => onNavigate?.('sched'),
+    })
+  }
+  // Overdue quick tasks — one rolled-up priority that deep-links to Tasks.
+  if (overdueTasks > 0) {
+    priorities.push({
+      key: 'tasks-overdue',
+      rail: 'var(--a-clay)',
+      icon: IconFlag, iconTone: 'bad',
+      title: `${overdueTasks} task${overdueTasks === 1 ? '' : 's'} overdue`,
+      sub: 'Past their due date — needs attention',
+      pill: 'Overdue', pillTone: 'bad',
+      onClick: () => onNavigate?.('tasks'),
     })
   }
   for (const c of houseAlertList) {
