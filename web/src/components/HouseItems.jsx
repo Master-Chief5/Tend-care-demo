@@ -156,7 +156,7 @@ function BoughtSheet({ item, onClose, onConfirm }) {
     await onConfirm(item, { qty: parseFloat(qty) || 1, cost: cost ? parseFloat(cost) : null })
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 400, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 2 }}>Mark bought</div>
         <div style={{ fontSize: 12.5, color: 'var(--a-ink3)', marginBottom: 14 }}>“{item.text}” will be added to Resources and checked off.</div>

@@ -133,7 +133,7 @@ export function FamilyDigest({ user, resident, house, onClose }) {
   const today = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
-    <div className="family-digest" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.34)', zIndex: 260, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    <div className="family-digest" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.34)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={e => e.target === e.currentTarget && onClose?.()}>
       <div role="dialog" aria-modal="true" aria-label={`Family update for ${residentName}`}
         style={{ width: '100%', maxWidth: 560, maxHeight: '94vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0' }}>

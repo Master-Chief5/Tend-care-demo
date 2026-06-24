@@ -78,7 +78,7 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   const staffId = (name) => (staff.find(s => s.name === name) || {}).id || null
 
   // Residents — with quick-reference safety flags + allergies (drive the Care tab)
-  demoAddResident(maple.id, { name: 'Robert Hayes',    room: '1', flags: ['Fall risk', 'Diabetic'],           allergies: 'Penicillin',         diagnoses: 'Type 2 diabetes, mild dementia', diet: 'Low sugar' })
+  const robertHayes = demoAddResident(maple.id, { name: 'Robert Hayes',    room: '1', flags: ['Fall risk', 'Diabetic'],           allergies: 'Penicillin',         diagnoses: 'Type 2 diabetes, mild dementia', diet: 'Low sugar' })
   demoAddResident(maple.id, { name: 'Linda Park',      room: '2', flags: ['Seizure', '1:1 support'],          allergies: 'Latex',              diagnoses: 'Epilepsy',                       diet: 'Regular' })
   demoAddResident(oak.id,   { name: 'James Whitaker',  room: '1', flags: ['Behavior plan', 'Elopement risk'], allergies: 'Peanuts, tree nuts', diagnoses: 'Autism spectrum disorder',       diet: 'Gluten-free' })
   demoAddResident(oak.id,   { name: 'Maria Gomez',     room: '2', flags: ['Allergy'],                         allergies: 'Sulfa drugs',        diagnoses: 'Generalized anxiety',            diet: 'Regular' })
@@ -121,7 +121,7 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   setCerts('Marcus Lewis', [{ name: 'CPR / First Aid', expires: dateFor(70) }])
 
   // A couple of incidents + safety drills (surface on each house's Care tab).
-  demoAddIncident({ houseId: maple.id, residentId: null, type: 'Fall',       severity: 'Minor',    text: 'Resident slipped on a wet bathroom floor; no injury observed.',          actions: 'Completed body check, no first aid required, notified on-call nurse.', by: 'Aisha Mendez' })
+  demoAddIncident({ houseId: maple.id, residentId: robertHayes.id, type: 'Fall',       severity: 'Minor',    text: 'Resident slipped on a wet bathroom floor; no injury observed.',          actions: 'Completed body check, no first aid required, notified on-call nurse.', by: 'Aisha Mendez', occurredAt: `${dateFor(-1)}T09:15` })
   demoAddIncident({ houseId: oak.id,   residentId: null, type: 'Behavioral', severity: 'Moderate', text: 'Escalation during the afternoon transition; redirected per behavior plan.', actions: 'Followed BSP de-escalation, offered a quiet space, 1:1 support for ~20 min.', by: 'Reni Tate' })
   demoAddDrill({ houseId: maple.id, type: 'Fire',    evacTime: '2:45', notes: 'All residents evacuated to the front lawn within the target time.', by: 'Priya Nair',   date: dateFor(-3) })
   demoAddDrill({ houseId: oak.id,   type: 'Tornado', evacTime: '1:30', notes: 'Sheltered in the interior hallway; accounted for all residents.',    by: 'Marcus Lewis', date: dateFor(-1) })
