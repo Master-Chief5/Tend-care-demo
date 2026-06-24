@@ -1,0 +1,522 @@
+/* ============================================================================
+   Tend "Hearth" redesign — Phase 0 SHARED SHELL
+   ----------------------------------------------------------------------------
+   Single self-contained foundation for all Phase 0 mockups. Warm cream
+   surfaces, Newsreader serif headings, per-house accent colors. NOT a
+   white/blue Connecteam reskin. Color = STATUS, never decoration.
+
+   HOW TO CONSUME
+   --------------
+   <link rel="stylesheet" href="shell.css">
+   Wrap a screen in .phone (mobile, ~390px) or .desktop (sidebar layout).
+   Use the REAL tokens via var(--a-*) / var(--house-*) for any custom glue —
+   never hard-code hex. Type scale has NOTHING below 12px.
+
+   CLASS REFERENCE (full list returned to builders separately)
+   -----------------------------------------------------------
+   Frames ........ .page  .phone  .phone-screen  .desktop  .desktop-main
+   App bars ...... .appbar  .appbar-title  .appbar-sub  .appbar-actions
+   Surfaces ...... .card  .card--accent  .surface  .panel
+   Headings ...... .serif  .display  .h1 .h2 .h3  .greeting  .greeting-name
+   Sections ...... .section-header  .section-label  .section-action
+   Lists ......... .list  .row  .row-main  .row-title  .row-sub  .row-end  .avatar
+   Status ........ .pill  .pill--good .pill--warn .pill--bad .pill--info .pill--neutral
+                   .pill--house  .badge  .badge--solid  .badge--count
+   Buttons ....... .btn  .btn--primary .btn--accent .btn--secondary .btn--ghost
+                   .btn--sm .btn--lg  .btn--block
+   Stats ......... .stat  .stat-label  .stat-value  .stat-sub  .stat-strip
+   Progress ...... .progress  .progress-fill
+   Inputs ........ .field  .field-label  .field-input  .chip-row  .chip  .chip--active
+   Icons ......... .icon  (inline <svg> 1.5 stroke; helpers .icon--sm .icon--lg)
+   Mobile nav .... .tab-bar  .tab  .tab.is-active  (EXACTLY 5: Home/Schedule/Care/Time/More)
+   Desktop nav ... .sidebar  .sidebar-brand  .nav-group  .nav-group-label
+                   .nav-item  .nav-item.is-active
+   Utilities ..... .serif .mono .tnum  .muted .ink2  .row-gap .col-gap
+                   .accent-sage .accent-clay  .scroll-x
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+/* ===========================================================================
+   1. TOKENS
+   ======================================================================== */
+:root {
+  /* ── Surfaces & ink (warm "Hearth" palette) ── */
+  --a-bg:    #f3ecdd;   /* page background — warm cream */
+  --a-paper: #ebe2cf;   /* sunken / progress track / neutral chip */
+  --a-card:  #fbf6ec;   /* card + panel surface (lightest cream) */
+  --a-ink:   #1d1a14;   /* primary text / primary button fill */
+  --a-ink2:  #4a4438;   /* secondary text / body */
+
+  /* CONTRAST FIX (WCAG AA):
+     original --a-ink3 was #807766 (≈3.4:1 on cream — fails AA for text).
+     Darkened to #6b6253 → ≈4.7:1 on --a-card / ≈4.6:1 on --a-bg → passes AA. */
+  --a-ink3:  #6b6253;   /* muted / captions / labels / inactive nav */
+  --a-line:  #d8ccb1;   /* hairline borders / dividers */
+
+  /* ── Accents (STATUS / brand, not decoration) ── */
+  --a-sage:     #4a6b56; /* primary brand: success, focus, active nav */
+  --a-sage-dim: #6f8a78;
+
+  /* CONTRAST FIX: clay used as text on cream was #b8552f (≈3.6:1 — fails AA).
+     --a-clay keeps the original fill hue; --a-clay-text is the AA-safe text
+     shade (#9c4222 → ≈4.6:1 on cream). Use --a-clay for fills/bars/now-line,
+     --a-clay-text for clay-colored TEXT and small accents. */
+  --a-clay:      #b8552f; /* fills, "now" line, accent button bg */
+  --a-clay-text: #9c4222; /* AA-safe clay text / small emphasis */
+  --a-clay-dim:  #d97a55;
+
+  --a-honey: #d49a3a;
+  --a-plum:  #6c3a55;
+  --a-leaf:  #8aa66c;
+  --a-rose:  #d8a8a0;
+
+  /* ── Per-house identity colors ── */
+  --house-oak:    #d4a64a; /* amber/gold */
+  --house-willow: #2f9489; /* teal */
+  --house-maple:  #cf4f3b; /* red */
+  --house-ash:    #4a6cc7; /* blue */
+  --house-cedar:  #6e4d8f; /* purple */
+  /* Seeded demo houses also map: Maple #4a6b56(sage) Oak #b05c3c(clay) Birch #5a7a9a(blue).
+     Set --house on any container to theme its accent stripe / chips. */
+  --house: var(--a-sage);
+
+  /* ── Status tint pairs (bg / text) ── */
+  --status-good-bg: #dee6df;  --status-good-tc: #3f604d;
+  --status-warn-bg: #f5e9d6;  --status-warn-tc: #8a5e0f; /* darkened slightly for AA */
+  --status-bad-bg:  #fadcd7;  --status-bad-tc:  #a93a25;
+  --status-info-bg: #ebe2cf;  --status-info-tc: #4a4438;
+  --status-good-bd: #9fc0ab;  --status-warn-bd: #e6c98f;  --status-bad-bd: #e0b4ab;
+
+  /* ── Typography ── */
+  --font-sans:  'Geist', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+  --font-mono:  'Geist Mono', ui-monospace, monospace;
+
+  /* Type scale — NOTHING below 12px */
+  --fs-12:   12px;   /* smallest: captions, badge, tab label, pill */
+  --fs-13:   13px;   /* sub-lines, secondary */
+  --fs-14:   14px;   /* body / button md / input */
+  --fs-15:   15px;   /* row titles, button lg */
+  --fs-17:   17px;   /* h3 / app-bar title */
+  --fs-20:   20px;   /* h2 */
+  --fs-24:   24px;   /* h1 / section serif */
+  --fs-28:   28px;   /* stat value */
+  --fs-34:   34px;   /* greeting display */
+  --lh-tight: 1.1;
+  --lh-snug:  1.3;
+  --lh-body:  1.45;
+  --ls-caps:  0.08em; /* uppercase labels */
+
+  /* ── Spacing (observed Hearth rhythm) ── */
+  --sp-2: 2px;  --sp-4: 4px;  --sp-6: 6px;  --sp-8: 8px;
+  --sp-10: 10px; --sp-12: 12px; --sp-14: 14px; --sp-16: 16px;
+  --sp-20: 20px; --sp-24: 24px; --sp-32: 32px;
+
+  /* ── Radius ── */
+  --r-badge: 4px;
+  --r-input: 10px;
+  --r-btn:   12px;
+  --r-card:  14px;
+  --r-pill:  999px;
+
+  /* ── Borders ── */
+  --bd-hair: 1px solid var(--a-line);
+  --bd-accent-w: 3px;
+
+  /* ── Shadows (flat by default; soft lift only for floating chrome) ── */
+  --sh-none: none;
+  --sh-soft: 0 2px 8px rgba(0,0,0,0.06);
+  --sh-pop:  0 6px 20px rgba(0,0,0,0.12);
+  --sh-nav:  0 -2px 12px rgba(29,26,20,0.06);
+
+  /* ── Focus ── */
+  --focus: 2px solid var(--a-sage);
+}
+
+/* ===========================================================================
+   2. RESET / BASE
+   ======================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.serif { font-family: var(--font-serif); font-feature-settings: 'ss01'; }
+.mono  { font-family: var(--font-mono); }
+.tnum  { font-variant-numeric: tabular-nums; }
+
+.muted { color: var(--a-ink3); }
+.ink2  { color: var(--a-ink2); }
+.accent-sage { color: var(--a-sage); }
+.accent-clay { color: var(--a-clay-text); }
+
+:focus-visible { outline: var(--focus); outline-offset: 1px; }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* ===========================================================================
+   3. FRAMES — page, phone, desktop
+   ======================================================================== */
+.page {
+  min-height: 100vh;
+  background: var(--a-bg);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-24);
+}
+
+/* Mobile frame ~390px */
+.phone {
+  position: relative;
+  width: 390px;
+  max-width: 100%;
+  min-height: 844px;
+  background: var(--a-bg);
+  border: var(--bd-hair);
+  border-radius: 36px;
+  box-shadow: var(--sh-pop);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.phone-screen {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 84px; /* clears the fixed .tab-bar */
+}
+
+/* Desktop frame: sidebar + main */
+.desktop {
+  display: grid;
+  grid-template-columns: 244px 1fr;
+  width: 100%;
+  max-width: 1240px;
+  min-height: 760px;
+  background: var(--a-bg);
+  border: var(--bd-hair);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--sh-soft);
+}
+.desktop-main {
+  overflow-y: auto;
+  padding: var(--sp-24) var(--sp-32);
+}
+
+/* APPROVED multi-frame REVIEW wrapper.
+   Most screens render a single .page > .phone (or .desktop). When a mockup
+   needs to show two related frames side by side for review (e.g. Care hub +
+   Resident profile), wrap the frames in .frames. This is an intentional
+   review layout, not a different production artifact. .frame-cap labels each
+   frame; .frame-col stacks a caption above its phone. */
+.frames {
+  display: flex; flex-wrap: wrap; gap: var(--sp-32);
+  align-items: flex-start; justify-content: center;
+}
+.frame-col { display: flex; flex-direction: column; }
+.frame-cap {
+  text-align: center; margin: 0 0 var(--sp-12);
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3);
+}
+
+/* ===========================================================================
+   4. APP BAR (top of a screen)
+   ======================================================================== */
+.appbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-12);
+  padding: var(--sp-16) var(--sp-16) var(--sp-12);
+  background: var(--a-bg);
+}
+.appbar-title {
+  font-size: var(--fs-17);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  margin: 0;
+}
+.appbar-sub {
+  font-size: var(--fs-12);
+  color: var(--a-ink3);
+  margin-top: var(--sp-2);
+}
+.appbar-actions { display: flex; align-items: center; gap: var(--sp-8); }
+
+/* Serif greeting block (Houses / Home screens) */
+.greeting { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-34); font-weight: 400; line-height: var(--lh-tight);
+  letter-spacing: -0.01em; margin: var(--sp-4) 0 0; }
+/* Smaller greeting for dense desktop dashboards (vs default --fs-34 on mobile) */
+.greeting--sm { font-size: var(--fs-28); }
+.greeting-name { color: var(--a-sage); font-style: italic; }
+
+/* ===========================================================================
+   5. HEADINGS
+   ======================================================================== */
+.display { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-34); font-weight: 400; line-height: var(--lh-tight); margin: 0; }
+.h1 { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-24); font-weight: 400; line-height: var(--lh-snug); margin: 0; }
+.h2 { font-size: var(--fs-20); font-weight: 600; line-height: var(--lh-snug); margin: 0; }
+.h3 { font-size: var(--fs-17); font-weight: 600; line-height: var(--lh-snug); margin: 0; }
+
+/* ===========================================================================
+   6. CARDS / SURFACES
+   ======================================================================== */
+.card {
+  background: var(--a-card);
+  border: var(--bd-hair);
+  border-radius: var(--r-card);
+  padding: var(--sp-14) var(--sp-16);
+}
+/* Accent top stripe themed to --house (set on the element or an ancestor) */
+.card--accent { border-top: var(--bd-accent-w) solid var(--house); }
+
+.surface { background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card); }
+.panel   { background: var(--a-paper); border: var(--bd-hair); border-radius: var(--r-card);
+  padding: var(--sp-14) var(--sp-16); }
+
+/* ===========================================================================
+   7. SECTION HEADER
+   ======================================================================== */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: var(--sp-16) var(--sp-16) var(--sp-8);
+}
+.section-label {
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3);
+}
+.section-action {
+  font-size: var(--fs-12); font-weight: 600; color: var(--a-clay-text);
+  background: none; border: 0; padding: 0;
+}
+
+/* ===========================================================================
+   8. LIST ROWS
+   ======================================================================== */
+.list { display: flex; flex-direction: column; }
+.list > .row + .row { border-top: var(--bd-hair); }
+
+.row {
+  display: flex; align-items: center; gap: var(--sp-12);
+  padding: var(--sp-12) var(--sp-16);
+  background: transparent;
+  width: 100%; text-align: left; border: 0;
+}
+.row-main { flex: 1; min-width: 0; }
+.row-title { font-size: var(--fs-15); font-weight: 600; color: var(--a-ink);
+  line-height: var(--lh-snug); }
+.row-sub { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-end { display: flex; align-items: center; gap: var(--sp-8); flex-shrink: 0; }
+
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-sage); color: #fff;
+  font-size: var(--fs-13); font-weight: 600; letter-spacing: 0.02em;
+}
+
+/* ===========================================================================
+   9. STATUS PILLS & BADGES  (color = STATUS, not decoration)
+   ======================================================================== */
+.pill {
+  display: inline-flex; align-items: center; gap: var(--sp-6);
+  font-size: var(--fs-12); font-weight: 500; line-height: 1;
+  padding: var(--sp-6) var(--sp-12); border-radius: var(--r-pill);
+  border: var(--bd-hair); background: transparent; color: var(--a-ink2);
+}
+.pill--good    { background: var(--status-good-bg); color: var(--status-good-tc); border-color: var(--status-good-bd); }
+.pill--warn    { background: var(--status-warn-bg); color: var(--status-warn-tc); border-color: var(--status-warn-bd); }
+.pill--bad     { background: var(--status-bad-bg);  color: var(--status-bad-tc);  border-color: var(--status-bad-bd); }
+.pill--info    { background: var(--status-info-bg); color: var(--status-info-tc); border-color: var(--a-line); }
+.pill--neutral { background: var(--a-paper); color: var(--a-ink2); border-color: var(--a-line); }
+/* House-themed identity chip (decorative identity, not status) */
+.pill--house   { background: transparent; color: var(--house); border-color: var(--house); }
+
+/* Small uppercase badge (e.g. house SHORT code) */
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: var(--fs-12); font-weight: 700; line-height: 1.4;
+  padding: var(--sp-2) var(--sp-8); border-radius: var(--r-badge);
+  background: var(--a-paper); color: var(--a-ink2); letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge--solid { background: var(--house); color: #fff; }
+/* Red alert count badge */
+.badge--count {
+  min-width: 20px; height: 20px; padding: 0 var(--sp-6); justify-content: center;
+  border-radius: var(--r-pill); background: var(--a-clay); color: #fff;
+  font-size: var(--fs-12); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* ===========================================================================
+   10. BUTTONS
+   ======================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-6);
+  font-size: var(--fs-14); font-weight: 600; line-height: var(--lh-tight);
+  padding: var(--sp-10) var(--sp-16); border-radius: var(--r-btn);
+  border: 1px solid transparent; background: transparent; color: var(--a-ink);
+  text-decoration: none; white-space: nowrap;
+}
+.btn--primary   { background: var(--a-ink); color: var(--a-card); }
+.btn--accent    { background: var(--a-clay); color: #fff; }
+.btn--secondary { background: var(--a-card); color: var(--a-ink); border-color: var(--a-line); }
+.btn--ghost     { background: transparent; color: var(--a-ink2); }
+/* House-themed primary (e.g. "Open house") — set --house on the element */
+.btn--house     { background: var(--house); color: #fff; }
+.btn--sm    { font-size: var(--fs-12); padding: var(--sp-6) var(--sp-12); border-radius: var(--r-btn); }
+.btn--lg    { font-size: var(--fs-15); padding: var(--sp-12) var(--sp-20); }
+.btn--block { display: flex; width: 100%; }
+
+/* ===========================================================================
+   11. STATS
+   ======================================================================== */
+.stat { display: flex; flex-direction: column; min-width: 0; }
+.stat-label { font-size: var(--fs-12); font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3); }
+.stat-value { font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-28); font-weight: 400; line-height: var(--lh-tight);
+  color: var(--a-ink); margin-top: var(--sp-4); font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+/* Dashed 3-up strip used on house cards */
+.stat-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-12);
+  padding: var(--sp-12) 0; border-top: 1px dashed var(--a-line);
+  border-bottom: 1px dashed var(--a-line);
+}
+
+/* ===========================================================================
+   12. PROGRESS BAR
+   ======================================================================== */
+.progress {
+  height: 7px; border-radius: var(--r-pill); background: var(--a-paper);
+  overflow: hidden; width: 100%;
+}
+.progress-fill {
+  height: 100%; border-radius: var(--r-pill); background: var(--a-sage);
+  transition: width 0.25s ease;
+}
+
+/* ===========================================================================
+   13. INPUTS / CHIPS
+   ======================================================================== */
+.field { display: flex; flex-direction: column; gap: var(--sp-6); }
+.field-label { font-size: var(--fs-12); color: var(--a-ink3); }
+.field-input {
+  font-family: inherit; font-size: var(--fs-14); color: var(--a-ink);
+  background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-input);
+  padding: var(--sp-10) var(--sp-12); width: 100%;
+}
+.field-input::placeholder { color: var(--a-ink3); }
+
+/* Horizontal selectable chips (branch tabs / filters / section pills) */
+.chip-row { display: flex; gap: var(--sp-8); overflow-x: auto; padding: var(--sp-2) 0; }
+.chip {
+  flex-shrink: 0; font-size: var(--fs-12); font-weight: 600; line-height: 1;
+  padding: var(--sp-8) var(--sp-14); border-radius: var(--r-pill);
+  border: var(--bd-hair); background: transparent; color: var(--a-ink2);
+}
+.chip--active { background: var(--a-ink); color: var(--a-card); border-color: var(--a-ink); }
+
+/* ===========================================================================
+   14. ICONS  (one line-icon convention: inline <svg>, 1.5 stroke; NO emoji)
+   ======================================================================== */
+.icon {
+  display: inline-block; width: 22px; height: 22px; flex-shrink: 0;
+  vertical-align: middle;
+}
+.icon svg, svg.icon { width: 100%; height: 100%; display: block; }
+.icon--sm { width: 16px; height: 16px; }
+.icon--lg { width: 28px; height: 28px; }
+/* Convention for inline SVGs: fill="none" stroke="currentColor"
+   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round".
+   Color inherits via currentColor — set color on the parent. */
+
+/* ===========================================================================
+   15. MOBILE BOTTOM NAV — EXACTLY 5 TABS (Home / Schedule / Care / Time / More)
+   ======================================================================== */
+.tab-bar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-8) var(--sp-20);
+  background: var(--a-card); border-top: var(--bd-hair);
+  box-shadow: var(--sh-nav);
+}
+.tab {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: none; border: 0; padding: var(--sp-6) 0;
+  color: var(--a-ink3); font-size: var(--fs-12); font-weight: 500;
+}
+.tab .icon { width: 24px; height: 24px; }
+.tab.is-active { color: var(--a-sage); }
+.tab.is-active .icon { color: var(--a-sage); }
+
+/* ===========================================================================
+   16. DESKTOP LEFT SIDEBAR — grouped nav
+   ======================================================================== */
+.sidebar {
+  background: var(--a-card); border-right: var(--bd-hair);
+  display: flex; flex-direction: column;
+  padding: var(--sp-20) var(--sp-12);
+  gap: var(--sp-20);
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: var(--sp-8);
+  padding: 0 var(--sp-8) var(--sp-4);
+  font-family: var(--font-serif); font-feature-settings: 'ss01';
+  font-size: var(--fs-20); font-weight: 500; color: var(--a-ink);
+}
+/* Canonical brand chip used in the desktop sidebar lockup (shared by all
+   desktop screens so the "Tend" mark is identical everywhere). */
+.sidebar-brand .brand-mark {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--a-sage); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sidebar-brand .brand-mark .icon { width: 17px; height: 17px; color: #fff; }
+.nav-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+.nav-group-label {
+  font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--ls-caps); color: var(--a-ink3);
+  padding: 0 var(--sp-10) var(--sp-6);
+}
+.nav-item {
+  display: flex; align-items: center; gap: var(--sp-10);
+  padding: var(--sp-8) var(--sp-10); border-radius: var(--r-input);
+  background: none; border: 0; width: 100%; text-align: left;
+  font-size: var(--fs-14); font-weight: 500; color: var(--a-ink2);
+  text-decoration: none;
+}
+.nav-item .icon { width: 20px; height: 20px; color: var(--a-ink3); }
+.nav-item:hover { background: var(--a-paper); }
+.nav-item.is-active {
+  background: var(--a-paper); color: var(--a-ink); font-weight: 600;
+  box-shadow: inset var(--bd-accent-w) 0 0 var(--a-sage);
+}
+.nav-item.is-active .icon { color: var(--a-sage); }
+/* count badge sitting at the end of a nav row */
+.nav-item .badge--count { margin-left: auto; }
+
+/* ===========================================================================
+   17. UTILITIES
+   ======================================================================== */
+.row-gap { display: flex; gap: var(--sp-8); align-items: center; }
+.col-gap { display: flex; flex-direction: column; gap: var(--sp-12); }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.stack-16 > * + * { margin-top: var(--sp-16); }
+.stack-12 > * + * { margin-top: var(--sp-12); }

@@ -1,6 +1,7 @@
 {
   "pkg": "tend-design-system",
   "globalName": "TendDS",
+  "projectId": "66bd1bde-91ba-4002-8586-e508cb632498",
   "shape": "package",
   "buildCmd": "npm run build",
   "cssEntry": "src/styles.css",

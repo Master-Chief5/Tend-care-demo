@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   saveScheduleTemplate, fetchScheduleTemplates, deleteScheduleTemplate,
-  applyShiftsToWeek, fetchShiftsWeek,
+  applyShiftsToWeek, fetchShiftsWeek, publishShiftsWeek,
 } from '../../lib/db'
 import { summarizeWeek, fmtHrs } from '../../lib/scheduleSummary'
 import { dBtnGhost } from './Desktop'
@@ -44,26 +44,47 @@ async function applyTemplateShifts(orgId, weekDates, templateShifts, houses) {
 }
 
 // ── Weekly summary (per-day hours + week totals) ─────────────────────────────
-export function WeekSummary({ shifts, weekDates }) {
+export function WeekSummary({ shifts, weekDates, houses = [] }) {
   const { perDay, total } = summarizeWeek(shifts, weekDates)
   const cell = { textAlign: 'center', padding: '8px 0', borderLeft: '1px solid var(--a-line)' }
+  const houseCount = houses.length
+  const openTotal = (shifts || []).filter(s => s.status === 'open').length
+  // Per-day coverage: distinct houses with at least one NON-open shift that day.
+  const coveredOn = (date) => {
+    const set = new Set()
+    for (const s of (shifts || [])) {
+      if (s.date === date && s.status !== 'open') set.add(s.house)
+    }
+    return set.size
+  }
+  const openOn = (date) => (shifts || []).filter(s => s.date === date && s.status === 'open').length
   return (
     <div style={{ marginTop: 12, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)' }}>
         <div style={{ padding: '8px 14px', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
           Hours / day
         </div>
-        {(perDay || []).map((d, i) => (
-          <div key={i} style={cell}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: d.hours > 0 ? 'var(--a-ink)' : 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>{fmtHrs(d.hours)}</div>
-            <div style={{ fontSize: 9.5, color: 'var(--a-ink3)', marginTop: 1 }}>{d.count} shift{d.count === 1 ? '' : 's'}</div>
-          </div>
-        ))}
+        {(perDay || []).map((d, i) => {
+          const covered = coveredOn(d.date)
+          const open = openOn(d.date)
+          return (
+            <div key={i} style={cell}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: d.hours > 0 ? 'var(--a-ink)' : 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>{fmtHrs(d.hours)}</div>
+              <div style={{ fontSize: 9.5, color: 'var(--a-ink3)', marginTop: 1 }}>{d.count} shift{d.count === 1 ? '' : 's'}</div>
+              {houseCount > 0 && (
+                <div style={{ fontSize: 9.5, marginTop: 1, color: open > 0 ? 'var(--a-clay)' : 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>
+                  {covered}/{houseCount} covered{open > 0 ? ` · ${open} open` : ''}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
       <div style={{ display: 'flex', gap: 22, padding: '10px 16px', borderTop: '1px solid var(--a-line)', background: 'var(--a-paper)', fontSize: 12 }}>
         <span style={{ color: 'var(--a-ink2)' }}>Week total: <strong style={{ color: 'var(--a-ink)', fontVariantNumeric: 'tabular-nums' }}>{fmtHrs(total.hours)} hrs</strong></span>
         <span style={{ color: 'var(--a-ink2)' }}><strong style={{ color: 'var(--a-ink)' }}>{total.shifts}</strong> shifts</span>
         <span style={{ color: 'var(--a-ink2)' }}><strong style={{ color: 'var(--a-ink)' }}>{total.staff}</strong> staff scheduled</span>
+        <span style={{ color: openTotal > 0 ? 'var(--a-clay)' : 'var(--a-ink2)', fontWeight: openTotal > 0 ? 700 : 400 }}><strong style={{ color: openTotal > 0 ? 'var(--a-clay)' : 'var(--a-ink)' }}>{openTotal}</strong> open</span>
       </div>
     </div>
   )
@@ -140,13 +161,35 @@ export function ScheduleWeekTools({ user, houses, weekDates, shifts, onChanged }
     loadTemplates()
   }
 
+  // Draft/Published: the week is "Published" once every non-open shift carries a
+  // published_at; any unpublished non-open shift makes it a Draft.
+  const nonOpen = (shifts || []).filter(s => s.status !== 'open')
+  const allPublished = nonOpen.length > 0 && nonOpen.every(s => s.publishedAt)
+  const publishWeek = async () => {
+    if (!orgId || busy || !nonOpen.length) return
+    setBusy('publish')
+    try {
+      const n = await publishShiftsWeek(orgId, { houseId: houseScope, weekStart: weekDates[0], weekEnd: weekDates[6] })
+      flash(`Published ${n} shift${n === 1 ? '' : 's'}.`)
+      onChanged?.()
+    } catch { flash('Could not publish the week.') }
+    setBusy('')
+  }
+
   const btn = { ...dBtnGhost, padding: '7px 12px', fontSize: 12 }
+  const pill = { fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: '1px solid' }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
       {toast && (
         <span style={{ fontSize: 11.5, color: 'var(--a-sage)', fontWeight: 600, marginRight: 4 }}>{toast}</span>
       )}
+      {nonOpen.length > 0 && (
+        allPublished
+          ? <span style={{ ...pill, color: 'var(--a-sage)', borderColor: 'var(--a-sage)', background: 'rgba(74,107,86,0.08)' }}>Published ✓</span>
+          : <span style={{ ...pill, color: 'var(--a-clay)', borderColor: '#e3b6ad', background: 'rgba(176,92,60,0.08)' }}>Draft</span>
+      )}
+      <button onClick={publishWeek} disabled={!!busy || !nonOpen.length || allPublished} style={btn}>{busy === 'publish' ? 'Publishing…' : 'Publish week'}</button>
       <button onClick={copyLastWeek} disabled={!!busy} style={btn}>{busy === 'copy' ? 'Copying…' : 'Copy last week'}</button>
       <button onClick={saveTemplate} disabled={!!busy} style={btn}>{busy === 'save' ? 'Saving…' : 'Save as template'}</button>
       <div ref={menuRef} style={{ position: 'relative' }}>

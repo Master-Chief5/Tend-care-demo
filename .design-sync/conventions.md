@@ -42,7 +42,9 @@ the same tokens via `var(--token)`:
 **Theme to a house** by passing a `var(--house-*)` value to a component's color
 prop: `accent` (Card), `accentColor` (Button), `color` (ProgressBar, Avatar),
 `activeColor` (Pill), `actionColor` (SectionHeader). `Badge` and `Banner` take a
-semantic `tone` (`good` / `warn` / `bad` / `neutral` / `solid` / `info`) instead.
+semantic `tone` instead — note the sets differ: `Badge` is
+`neutral` / `good` / `warn` / `bad` / `solid`; `Banner` is
+`good` / `warn` / `bad` / `info`.
 
 **Typography**: body is **Geist**; headings/serif use **Newsreader** via the
 `.serif` helper class; tabular numbers via `.tnum`.

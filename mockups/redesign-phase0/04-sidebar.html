@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tend — Grouped desktop sidebar + shell</title>
+<link rel="stylesheet" href="./shell.css">
+<style>
+  /* ── Mockup-local glue only (NO token redefinition) ── */
+  .page { align-items: flex-start; }
+
+  /* Sidebar fine-tuning specific to this screen
+     (.brand-mark now lives in shell.css, shared across desktop screens) */
+  .sidebar-scroll { flex: 1; display: flex; flex-direction: column; gap: var(--sp-20);
+    overflow-y: auto; }
+
+  /* Persona footer pinned to the bottom of the sidebar */
+  .sidebar-user {
+    display: flex; align-items: center; gap: var(--sp-10);
+    margin-top: auto; padding: var(--sp-10);
+    border-top: var(--bd-hair);
+  }
+  .sidebar-user .avatar { width: 32px; height: 32px; font-size: var(--fs-12);
+    background: var(--a-clay); }
+  .sidebar-user-main { min-width: 0; line-height: var(--lh-snug); }
+  .sidebar-user-name { font-size: var(--fs-13); font-weight: 600; color: var(--a-ink); }
+  .sidebar-user-role { font-size: var(--fs-12); color: var(--a-ink3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Desktop top bar inside main */
+  .main-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--sp-16); margin-bottom: var(--sp-20);
+  }
+  .main-bar-search {
+    display: flex; align-items: center; gap: var(--sp-8);
+    background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-input);
+    padding: var(--sp-8) var(--sp-12); min-width: 280px; color: var(--a-ink3);
+  }
+  .main-bar-search .icon { width: 18px; height: 18px; }
+  .main-bar-search input {
+    border: 0; background: transparent; font-family: inherit;
+    font-size: var(--fs-14); color: var(--a-ink); width: 100%; outline: none;
+  }
+  .main-bar-search input::placeholder { color: var(--a-ink3); }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: var(--r-input);
+    background: var(--a-card); border: var(--bd-hair); color: var(--a-ink2);
+    position: relative;
+  }
+  .icon-btn .icon { width: 20px; height: 20px; }
+  .icon-btn .badge--count {
+    position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px;
+  }
+
+  /* KPI grid */
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: var(--sp-16); margin-bottom: var(--sp-20);
+  }
+  .kpi-card { position: relative; }
+  .kpi-top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .kpi-icon {
+    width: 34px; height: 34px; border-radius: var(--r-input);
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--a-paper); color: var(--a-ink2); flex-shrink: 0;
+  }
+  .kpi-icon .icon { width: 19px; height: 19px; }
+  .kpi-delta { font-size: var(--fs-12); font-weight: 600; }
+  .kpi-delta.up { color: var(--status-good-tc); }
+  .kpi-delta.down { color: var(--status-bad-tc); }
+
+  /* Two-column content region */
+  .content-cols {
+    display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--sp-20);
+    align-items: start;
+  }
+  .attn-row { display: flex; align-items: center; gap: var(--sp-12);
+    padding: var(--sp-12) var(--sp-16); }
+  .attn-row + .attn-row { border-top: var(--bd-hair); }
+  .attn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--house, var(--a-sage)); }
+
+  /* House chips legend */
+  .house-line { display: flex; align-items: center; gap: var(--sp-10);
+    padding: var(--sp-10) var(--sp-16); }
+  .house-line + .house-line { border-top: var(--bd-hair); }
+  .house-swatch { width: 10px; height: 28px; border-radius: 3px; flex-shrink: 0;
+    background: var(--house); }
+  .house-line-main { flex: 1; min-width: 0; }
+  .progress.tall { height: 6px; margin-top: 6px; }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .content-cols { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="desktop" role="application" aria-label="Tend desktop shell">
+
+    <!-- ====================================================================
+         GROUPED LEFT SIDEBAR
+         IA mirrors the 5-tab mobile nav (Home · Schedule · Care · Time · More),
+         expanded for desktop into three labelled groups.
+         ================================================================= -->
+    <nav class="sidebar" aria-label="Primary">
+      <div class="sidebar-brand">
+        <span class="brand-mark">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </span>
+        <span>Tend</span>
+      </div>
+
+      <div class="sidebar-scroll">
+
+        <!-- GROUP: OVERVIEW  (≈ mobile Home / Schedule / Time) -->
+        <div class="nav-group" role="group" aria-labelledby="grp-overview">
+          <div class="nav-group-label" id="grp-overview">Overview</div>
+
+          <a href="#" class="nav-item is-active" aria-current="page">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+            <span>Home</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+            <span>Schedule</span>
+            <span class="badge--count" aria-label="1 open shift">1</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></span>
+            <span>Time</span>
+          </a>
+        </div>
+
+        <!-- GROUP: CARE  (≈ mobile Care hub, broken into resident-facing modules) -->
+        <div class="nav-group" role="group" aria-labelledby="grp-care">
+          <div class="nav-group-label" id="grp-care">Care</div>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span>Residents</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+            <span>Meds</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+            <span>Health</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
+            <span>Incidents</span>
+            <span class="badge--count" aria-label="2 open incidents">2</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <span>Documents</span>
+          </a>
+        </div>
+
+        <!-- GROUP: ORG  (≈ mobile More) -->
+        <div class="nav-group" role="group" aria-labelledby="grp-org">
+          <div class="nav-group-label" id="grp-org">Org</div>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span>Staff</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+            <span>Houses</span>
+          </a>
+
+          <a href="#" class="nav-item">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span>Settings</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Persona footer (the live "PREVIEW AS" supervisor) -->
+      <div class="sidebar-user">
+        <span class="avatar" aria-hidden="true">LR</span>
+        <div class="sidebar-user-main">
+          <div class="sidebar-user-name">Lina R.</div>
+          <div class="sidebar-user-role">Supervisor · 3 houses</div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ====================================================================
+         MAIN CONTENT — KPI dashboard placeholder (so the grouping reads in context)
+         ================================================================= -->
+    <main class="desktop-main" aria-label="Home overview">
+
+      <div class="main-bar">
+        <div>
+          <p class="appbar-sub" style="margin:0">Tuesday, June 24</p>
+          <h1 class="greeting greeting--sm">Good morning, <span class="greeting-name">Lina</span></h1>
+        </div>
+        <div class="row-gap" style="gap:var(--sp-10)">
+          <div class="main-bar-search">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+            <input type="text" placeholder="Search residents, staff, houses…" aria-label="Search">
+          </div>
+          <button class="icon-btn" aria-label="Notifications, 3 unread">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+            <span class="badge--count" aria-hidden="true">3</span>
+          </button>
+          <button class="btn btn--primary">
+            <span class="icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            New shift
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <section class="kpi-grid" aria-label="Today at a glance">
+        <div class="card kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-icon"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span>
+            <span class="kpi-delta up">+1</span>
+          </div>
+          <div class="stat" style="margin-top:var(--sp-10)">
+            <span class="stat-label">Staff on shift</span>
+            <span class="stat-value tnum">7<span class="muted" style="font-size:var(--fs-17)"> / 8</span></span>
+            <span class="stat-sub">1 open overnight at Oak</span>
+          </div>
+        </div>
+
+        <div class="card kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-icon"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span></span>
+          </div>
+          <div class="stat" style="margin-top:var(--sp-10)">
+            <span class="stat-label">Residents in</span>
+            <span class="stat-value tnum">5<span class="muted" style="font-size:var(--fs-17)"> / 6</span></span>
+            <span class="stat-sub">Maria G. at appointment</span>
+          </div>
+        </div>
+
+        <div class="card kpi-card">
+          <div class="kpi-top">
+            <span class="kpi-icon"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span></span>
+          </div>
+          <div class="stat" style="margin-top:var(--sp-10)">
+            <span class="stat-label">Med pass · today</span>
+            <span class="stat-value tnum">82<span class="muted" style="font-size:var(--fs-17)">%</span></span>
+            <div class="progress tall" aria-hidden="true"><div class="progress-fill" style="width:82%"></div></div>
+          </div>
+        </div>
+
+        <div class="card kpi-card" style="--house: var(--a-clay)">
+          <div class="kpi-top">
+            <span class="kpi-icon" style="background:var(--status-bad-bg); color:var(--status-bad-tc)"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span></span>
+            <span class="kpi-delta down">needs review</span>
+          </div>
+          <div class="stat" style="margin-top:var(--sp-10)">
+            <span class="stat-label">Open incidents</span>
+            <span class="stat-value tnum">2</span>
+            <span class="stat-sub">Maple fall · Oak behavioral</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Two-column lower region -->
+      <div class="content-cols">
+
+        <!-- LEFT: Needs attention -->
+        <section class="surface" aria-labelledby="attn-h">
+          <div class="section-header" style="margin-top:var(--sp-12)">
+            <span class="section-label" id="attn-h">Needs attention</span>
+            <button class="section-action">View all</button>
+          </div>
+          <div class="list" role="list">
+            <div class="attn-row" role="listitem" style="--house: var(--a-sage)">
+              <span class="attn-dot"></span>
+              <div class="row-main">
+                <div class="row-title">Fall incident — Robert Hayes</div>
+                <div class="row-sub">Maple House · logged by Aisha Mendez · minor</div>
+              </div>
+              <span class="pill pill--warn">Review</span>
+            </div>
+            <div class="attn-row" role="listitem" style="--house: #b05c3c">
+              <span class="attn-dot"></span>
+              <div class="row-main">
+                <div class="row-title">Overnight DSP shift unfilled</div>
+                <div class="row-sub">Oak House · 23:00–07:00 · Awake OT</div>
+              </div>
+              <span class="pill pill--bad">Open</span>
+            </div>
+            <div class="attn-row" role="listitem" style="--house: #b05c3c">
+              <span class="attn-dot"></span>
+              <div class="row-main">
+                <div class="row-title">Behavioral incident — James Whitaker</div>
+                <div class="row-sub">Oak House · logged by Reni Tate · moderate</div>
+              </div>
+              <span class="pill pill--warn">Review</span>
+            </div>
+            <div class="attn-row" role="listitem" style="--house: #5a7a9a">
+              <span class="attn-dot"></span>
+              <div class="row-main">
+                <div class="row-title">Fire drill due this week</div>
+                <div class="row-sub">Birch House · last completed 28 days ago</div>
+              </div>
+              <span class="pill pill--info">Schedule</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Houses rollup -->
+        <section class="surface" aria-labelledby="houses-h">
+          <div class="section-header" style="margin-top:var(--sp-12)">
+            <span class="section-label" id="houses-h">Houses</span>
+            <button class="section-action">Open</button>
+          </div>
+          <div class="list" role="list">
+            <div class="house-line" role="listitem" style="--house: #4a6b56">
+              <span class="house-swatch"></span>
+              <div class="house-line-main">
+                <div class="row-gap" style="justify-content:space-between">
+                  <span class="row-title">Maple House</span>
+                  <span class="badge badge--solid">MAP</span>
+                </div>
+                <div class="row-sub">3 on shift · 2 residents · med pass 90%</div>
+                <div class="progress tall" aria-hidden="true"><div class="progress-fill" style="width:90%; background:#4a6b56"></div></div>
+              </div>
+            </div>
+            <div class="house-line" role="listitem" style="--house: #b05c3c">
+              <span class="house-swatch"></span>
+              <div class="house-line-main">
+                <div class="row-gap" style="justify-content:space-between">
+                  <span class="row-title">Oak House</span>
+                  <span class="row-gap">
+                    <span class="badge--count" aria-label="1 alert">1</span>
+                    <span class="badge badge--solid">OAK</span>
+                  </span>
+                </div>
+                <div class="row-sub">2 on shift · 2 residents · coverage gap</div>
+                <div class="progress tall" aria-hidden="true"><div class="progress-fill" style="width:74%; background:#b05c3c"></div></div>
+              </div>
+            </div>
+            <div class="house-line" role="listitem" style="--house: #5a7a9a">
+              <span class="house-swatch"></span>
+              <div class="house-line-main">
+                <div class="row-gap" style="justify-content:space-between">
+                  <span class="row-title">Birch House</span>
+                  <span class="badge badge--solid">BIR</span>
+                </div>
+                <div class="row-sub">2 on shift · 2 residents · med pass 81%</div>
+                <div class="progress tall" aria-hidden="true"><div class="progress-fill" style="width:81%; background:#5a7a9a"></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

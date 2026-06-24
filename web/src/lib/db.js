@@ -55,6 +55,7 @@ export async function fetchShifts(orgId, houseId, date) {
     role:   s.role,
     note:   s.note ?? null,
     status: s.status,
+    publishedAt: s.published_at ?? null,
   }))
 }
 
@@ -88,6 +89,7 @@ export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
     role:   s.role,
     note:   s.note ?? null,
     status: s.status,
+    publishedAt: s.published_at ?? null,
   }))
 }
 
@@ -108,6 +110,7 @@ export async function addShift(orgId, houseId, shift) {
       shift_date:  shift.date || toDateStr(new Date()),
       note:        shift.note || null,
       status:      'scheduled',
+      published_at: shift.publishedAt ?? null,
     })
     .select()
     .single()
@@ -127,6 +130,7 @@ export async function updateShift(id, updates) {
   if (updates.date !== undefined)       patch.shift_date = updates.date
   if (updates.note !== undefined)       patch.note = updates.note || null
   if (updates.status !== undefined)     patch.status = updates.status
+  if (updates.publishedAt !== undefined) patch.published_at = updates.publishedAt
   const { data, error } = await supabase.from('shifts').update(patch).eq('id', id).select().single()
   if (error) { console.error('updateShift:', error.message); return null }
   return data
@@ -137,6 +141,42 @@ export async function deleteShift(id) {
   if (!supabase) return
   const { error } = await supabase.from('shifts').delete().eq('id', id)
   if (error) console.error('deleteShift:', error.message)
+}
+
+// Publish a week: stamp published_at = now on every non-open shift in the
+// week/house scope. Returns the count published.
+export async function publishShiftsWeek(orgId, { houseId = null, weekStart, weekEnd } = {}) {
+  if (isDemoMode) return demo.demoPublishShiftsWeek(orgId, { houseId, weekStart, weekEnd })
+  if (!supabase || !orgId) return 0
+  let q = supabase
+    .from('shifts')
+    .update({ published_at: new Date().toISOString() })
+    .eq('org_id', orgId)
+    .neq('status', 'open')
+    .gte('shift_date', toDateStr(weekStart))
+    .lte('shift_date', toDateStr(weekEnd))
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q.select('id')
+  if (error) { console.error('publishShiftsWeek:', error.message); return 0 }
+  return (data || []).length
+}
+
+// Claim an open shift: assign the staffer and flip status to 'scheduled'.
+// Returns the updated shift.
+export async function claimShift(shiftId, { staffId, staffName } = {}) {
+  if (isDemoMode) return demo.demoClaimShift(shiftId, { staffId, staffName })
+  return updateShift(shiftId, { staffId, personName: staffName, status: 'scheduled' })
+}
+
+// Count of open (unfilled) shifts in scope, for the schedule nav badge.
+export async function countOpenShifts(orgId, { houseId = null } = {}) {
+  if (isDemoMode) return demo.demoCountOpenShifts(orgId, { houseId })
+  if (!supabase || !orgId) return 0
+  let q = supabase.from('shifts').select('*', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'open')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { count, error } = await q
+  if (error) { console.error('countOpenShifts:', error.message); return 0 }
+  return count || 0
 }
 
 // ── Shared house items (cross-role to-do log) ────────────────────────────────
@@ -1752,6 +1792,391 @@ export async function countUnreadAnnouncements(orgId, { houseId = null, staffId 
   if (isDemoMode) return demo.demoCountUnreadAnnouncements(orgId, { houseId, staffId, role })
   const rows = await fetchAnnouncements(orgId, { houseId, staffId, role })
   return rows.filter(r => !r._read).length
+}
+
+// ── Knowledge base / Handbook ────────────────────────────────────────────────
+// A searchable SOP / policy / house-binder library. Returned sorted pinned-first
+// then newest. house_id null = org-wide; RLS scopes by house + role.
+export async function fetchKbArticles(orgId, { houseId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoFetchKbArticles(orgId, { houseId, role })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('kb_articles').select('*').eq('org_id', orgId)
+    .order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(200)
+  if (error) { console.error('fetchKbArticles:', error.message); return [] }
+  return data || []
+}
+
+export async function createKbArticle(orgId, { houseId, category, title, body, pinned, updatedByName } = {}) {
+  if (isDemoMode) return demo.demoCreateKbArticle(orgId, { houseId, category, title, body, pinned, updatedByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('kb_articles').insert({
+    org_id: orgId, house_id: houseId || null, category: category || null,
+    title: title || '', body: body || '', pinned: !!pinned, updated_by_name: updatedByName || null,
+  }).select().single()
+  if (error) { console.error('createKbArticle:', error.message); return null }
+  return data
+}
+
+export async function updateKbArticle(id, { category, title, body, pinned } = {}) {
+  if (isDemoMode) return demo.demoUpdateKbArticle(id, { category, title, body, pinned })
+  if (!supabase || !id) return null
+  const patch = { updated_at: new Date().toISOString() }
+  if (category !== undefined) patch.category = category
+  if (title !== undefined) patch.title = title
+  if (body !== undefined) patch.body = body
+  if (pinned !== undefined) patch.pinned = pinned
+  const { data, error } = await supabase.from('kb_articles').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateKbArticle:', error.message); return null }
+  return data
+}
+
+export async function deleteKbArticle(id) {
+  if (isDemoMode) return demo.demoDeleteKbArticle(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('kb_articles').delete().eq('id', id)
+  if (error) { console.error('deleteKbArticle:', error.message); return false }
+  return true
+}
+
+// ── Events / sign-ups ────────────────────────────────────────────────────────
+// Dated trainings / house meetings / appointments with RSVP + capacity. Rows are
+// returned AUGMENTED: _goingCount (int), _myRsvp ('going'|'declined'|null),
+// _spotsLeft (int|null). Upcoming sorted soonest-first; past/archived newest-first.
+export async function fetchEvents(orgId, { houseId = null, role = null, staffId = null, includeArchived = false } = {}) {
+  if (isDemoMode) return demo.demoFetchEvents(orgId, { houseId, role, staffId, includeArchived })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('events').select('*').eq('org_id', orgId)
+    .order('event_at', { ascending: !includeArchived }).limit(200)
+  if (error) { console.error('fetchEvents:', error.message); return [] }
+  const nowMs = Date.now()
+  const rows = (data || []).filter(e => {
+    const past = e.event_at ? new Date(e.event_at).getTime() < nowMs : false
+    return includeArchived ? (past || e.status === 'archived') : (e.status === 'active' && !past)
+  })
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+  const going = {}, mine = {}
+  try {
+    const { data: rsvps, error: rErr } = await supabase
+      .from('event_rsvps').select('event_id, staff_id, status').in('event_id', ids)
+    if (rErr) throw rErr
+    for (const r of (rsvps || [])) {
+      if (r.status === 'going') going[r.event_id] = (going[r.event_id] || 0) + 1
+      if (staffId && r.staff_id === staffId) mine[r.event_id] = r.status
+    }
+  } catch (e) { console.error('fetchEvents rsvps:', e.message) }
+  return rows.map(e => ({
+    ...e,
+    _goingCount: going[e.id] || 0,
+    _myRsvp: mine[e.id] ?? null,
+    _spotsLeft: e.capacity != null ? Math.max(0, e.capacity - (going[e.id] || 0)) : null,
+  }))
+}
+
+export async function createEvent(orgId, { houseId, title, kind, eventAt, location, capacity, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateEvent(orgId, { houseId, title, kind, eventAt, location, capacity, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('events').insert({
+    org_id: orgId, house_id: houseId || null, title: title || '', kind: kind || 'meeting',
+    event_at: eventAt || null, location: location || null,
+    capacity: capacity != null ? capacity : null, created_by_name: createdByName || null, status: 'active',
+  }).select().single()
+  if (error) { console.error('createEvent:', error.message); return null }
+  return { ...data, _goingCount: 0, _myRsvp: null, _spotsLeft: data.capacity != null ? data.capacity : null }
+}
+
+export async function rsvpEvent(orgId, { eventId, staffId, staffName, status } = {}) {
+  if (isDemoMode) return demo.demoRsvpEvent(orgId, { eventId, staffId, staffName, status })
+  if (!supabase || !orgId || !eventId) return false
+  const { error } = await supabase.from('event_rsvps').upsert(
+    { org_id: orgId, event_id: eventId, staff_id: staffId || null, staff_name: staffName || null, status },
+    { onConflict: 'event_id,staff_id' })
+  if (error) { console.error('rsvpEvent:', error.message); return false }
+  return true
+}
+
+export async function archiveEvent(id) {
+  if (isDemoMode) return demo.demoArchiveEvent(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('events').update({ status: 'archived' }).eq('id', id)
+  if (error) { console.error('archiveEvent:', error.message); return false }
+  return true
+}
+
+export async function deleteEvent(id) {
+  if (isDemoMode) return demo.demoDeleteEvent(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('events').delete().eq('id', id)
+  if (error) { console.error('deleteEvent:', error.message); return false }
+  return true
+}
+
+export async function countMyUpcomingEvents(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  if (isDemoMode) return demo.demoCountMyUpcomingEvents(orgId, { houseId, role, staffId })
+  const rows = await fetchEvents(orgId, { houseId, role, staffId })
+  return rows.filter(e => e._myRsvp === 'going').length
+}
+
+// ── Forms (no-code form templates + submissions) ─────────────────────────────
+// Templates are org-wide (house_id null) or house-scoped; everyone reads/submits,
+// supervisors/managers build & review. RLS scopes by house + role.
+export async function fetchFormTemplates(orgId, { houseId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoFetchFormTemplates(orgId, { houseId, role })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('form_templates').select('*').eq('org_id', orgId)
+    .order('created_at', { ascending: false }).limit(200)
+  if (error) { console.error('fetchFormTemplates:', error.message); return [] }
+  return data || []
+}
+
+export async function createFormTemplate(orgId, { houseId, name, description, fields, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateFormTemplate(orgId, { houseId, name, description, fields, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('form_templates').insert({
+    org_id: orgId, house_id: houseId || null, name: name || '', description: description || '',
+    fields: Array.isArray(fields) ? fields : [], created_by_name: createdByName || null,
+  }).select().single()
+  if (error) { console.error('createFormTemplate:', error.message); return null }
+  return data
+}
+
+export async function deleteFormTemplate(id) {
+  if (isDemoMode) return demo.demoDeleteFormTemplate(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('form_templates').delete().eq('id', id)
+  if (error) { console.error('deleteFormTemplate:', error.message); return false }
+  return true
+}
+
+export async function fetchFormSubmissions(orgId, { templateId = null, houseId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchFormSubmissions(orgId, { templateId, houseId })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('form_submissions').select('*').eq('org_id', orgId)
+  if (templateId) q = q.eq('template_id', templateId)
+  const { data, error } = await q.order('submitted_at', { ascending: false }).limit(300)
+  if (error) { console.error('fetchFormSubmissions:', error.message); return [] }
+  return data || []
+}
+
+export async function submitForm(orgId, { templateId, houseId, answers, submittedByName } = {}) {
+  if (isDemoMode) return demo.demoSubmitForm(orgId, { templateId, houseId, answers, submittedByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('form_submissions').insert({
+    org_id: orgId, house_id: houseId || null, template_id: templateId || null,
+    answers: answers && typeof answers === 'object' ? answers : {},
+    submitted_by_name: submittedByName || null, status: 'open',
+  }).select().single()
+  if (error) { console.error('submitForm:', error.message); return null }
+  return data
+}
+
+export async function reviewFormSubmission(id, { reviewedByName } = {}) {
+  if (isDemoMode) return demo.demoReviewFormSubmission(id, { reviewedByName })
+  if (!supabase || !id) return null
+  const { data, error } = await supabase.from('form_submissions')
+    .update({ status: 'reviewed', reviewed_by_name: reviewedByName || null })
+    .eq('id', id).select().single()
+  if (error) { console.error('reviewFormSubmission:', error.message); return null }
+  return data
+}
+
+// ── Surveys (staff pulse / training feedback) ────────────────────────────────
+// Org-wide or house-scoped. Returned AUGMENTED: _responseCount (int),
+// _myResponded (bool). RLS scopes by house + role; responses org-readable.
+export async function fetchSurveys(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchSurveys(orgId, { houseId, role, staffId })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('surveys').select('*').eq('org_id', orgId)
+    .order('created_at', { ascending: false }).limit(200)
+  if (error) { console.error('fetchSurveys:', error.message); return [] }
+  const rows = data || []
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+  const count = {}, mine = {}
+  try {
+    const { data: resps, error: rErr } = await supabase
+      .from('survey_responses').select('survey_id, staff_id').in('survey_id', ids)
+    if (rErr) throw rErr
+    for (const r of (resps || [])) {
+      count[r.survey_id] = (count[r.survey_id] || 0) + 1
+      if (staffId && r.staff_id === staffId) mine[r.survey_id] = true
+    }
+  } catch (e) { console.error('fetchSurveys responses:', e.message) }
+  return rows.map(s => ({ ...s, _responseCount: count[s.id] || 0, _myResponded: !!mine[s.id] }))
+}
+
+export async function createSurvey(orgId, { houseId, title, questions, anonymous, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateSurvey(orgId, { houseId, title, questions, anonymous, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('surveys').insert({
+    org_id: orgId, house_id: houseId || null, title: title || '',
+    questions: Array.isArray(questions) ? questions : [], anonymous: !!anonymous,
+    created_by_name: createdByName || null, status: 'active',
+  }).select().single()
+  if (error) { console.error('createSurvey:', error.message); return null }
+  return { ...data, _responseCount: 0, _myResponded: false }
+}
+
+export async function submitSurveyResponse(orgId, { surveyId, staffId, answers } = {}) {
+  if (isDemoMode) return demo.demoSubmitSurveyResponse(orgId, { surveyId, staffId, answers })
+  if (!supabase || !orgId || !surveyId) return false
+  const { error } = await supabase.from('survey_responses').upsert(
+    { org_id: orgId, survey_id: surveyId, staff_id: staffId || null,
+      answers: answers && typeof answers === 'object' ? answers : {} },
+    { onConflict: 'survey_id,staff_id' })
+  if (error) { console.error('submitSurveyResponse:', error.message); return false }
+  return true
+}
+
+export async function closeSurvey(id) {
+  if (isDemoMode) return demo.demoCloseSurvey(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('surveys').update({ status: 'closed' }).eq('id', id)
+  if (error) { console.error('closeSurvey:', error.message); return false }
+  return true
+}
+
+export async function deleteSurvey(id) {
+  if (isDemoMode) return demo.demoDeleteSurvey(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('surveys').delete().eq('id', id)
+  if (error) { console.error('deleteSurvey:', error.message); return false }
+  return true
+}
+
+// ── Quick tasks (assignable one-off tasks with due dates) ────────────────────
+export async function fetchQuickTasks(orgId, { houseId = null, assignedStaffId = null, status = null } = {}) {
+  if (isDemoMode) return demo.demoFetchQuickTasks(orgId, { houseId, assignedStaffId, status })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('quick_tasks').select('*').eq('org_id', orgId)
+  if (assignedStaffId) q = q.eq('assigned_staff_id', assignedStaffId)
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q.order('due_at', { ascending: true }).limit(300)
+  if (error) { console.error('fetchQuickTasks:', error.message); return [] }
+  return data || []
+}
+
+export async function createQuickTask(orgId, { houseId, title, notes, assignedStaffId, assignedName, dueAt, createdByName } = {}) {
+  if (isDemoMode) return demo.demoCreateQuickTask(orgId, { houseId, title, notes, assignedStaffId, assignedName, dueAt, createdByName })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('quick_tasks').insert({
+    org_id: orgId, house_id: houseId || null, title: title || '', notes: notes || null,
+    assigned_staff_id: assignedStaffId || null, assigned_name: assignedName || null,
+    due_at: dueAt || null, status: 'open', created_by_name: createdByName || null,
+  }).select().single()
+  if (error) { console.error('createQuickTask:', error.message); return null }
+  return data
+}
+
+export async function completeQuickTask(id, doneByName) {
+  if (isDemoMode) return demo.demoCompleteQuickTask(id, doneByName)
+  if (!supabase || !id) return null
+  const { data, error } = await supabase.from('quick_tasks')
+    .update({ status: 'done', done_at: new Date().toISOString(), done_by_name: doneByName || null })
+    .eq('id', id).select().single()
+  if (error) { console.error('completeQuickTask:', error.message); return null }
+  return data
+}
+
+export async function reopenQuickTask(id) {
+  if (isDemoMode) return demo.demoReopenQuickTask(id)
+  if (!supabase || !id) return null
+  const { data, error } = await supabase.from('quick_tasks')
+    .update({ status: 'open', done_at: null, done_by_name: null })
+    .eq('id', id).select().single()
+  if (error) { console.error('reopenQuickTask:', error.message); return null }
+  return data
+}
+
+export async function deleteQuickTask(id) {
+  if (isDemoMode) return demo.demoDeleteQuickTask(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('quick_tasks').delete().eq('id', id)
+  if (error) { console.error('deleteQuickTask:', error.message); return false }
+  return true
+}
+
+// ── Directory (external contacts) ────────────────────────────────────────────
+export async function fetchContacts(orgId, { houseId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoFetchContacts(orgId, { houseId, role })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('contacts').select('*').eq('org_id', orgId)
+    .order('name', { ascending: true }).limit(500)
+  if (error) { console.error('fetchContacts:', error.message); return [] }
+  return data || []
+}
+
+export async function createContact(orgId, { houseId, name, kind, orgName, phone, email, notes } = {}) {
+  if (isDemoMode) return demo.demoCreateContact(orgId, { houseId, name, kind, orgName, phone, email, notes })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('contacts').insert({
+    org_id: orgId, house_id: houseId || null, name: name || '', kind: kind || 'other',
+    org_name: orgName || null, phone: phone || null, email: email || null, notes: notes || null,
+  }).select().single()
+  if (error) { console.error('createContact:', error.message); return null }
+  return data
+}
+
+export async function updateContact(id, { name, kind, orgName, phone, email, notes } = {}) {
+  if (isDemoMode) return demo.demoUpdateContact(id, { name, kind, orgName, phone, email, notes })
+  if (!supabase || !id) return null
+  const patch = {}
+  if (name !== undefined)    patch.name = name
+  if (kind !== undefined)    patch.kind = kind
+  if (orgName !== undefined) patch.org_name = orgName
+  if (phone !== undefined)   patch.phone = phone
+  if (email !== undefined)   patch.email = email
+  if (notes !== undefined)   patch.notes = notes
+  const { data, error } = await supabase.from('contacts').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateContact:', error.message); return null }
+  return data
+}
+
+export async function deleteContact(id) {
+  if (isDemoMode) return demo.demoDeleteContact(id)
+  if (!supabase || !id) return false
+  const { error } = await supabase.from('contacts').delete().eq('id', id)
+  if (error) { console.error('deleteContact:', error.message); return false }
+  return true
+}
+
+// ── Help Desk (internal ticketing) ───────────────────────────────────────────
+export async function fetchTickets(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchTickets(orgId, { houseId, role, staffId })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('tickets').select('*').eq('org_id', orgId)
+    .order('created_at', { ascending: false }).limit(300)
+  if (error) { console.error('fetchTickets:', error.message); return [] }
+  return data || []
+}
+
+export async function createTicket(orgId, { houseId, topic, subject, body, priority, createdByName, createdByStaffId } = {}) {
+  if (isDemoMode) return demo.demoCreateTicket(orgId, { houseId, topic, subject, body, priority, createdByName, createdByStaffId })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('tickets').insert({
+    org_id: orgId, house_id: houseId || null, topic: topic || 'other', subject: subject || '',
+    body: body || null, status: 'open', priority: priority || 'med',
+    created_by_name: createdByName || null, created_by_staff_id: createdByStaffId || null,
+  }).select().single()
+  if (error) { console.error('createTicket:', error.message); return null }
+  return data
+}
+
+export async function updateTicket(id, { status, assignedToName } = {}) {
+  if (isDemoMode) return demo.demoUpdateTicket(id, { status, assignedToName })
+  if (!supabase || !id) return null
+  const patch = { updated_at: new Date().toISOString() }
+  if (status !== undefined) patch.status = status
+  if (assignedToName !== undefined) patch.assigned_to_name = assignedToName || null
+  const { data, error } = await supabase.from('tickets').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateTicket:', error.message); return null }
+  return data
 }
 
 function toDateStr(date) {

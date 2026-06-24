@@ -9,6 +9,26 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -d \"Claude finished\" ntfy.sh/muna-tend-7f3k"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -d \"Claude needs input\" ntfy.sh/muna-tend-7f3k"
+          }
+        ]
+      }
     ]
   }
 }

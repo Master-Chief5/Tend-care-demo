@@ -10,11 +10,18 @@ import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { ScreenA_Timesheets } from '../../screens/Timesheets'
 import { ScreenA_Activity } from '../../screens/Activity'
 import { ScreenA_Updates } from '../../screens/Updates'
+import { ScreenA_Knowledge } from '../../screens/Knowledge'
+import { ScreenA_Events } from '../../screens/Events'
+import { ScreenA_Forms } from '../../screens/Forms'
+import { ScreenA_Surveys } from '../../screens/Surveys'
+import { ScreenA_Tasks } from '../../screens/Tasks'
+import { ScreenA_Directory } from '../../screens/Directory'
+import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
 import { TendLogo } from '../ui/TendLogo'
 import { PageTodayDesktop, PageHousesDesktop, PageTeamDesktop, PageStaffDesktop, PageOrientationDesktop } from '../../screens/desktop/Pages'
 import { PageScheduleDesktopExpanded } from '../../screens/desktop/Schedule'
-import { countPendingRequests, countPendingTimeOff, countUnreadAnnouncements } from '../../lib/db'
-import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock, IconActivity, IconMegaphone } from '../icons'
+import { countPendingRequests, countPendingTimeOff, countUnreadAnnouncements, countOpenShifts } from '../../lib/db'
+import { IconHome, IconBox, IconCal, IconChat, IconCar, IconCart, IconPeople, IconBook, IconArrow, IconPlus, IconHeart, IconClock, IconActivity, IconMegaphone, IconStar, IconClipboard, IconChart, IconCheck, IconPhone, IconHelp } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -43,6 +50,13 @@ const ALL_TABS = [
   { id: 'timeclock',   label: 'Time clock',  icon: IconClock,   roles: ['supervisor', 'manager', 'staff'] },
   { id: 'activity',    label: 'Activity',    icon: IconActivity, roles: ['supervisor', 'manager'] },
   { id: 'updates',     label: 'Updates',     icon: IconMegaphone, roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'knowledge',   label: 'Handbook',    icon: IconBook,    roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'events',      label: 'Events',      icon: IconStar,    roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'forms',       label: 'Forms',       icon: IconClipboard, roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'surveys',     label: 'Surveys',     icon: IconChart,   roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'tasks',       label: 'Tasks',       icon: IconCheck,   roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'directory',   label: 'Directory',   icon: IconPhone,   roles: ['supervisor', 'manager', 'staff'] },
+  { id: 'helpdesk',    label: 'Help Desk',   icon: IconHelp,    roles: ['supervisor', 'manager', 'staff'] },
   { id: 'team',        label: 'Team chat',   icon: IconChat,    roles: ['supervisor', 'manager', 'staff'] },
   { id: 'driving',     label: 'Transport',   icon: IconCar,     roles: ['supervisor', 'manager', 'staff'] },
   { id: 'resources',   label: 'Resources',   icon: IconCart,    roles: ['supervisor', 'manager', 'staff'] },
@@ -60,6 +74,13 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'timeclock')   return <ScreenA_Timesheets user={user} desktop houses={houses} />
   if (tab === 'activity')    return <ScreenA_Activity user={user} desktop />
   if (tab === 'updates')     return <ScreenA_Updates user={user} desktop />
+  if (tab === 'knowledge')   return <ScreenA_Knowledge user={user} desktop />
+  if (tab === 'events')      return <ScreenA_Events user={user} desktop />
+  if (tab === 'forms')       return <ScreenA_Forms user={user} desktop />
+  if (tab === 'surveys')     return <ScreenA_Surveys user={user} desktop />
+  if (tab === 'tasks')       return <ScreenA_Tasks user={user} desktop />
+  if (tab === 'directory')   return <ScreenA_Directory user={user} desktop />
+  if (tab === 'helpdesk')    return <ScreenA_HelpDesk user={user} desktop />
   if (tab === 'team')        return <PageTeamDesktop user={user} />
   if (tab === 'driving')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Driving user={user} /></div></div>
   if (tab === 'resources')   return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_Resources user={user} /></div></div>
@@ -180,13 +201,27 @@ export function DesktopShell({ user, onLogout }) {
     return () => { stop = true; clearInterval(iv) }
   }, [effUser?.orgId, effUser?.houseId, effUser?.staffId, role])
 
+  // Open (unfilled) shifts, surfaced as a badge on the Schedule tab (all roles —
+  // staff see how many shifts are claimable). Supervisors org-wide; others house-scoped.
+  const [openShifts, setOpenShifts] = useState(0)
+  useEffect(() => {
+    if (!effUser?.orgId) { setOpenShifts(0); return }
+    let stop = false
+    const scope = { houseId: role === 'supervisor' ? null : (effUser.houseId || null) }
+    const load = () => Promise.resolve(countOpenShifts(effUser.orgId, scope)).catch(() => 0)
+      .then(n => { if (!stop) setOpenShifts(n || 0) })
+    load()
+    const iv = setInterval(load, 15000)
+    return () => { stop = true; clearInterval(iv) }
+  }, [effUser?.orgId, effUser?.houseId, role])
+
   useTripTracking(effUser)
   useDutyTracking(effUser)
 
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <GeoStatusBanner />
-      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} counts={{ timeclock: pendingReqs, updates: unreadUpdates }} />
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} counts={{ timeclock: pendingReqs, updates: unreadUpdates, schedule: openShifts }} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
         <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} />
       </div>

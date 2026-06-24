@@ -394,7 +394,7 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
         </div>
         {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} onMoveShift={isAdmin ? moveShift : undefined} />)}
       </div>
-      <WeekSummary shifts={shifts} weekDates={weekDates} />
+      <WeekSummary shifts={shifts} weekDates={weekDates} houses={houses} />
     </>
   )
 }

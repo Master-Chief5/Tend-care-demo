@@ -14,7 +14,14 @@ import { ScreenA_HouseSetup } from '../../screens/HouseSetup'
 import { ScreenA_Timesheets } from '../../screens/Timesheets'
 import { ScreenA_Activity } from '../../screens/Activity'
 import { ScreenA_Updates } from '../../screens/Updates'
-import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone } from '../icons'
+import { ScreenA_Knowledge } from '../../screens/Knowledge'
+import { ScreenA_Events } from '../../screens/Events'
+import { ScreenA_Forms } from '../../screens/Forms'
+import { ScreenA_Surveys } from '../../screens/Surveys'
+import { ScreenA_Tasks } from '../../screens/Tasks'
+import { ScreenA_Directory } from '../../screens/Directory'
+import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
+import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone, IconBook, IconStar, IconDots, IconChev, IconClipboard, IconChart, IconPhone, IconHelp } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
 import { GeoStatusBanner } from '../GeoStatusBanner'
@@ -44,6 +51,14 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
       case 'team':  return <ScreenA_Chat user={user} />
       case 'drive': return <ScreenA_Driving user={user} />
       case 'supply': return <ScreenA_Resources user={user} />
+      case 'handbook': return <ScreenA_Knowledge user={user} />
+      case 'events': return <ScreenA_Events user={user} />
+      case 'forms': return <ScreenA_Forms user={user} />
+      case 'surveys': return <ScreenA_Surveys user={user} />
+      case 'tasks': return <ScreenA_Tasks user={user} />
+      case 'directory': return <ScreenA_Directory user={user} />
+      case 'helpdesk': return <ScreenA_HelpDesk user={user} />
+      case 'more':  return <MoreMenu onNavigate={switchTab} />
       case 'me':    return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
     }
   }
@@ -57,10 +72,56 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'team':   return <ScreenA_Chat user={user} />
     case 'drive':  return <ScreenA_Driving user={user} />
     case 'supply': return <ScreenA_Resources user={user} />
+    case 'handbook': return <ScreenA_Knowledge user={user} />
+    case 'events': return <ScreenA_Events user={user} />
+    case 'forms': return <ScreenA_Forms user={user} />
+    case 'surveys': return <ScreenA_Surveys user={user} />
+    case 'tasks': return <ScreenA_Tasks user={user} />
+    case 'directory': return <ScreenA_Directory user={user} />
+    case 'helpdesk': return <ScreenA_HelpDesk user={user} />
+    case 'more':   return <MoreMenu onNavigate={switchTab} />
     case 'staff':  return <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
     case 'me':     return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
   }
   return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
+}
+
+// Overflow menu for secondary modules, keeping the bottom bar uncluttered.
+function MoreMenu({ onNavigate }) {
+  const items = [
+    { id: 'handbook', label: 'Handbook', icon: IconBook, sub: 'Policies, SOPs & house binders' },
+    { id: 'events',   label: 'Events',   icon: IconStar, sub: 'Trainings & house meetings' },
+    { id: 'forms',    label: 'Forms',    icon: IconClipboard, sub: 'Checklists, audits & walkthroughs' },
+    { id: 'surveys',  label: 'Surveys',  icon: IconChart, sub: 'Staff pulse & training feedback' },
+    { id: 'tasks',    label: 'Tasks',    icon: IconCheck, sub: 'Assignable one-off tasks' },
+    { id: 'directory', label: 'Directory', icon: IconPhone, sub: 'Pharmacy, physicians & contacts' },
+    { id: 'helpdesk', label: 'Help Desk', icon: IconHelp, sub: 'HR, payroll, IT & maintenance' },
+  ]
+  return (
+    <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '14px 22px 8px' }}>
+        <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>More</div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 24px' }}>
+        {items.map(it => (
+          <button key={it.id} onClick={() => onNavigate(it.id)} style={{
+            display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+            background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12,
+            padding: '14px 16px', marginBottom: 10, cursor: 'pointer', fontFamily: 'Geist',
+          }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--a-paper)', border: '1px solid var(--a-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <it.icon size={18} color="var(--a-ink2)" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--a-ink)' }}>{it.label}</div>
+              <div style={{ fontSize: 12, color: 'var(--a-ink3)' }}>{it.sub}</div>
+            </div>
+            <IconChev size={16} color="var(--a-ink3)" />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function RoleSwitcher({ role, setRole, open, setOpen }) {
@@ -148,6 +209,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
+    { id: 'more',   label: 'More',     icon: IconDots },
     { id: 'me',     label: 'Me',       icon: IconPeople },
   ] : [
     { id: 'home',   label: 'Houses',   icon: IconHome },
@@ -158,6 +220,7 @@ export function MobileShell({ user, onLogout }) {
     { id: 'team',   label: 'Team',     icon: IconChat },
     { id: 'drive',  label: 'Transport', icon: IconCar },
     { id: 'supply', label: 'Supplies', icon: IconCart },
+    { id: 'more',   label: 'More',     icon: IconDots },
     { id: 'me',     label: 'Me',       icon: IconPeople },
   ]
 

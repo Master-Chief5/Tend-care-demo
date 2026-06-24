@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tend — Home (mobile redesign)</title>
+<link rel="stylesheet" href="./shell.css">
+<style>
+  /* ---- screen-local glue (layout only; all color/type via shell tokens) ---- */
+  .home-pad { padding: 0 var(--sp-16) var(--sp-24); }
+
+  /* Greeting header */
+  .home-top {
+    padding: var(--sp-16) var(--sp-16) var(--sp-8);
+    /* reserve space for the demo "PREVIEW AS" chip in the live shell */
+    padding-right: calc(var(--sp-16) + var(--chip-clear, 0px));
+  }
+  .home-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-12); }
+  .home-date { font-size: var(--fs-12); font-weight: 600; text-transform: uppercase;
+    letter-spacing: var(--ls-caps); color: var(--a-ink3); }
+  .home-logo { display: inline-flex; align-items: center; gap: var(--sp-6);
+    font-family: var(--font-serif); font-size: var(--fs-17); color: var(--a-ink); }
+  .home-logo .icon { color: var(--a-sage); }
+
+  /* At-a-glance 2x2 grid */
+  .glance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-12); }
+  .glance {
+    display: flex; flex-direction: column; gap: var(--sp-6);
+    background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card);
+    padding: var(--sp-14) var(--sp-14);
+    text-align: left; width: 100%;
+  }
+  .glance-top { display: flex; align-items: center; gap: var(--sp-8); }
+  .glance-ico {
+    width: 32px; height: 32px; border-radius: var(--r-input); flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .glance-ico .icon { width: 18px; height: 18px; }
+  .glance-ico--warn { background: var(--status-warn-bg); color: var(--status-warn-tc); }
+  .glance-ico--bad  { background: var(--status-bad-bg);  color: var(--status-bad-tc); }
+  .glance-ico--good { background: var(--status-good-bg); color: var(--status-good-tc); }
+  .glance-ico--info { background: var(--a-paper);        color: var(--a-sage); }
+  .glance-value { font-family: var(--font-serif); font-feature-settings: 'ss01';
+    font-size: var(--fs-28); font-weight: 400; line-height: var(--lh-tight);
+    color: var(--a-ink); font-variant-numeric: tabular-nums; }
+  .glance-label { font-size: var(--fs-13); color: var(--a-ink2); line-height: var(--lh-snug); }
+  .glance-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: auto; }
+  .glance-sub--warn { color: var(--status-warn-tc); font-weight: 600; }
+  .glance-sub--bad  { color: var(--status-bad-tc);  font-weight: 600; }
+
+  /* Priority rows */
+  .prio-card { padding: 0; overflow: hidden; }
+  .prio {
+    display: flex; align-items: center; gap: var(--sp-12);
+    padding: var(--sp-12) var(--sp-14); width: 100%; text-align: left;
+    background: transparent; border: 0;
+  }
+  .prio + .prio { border-top: var(--bd-hair); }
+  .prio-rail { width: 4px; align-self: stretch; border-radius: var(--r-pill); flex-shrink: 0;
+    background: var(--house, var(--a-sage)); }
+  /* Open / coverage-gap status: rail driven by clay (defined once) */
+  .prio--open .prio-rail { background: var(--a-clay); }
+  .prio-ico {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--a-paper); color: var(--a-ink2);
+  }
+  .prio-ico .icon { width: 18px; height: 18px; }
+  .prio-ico--bad  { background: var(--status-bad-bg);  color: var(--status-bad-tc); }
+  .prio-ico--warn { background: var(--status-warn-bg); color: var(--status-warn-tc); }
+  .prio-main { flex: 1; min-width: 0; }
+  .prio-title { font-size: var(--fs-15); font-weight: 600; color: var(--a-ink); line-height: var(--lh-snug); }
+  .prio-sub { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prio-chev { color: var(--a-ink3); display: inline-flex; }
+
+  /* Houses summary */
+  .house-card { padding: 0; overflow: hidden; }
+  .house-row { display: flex; align-items: center; gap: var(--sp-12);
+    padding: var(--sp-12) var(--sp-14); width: 100%; text-align: left; background: transparent; border: 0; }
+  .house-row + .house-row { border-top: var(--bd-hair); }
+  .house-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    background: var(--house, var(--a-sage)); }
+  .house-main { flex: 1; min-width: 0; }
+  .house-name { display: flex; align-items: center; gap: var(--sp-8); }
+  .house-name .badge { font-size: var(--fs-12); }
+  .house-meta { font-size: var(--fs-13); color: var(--a-ink3); margin-top: var(--sp-2); }
+  .house-end { display: flex; align-items: center; gap: var(--sp-8); flex-shrink: 0; }
+  .house-chev { color: var(--a-ink3); display: inline-flex; }
+
+  /* Quick actions */
+  .qa-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-8); }
+  .qa {
+    display: flex; flex-direction: column; align-items: center; gap: var(--sp-6);
+    padding: var(--sp-12) var(--sp-6);
+    background: var(--a-card); border: var(--bd-hair); border-radius: var(--r-card);
+    color: var(--a-ink2); font-size: var(--fs-12); font-weight: 600; text-align: center;
+  }
+  .qa .qa-ico {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--a-paper); color: var(--a-sage);
+  }
+  .qa .icon { width: 20px; height: 20px; }
+
+  .home-divider { height: 1px; background: var(--a-line); margin: var(--sp-20) var(--sp-16) 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone">
+    <div class="phone-screen">
+
+      <!-- ============ GREETING HEADER ============ -->
+      <header class="home-top">
+        <div class="home-top-row">
+          <div class="home-date">Wed · June 24</div>
+          <div class="home-logo">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/><path d="M9.5 19v-5h5v5"/>
+              </svg>
+            </span>
+            Tend
+          </div>
+        </div>
+        <h1 class="greeting">Good morning,<br><span class="greeting-name">Lina</span></h1>
+        <p class="muted" style="margin:var(--sp-6) 0 0; font-size:var(--fs-13);">
+          3 houses · 6 residents · 1 thing needs you
+        </p>
+      </header>
+
+      <!-- ============ AT A GLANCE ============ -->
+      <div class="section-header">
+        <span class="section-label">At a glance · today</span>
+      </div>
+      <div class="home-pad">
+        <div class="glance-grid">
+
+          <button class="glance" aria-label="1 open shift today, needs filling">
+            <div class="glance-top">
+              <span class="glance-ico glance-ico--warn" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M12 14v4M10 16h4"/></svg></span>
+              </span>
+              <span class="glance-value tnum">1</span>
+            </div>
+            <span class="glance-label">Open shift today</span>
+            <span class="glance-sub glance-sub--warn">Oak · overnight DSP</span>
+          </button>
+
+          <button class="glance" aria-label="2 residents needing attention">
+            <div class="glance-top">
+              <span class="glance-ico glance-ico--info" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 7.6a4.6 4.6 0 0 0-7.8-2.5l-1 1-1-1A4.6 4.6 0 0 0 3.2 9c.6 3.5 7.8 8 8.8 8s8.2-4.5 8.8-8a4.6 4.6 0 0 0 0-1.4Z"/></svg></span>
+              </span>
+              <span class="glance-value tnum">2</span>
+            </div>
+            <span class="glance-label">Residents need attention</span>
+            <span class="glance-sub">Robert H. · Linda P.</span>
+          </button>
+
+          <button class="glance" aria-label="2 open incidents and alerts">
+            <div class="glance-top">
+              <span class="glance-ico glance-ico--bad" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18.4A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-3.1L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+              </span>
+              <span class="glance-value tnum">2</span>
+            </div>
+            <span class="glance-label">Incidents &amp; alerts</span>
+            <span class="glance-sub glance-sub--bad">1 needs review</span>
+          </button>
+
+          <button class="glance" aria-label="6 staff on shift, 48 hours scheduled today">
+            <div class="glance-top">
+              <span class="glance-ico glance-ico--good" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+              </span>
+              <span class="glance-value tnum">6</span>
+            </div>
+            <span class="glance-label">Staff on today</span>
+            <span class="glance-sub">48 hrs scheduled</span>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ============ TODAY'S CARE PRIORITIES ============ -->
+      <div class="section-header">
+        <span class="section-label">Today's care priorities</span>
+        <button class="section-action">View all</button>
+      </div>
+      <div class="home-pad">
+        <div class="card prio-card">
+
+          <!-- Open shift / coverage gap (Oak = clay) -->
+          <button class="prio prio--open" aria-label="Coverage gap: overnight DSP shift at Oak House is unfilled. Open to fill.">
+            <span class="prio-rail"></span>
+            <span class="prio-ico prio-ico--warn" aria-hidden="true">
+              <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
+            </span>
+            <span class="prio-main">
+              <span class="prio-title">Fill overnight DSP — Oak House</span>
+              <span class="prio-sub">11:00pm–7:00am · unassigned · starts in 14h</span>
+            </span>
+            <span class="row-end">
+              <span class="pill pill--warn">Open</span>
+              <span class="prio-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+          <!-- Incident needs review (Oak behavioral) -->
+          <button class="prio" aria-label="Incident needs review: behavioral incident at Oak House, moderate, reported by Reni Tate.">
+            <span class="prio-rail" style="background: var(--a-clay);"></span>
+            <span class="prio-ico prio-ico--bad" aria-hidden="true">
+              <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18.4A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-3.1L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+            </span>
+            <span class="prio-main">
+              <span class="prio-title">Behavioral incident — review</span>
+              <span class="prio-sub">Oak · James Whitaker · by Reni Tate</span>
+            </span>
+            <span class="row-end">
+              <span class="pill pill--bad">Moderate</span>
+              <span class="prio-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+          <!-- Med pass running -->
+          <button class="prio" aria-label="Morning med pass in progress, 4 of 6 done across houses.">
+            <span class="prio-rail" style="background: var(--a-sage);"></span>
+            <span class="prio-ico" aria-hidden="true">
+              <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5-7-7a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7Z"/><path d="m7 7 10 10"/></svg></span>
+            </span>
+            <span class="prio-main">
+              <span class="prio-title">Morning med pass</span>
+              <span class="prio-sub" style="white-space:normal;">
+                <span class="progress" style="display:inline-block; width:90px; vertical-align:middle; margin-right:8px;"><span class="progress-fill" style="width:67%;"></span></span>4 of 6 done
+              </span>
+            </span>
+            <span class="row-end">
+              <span class="pill pill--info tnum">2 left</span>
+              <span class="prio-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+          <!-- Fire drill due -->
+          <button class="prio" aria-label="Fire drill due this week at Maple House.">
+            <span class="prio-rail" style="background: var(--a-sage);"></span>
+            <span class="prio-ico prio-ico--warn" aria-hidden="true">
+              <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.5 3 4 4 4 7a4 4 0 0 1-8 0c0-1 .5-2 1.5-3 .5 1 1.5 1.5 2.5 1.5"/><path d="M8.5 14a3.5 3.5 0 0 0 7 0"/></svg></span>
+            </span>
+            <span class="prio-main">
+              <span class="prio-title">Fire drill due — Maple House</span>
+              <span class="prio-sub">Last logged 2:45 evac · due this week</span>
+            </span>
+            <span class="row-end">
+              <span class="pill pill--warn">Due</span>
+              <span class="prio-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ============ YOUR HOUSES ============ -->
+      <div class="section-header">
+        <span class="section-label">Your houses</span>
+        <button class="section-action">Add house</button>
+      </div>
+      <div class="home-pad">
+        <div class="card house-card">
+
+          <!-- Maple (sage) -->
+          <button class="house-row" style="--house: #4a6b56;" aria-label="Maple House, Riverside. All good. 2 staff on, 2 residents, med pass 2 of 2.">
+            <span class="house-dot"></span>
+            <span class="house-main">
+              <span class="house-name">
+                <span class="badge badge--solid">MAP</span>
+                <span class="serif" style="font-size:var(--fs-17);">Maple House</span>
+              </span>
+              <span class="house-meta">Riverside · 2 on · 2 residents · Priya Nair</span>
+            </span>
+            <span class="house-end">
+              <span class="pill pill--good">All good</span>
+              <span class="house-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+          <!-- Oak (clay) — has the alerts -->
+          <button class="house-row" style="--house: #b05c3c;" aria-label="Oak House, Riverside. 2 alerts: open overnight shift and an incident to review.">
+            <span class="house-dot"></span>
+            <span class="house-main">
+              <span class="house-name">
+                <span class="badge badge--solid">OAK</span>
+                <span class="serif" style="font-size:var(--fs-17);">Oak House</span>
+                <span class="badge--count" aria-hidden="true">2</span>
+              </span>
+              <span class="house-meta">Riverside · 1 on · 2 residents · Marcus Lewis</span>
+            </span>
+            <span class="house-end">
+              <span class="pill pill--bad">Needs you</span>
+              <span class="house-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+          <!-- Birch (blue) -->
+          <button class="house-row" style="--house: #5a7a9a;" aria-label="Birch House, Northside. All good. 2 staff on, 2 residents.">
+            <span class="house-dot"></span>
+            <span class="house-main">
+              <span class="house-name">
+                <span class="badge badge--solid">BIR</span>
+                <span class="serif" style="font-size:var(--fs-17);">Birch House</span>
+              </span>
+              <span class="house-meta">Northside · 2 on · 2 residents · Toni Alvarez</span>
+            </span>
+            <span class="house-end">
+              <span class="pill pill--good">All good</span>
+              <span class="house-chev icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ============ QUICK ACTIONS ============ -->
+      <div class="section-header">
+        <span class="section-label">Quick actions</span>
+      </div>
+      <div class="home-pad">
+        <div class="qa-grid">
+
+          <button class="qa" aria-label="Fill open shift">
+            <span class="qa-ico" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span></span>
+            Fill shift
+          </button>
+
+          <button class="qa" aria-label="Log an incident">
+            <span class="qa-ico" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18.4A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-3.1L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg></span></span>
+            Log incident
+          </button>
+
+          <button class="qa" aria-label="Message the team">
+            <span class="qa-ico" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.3 9 9 0 0 1-3.8-.8L3 20.5l1.5-4.2A8.3 8.3 0 0 1 12 3.5a8.4 8.4 0 0 1 9 8Z"/></svg></span></span>
+            Message
+          </button>
+
+          <button class="qa" aria-label="Post an update">
+            <span class="qa-ico" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span></span>
+            Post update
+          </button>
+
+        </div>
+      </div>
+
+      <div class="home-divider"></div>
+
+      <!-- ============ BOTTOM NAV (5 tabs, Home active) ============ -->
+    </div>
+
+    <nav class="tab-bar" aria-label="Primary">
+      <button class="tab is-active" aria-current="page">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/><path d="M9.5 19v-5h5v5"/></svg></span>
+        Home
+      </button>
+      <button class="tab">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span>
+        Schedule
+      </button>
+      <button class="tab">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 7.6a4.6 4.6 0 0 0-7.8-2.5l-1 1-1-1A4.6 4.6 0 0 0 3.2 9c.6 3.5 7.8 8 8.8 8s8.2-4.5 8.8-8a4.6 4.6 0 0 0 0-1.4Z"/></svg></span>
+        Care
+      </button>
+      <button class="tab">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        Time
+      </button>
+      <button class="tab">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span>
+        More
+      </button>
+    </nav>
+
+  </div>
+</div>
+</body>
+</html>

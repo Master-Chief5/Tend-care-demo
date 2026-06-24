@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tend · Care Hub + Resident Profile — Phase 0</title>
+<link rel="stylesheet" href="./shell.css">
+<style>
+  /* ── Mockup-local layout glue only. All colors/sizes via shell tokens. ──
+     NOTE: .frames / .frame-cap / .frame-col (the approved multi-frame review
+     wrapper) now live in shell.css and are shared, not redefined here. ── */
+
+  /* Care hub themed accent — residents span houses, so the hub uses sage brand,
+     individual cards re-theme via --house. */
+
+  /* Priority card: tinted left rail by status */
+  .prio {
+    display: flex; gap: var(--sp-12); align-items: flex-start;
+    padding: var(--sp-12) var(--sp-14);
+    border: var(--bd-hair); border-radius: var(--r-card);
+    background: var(--a-card); width: 100%; text-align: left;
+    border-left: var(--bd-accent-w) solid var(--prio, var(--a-line));
+  }
+  .prio + .prio { margin-top: var(--sp-8); }
+  .prio--bad  { --prio: var(--a-clay); }
+  .prio--warn { --prio: var(--a-honey); }
+  .prio--info { --prio: var(--a-sage); }
+  .prio-ic {
+    width: 34px; height: 34px; border-radius: var(--r-pill); flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; background: var(--prio, var(--a-ink3));
+  }
+  .prio-ic .icon { width: 18px; height: 18px; }
+  .prio-body { flex: 1; min-width: 0; }
+  .prio-title { font-size: var(--fs-14); font-weight: 600; color: var(--a-ink);
+    line-height: var(--lh-snug); }
+  .prio-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+  .prio-meta { font-size: var(--fs-12); font-weight: 600; color: var(--a-ink3);
+    white-space: nowrap; flex-shrink: 0; align-self: center; }
+
+  /* Module grid — the clear entry points (meds/goals/health/incidents/notes/docs) */
+  .mod-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-10);
+  }
+  .mod {
+    display: flex; flex-direction: column; gap: var(--sp-8);
+    padding: var(--sp-12); border: var(--bd-hair); border-radius: var(--r-card);
+    background: var(--a-card); text-align: left; min-height: 84px;
+    position: relative;
+  }
+  .mod-ic {
+    width: 36px; height: 36px; border-radius: var(--r-input);
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--a-paper); color: var(--a-sage);
+  }
+  .mod-ic .icon { width: 20px; height: 20px; }
+  .mod-label { font-size: var(--fs-13); font-weight: 600; color: var(--a-ink);
+    line-height: var(--lh-tight); }
+  .mod-sub { font-size: var(--fs-12); color: var(--a-ink3); }
+  .mod .badge--count {
+    position: absolute; top: var(--sp-8); right: var(--sp-8);
+    min-width: 18px; height: 18px;
+  }
+
+  /* Resident row trailing dots = status of their care areas */
+  .dots { display: inline-flex; gap: 4px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-line); }
+  .dot--bad  { background: var(--a-clay); }
+  .dot--warn { background: var(--a-honey); }
+  .dot--good { background: var(--a-sage); }
+
+  /* Profile header band */
+  .pro-head {
+    display: flex; gap: var(--sp-12); align-items: center;
+    padding: var(--sp-16); border-bottom: var(--bd-hair);
+    background: var(--a-card);
+  }
+  .pro-av {
+    width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--house, var(--a-sage)); color: #fff;
+    font-size: var(--fs-20); font-weight: 600; letter-spacing: 0.02em;
+    font-family: var(--font-serif);
+  }
+  .flag-row { display: flex; flex-wrap: wrap; gap: var(--sp-6); margin-top: var(--sp-6); }
+
+  /* Key-info two-column grid inside profile */
+  .kv {
+    display: grid; grid-template-columns: 86px 1fr; gap: var(--sp-6) var(--sp-12);
+    font-size: var(--fs-13);
+  }
+  .kv dt { color: var(--a-ink3); }
+  .kv dd { margin: 0; color: var(--a-ink2); font-weight: 500; }
+
+  /* Profile section tabs (scoped to resident) */
+  .seg { border-bottom: var(--bd-hair); }
+
+  /* tiny inline alert dot on a tab */
+  .tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--a-clay); margin-left: 4px; vertical-align: top; }
+
+  .area-row {
+    display: flex; align-items: center; gap: var(--sp-12);
+    padding: var(--sp-12) var(--sp-16); width: 100%; text-align: left;
+    border: 0; background: transparent;
+  }
+  .list--bordered > .area-row + .area-row { border-top: var(--bd-hair); }
+  .area-ic { color: var(--a-sage); }
+  .area-main { flex: 1; min-width: 0; }
+  .area-title { font-size: var(--fs-14); font-weight: 600; color: var(--a-ink); }
+  .area-sub { font-size: var(--fs-12); color: var(--a-ink3); margin-top: var(--sp-2); }
+
+  .chev { color: var(--a-ink3); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="frames">
+
+    <!-- ===================================================================
+         FRAME 1 — CARE HUB (landing)
+         =================================================================== -->
+    <div class="frame-col">
+      <p class="frame-cap">Care hub · landing</p>
+      <div class="phone">
+        <div class="phone-screen">
+
+          <!-- App bar -->
+          <header class="appbar">
+            <div>
+              <h1 class="appbar-title">Care</h1>
+              <div class="appbar-sub">3 houses · 6 residents · Tue, Jun 24</div>
+            </div>
+            <div class="appbar-actions">
+              <button class="btn btn--secondary btn--sm" aria-label="Filter by house">
+                <span class="icon icon--sm" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+                </span>
+                All houses
+              </button>
+              <button class="btn btn--ghost btn--sm" aria-label="Search residents">
+                <span class="icon icon--sm" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+                </span>
+              </button>
+            </div>
+          </header>
+
+          <!-- Today's care priorities -->
+          <div class="section-header">
+            <span class="section-label">Today's care priorities</span>
+            <span class="pill pill--bad" style="padding:2px 10px;">4 open</span>
+          </div>
+          <div style="padding:0 var(--sp-16);">
+
+            <button class="prio prio--bad">
+              <span class="prio-ic" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+              </span>
+              <span class="prio-body">
+                <span class="prio-title">Incident needs review — James Whitaker</span>
+                <span class="prio-sub">Oak House · Behavioral, moderate · logged by Reni Tate</span>
+              </span>
+              <span class="prio-meta">9:15a</span>
+            </button>
+
+            <button class="prio prio--warn">
+              <span class="prio-ic" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 4 9l-1 6 6-1 6.5-6.5a2.1 2.1 0 0 0-3-3Z"/><path d="M14 6l3 3"/></svg></span>
+              </span>
+              <span class="prio-body">
+                <span class="prio-title">3 meds due this hour</span>
+                <span class="prio-sub">Robert Hayes (2) · Linda Park (1) · Maple House</span>
+              </span>
+              <span class="prio-meta">2:00p</span>
+            </button>
+
+            <button class="prio prio--warn">
+              <span class="prio-ic" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v14H3z"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span>
+              </span>
+              <span class="prio-body">
+                <span class="prio-title">Shift documentation incomplete</span>
+                <span class="prio-sub">4 of 6 residents documented · day shift</span>
+              </span>
+              <span class="prio-meta">2/6 left</span>
+            </button>
+
+            <button class="prio prio--info">
+              <span class="prio-ic" aria-hidden="true">
+                <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg></span>
+              </span>
+              <span class="prio-body">
+                <span class="prio-title">Daniel Cho — health check due</span>
+                <span class="prio-sub">Birch House · weekly weight + vitals</span>
+              </span>
+              <span class="prio-meta">4:00p</span>
+            </button>
+          </div>
+
+          <!-- Quick entry points -->
+          <div class="section-header">
+            <span class="section-label">Go to</span>
+          </div>
+          <div style="padding:0 var(--sp-16);">
+            <div class="mod-grid">
+              <button class="mod">
+                <span class="badge--count" aria-label="3 due">3</span>
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span></span>
+                <span class="mod-label">Meds</span>
+                <span class="mod-sub">eMAR · 3 due</span>
+              </button>
+              <button class="mod">
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></span></span>
+                <span class="mod-label">Goals</span>
+                <span class="mod-sub">ISP progress</span>
+              </button>
+              <button class="mod">
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></span></span>
+                <span class="mod-label">Health</span>
+                <span class="mod-sub">Vitals · logs</span>
+              </button>
+              <button class="mod">
+                <span class="badge--count" aria-label="1 needs review">1</span>
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span></span>
+                <span class="mod-label">Incidents</span>
+                <span class="mod-sub">1 to review</span>
+              </button>
+              <button class="mod">
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 9h6M8 13h8M8 17h5"/></svg></span></span>
+                <span class="mod-label">Notes</span>
+                <span class="mod-sub">T-Log · daily</span>
+              </button>
+              <button class="mod">
+                <span class="mod-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span></span>
+                <span class="mod-label">Documents</span>
+                <span class="mod-sub">ISP · consents</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Residents -->
+          <div class="section-header">
+            <span class="section-label">Residents</span>
+            <button class="section-action" aria-label="Add resident">+ Add</button>
+          </div>
+          <div class="surface" style="margin:0 var(--sp-16);">
+            <div class="list">
+
+              <!-- Robert Hayes -->
+              <button class="row">
+                <span class="avatar" style="background:var(--a-sage);" aria-hidden="true">RH</span>
+                <span class="row-main">
+                  <span class="row-title">Robert Hayes</span>
+                  <span class="row-sub">Maple House · Rm 1 · Home</span>
+                </span>
+                <span class="row-end">
+                  <span class="badge" style="background:var(--a-paper);">MAP</span>
+                  <span class="dots" aria-label="meds due, goals on track">
+                    <span class="dot dot--warn" title="Meds due"></span>
+                    <span class="dot dot--good"></span>
+                    <span class="dot"></span>
+                  </span>
+                </span>
+              </button>
+
+              <!-- Linda Park -->
+              <button class="row">
+                <span class="avatar" style="background:var(--a-sage);" aria-hidden="true">LP</span>
+                <span class="row-main">
+                  <span class="row-title">Linda Park</span>
+                  <span class="row-sub">Maple House · Rm 2 · Day program</span>
+                </span>
+                <span class="row-end">
+                  <span class="badge" style="background:var(--a-paper);">MAP</span>
+                  <span class="dots">
+                    <span class="dot dot--good"></span>
+                    <span class="dot dot--good"></span>
+                    <span class="dot"></span>
+                  </span>
+                </span>
+              </button>
+
+              <!-- James Whitaker (alert) -->
+              <button class="row">
+                <span class="avatar" style="background:var(--a-clay);" aria-hidden="true">JW</span>
+                <span class="row-main">
+                  <span class="row-title">James Whitaker</span>
+                  <span class="row-sub">Oak House · Rm 1 · Home</span>
+                </span>
+                <span class="row-end">
+                  <span class="pill pill--bad" style="padding:2px 8px;">Incident</span>
+                  <span class="dots">
+                    <span class="dot dot--bad" title="Incident"></span>
+                    <span class="dot dot--warn"></span>
+                    <span class="dot"></span>
+                  </span>
+                </span>
+              </button>
+
+              <!-- Maria Gomez -->
+              <button class="row">
+                <span class="avatar" style="background:var(--a-clay);" aria-hidden="true">MG</span>
+                <span class="row-main">
+                  <span class="row-title">Maria Gomez</span>
+                  <span class="row-sub">Oak House · Rm 2 · At appointment</span>
+                </span>
+                <span class="row-end">
+                  <span class="badge" style="background:var(--a-paper);">OAK</span>
+                  <span class="dots">
+                    <span class="dot dot--good"></span>
+                    <span class="dot dot--good"></span>
+                    <span class="dot"></span>
+                  </span>
+                </span>
+              </button>
+
+              <!-- Daniel Cho -->
+              <button class="row">
+                <span class="avatar" style="background:var(--house-ash);" aria-hidden="true">DC</span>
+                <span class="row-main">
+                  <span class="row-title">Daniel Cho</span>
+                  <span class="row-sub">Birch House · Rm 1 · Home</span>
+                </span>
+                <span class="row-end">
+                  <span class="pill pill--warn" style="padding:2px 8px;">Health due</span>
+                  <span class="dots">
+                    <span class="dot dot--good"></span>
+                    <span class="dot dot--good"></span>
+                    <span class="dot dot--warn"></span>
+                  </span>
+                </span>
+              </button>
+
+              <!-- Aaliyah Johnson -->
+              <button class="row">
+                <span class="avatar" style="background:var(--house-ash);" aria-hidden="true">AJ</span>
+                <span class="row-main">
+                  <span class="row-title">Aaliyah Johnson</span>
+                  <span class="row-sub">Birch House · Rm 2 · Home</span>
+                </span>
+                <span class="row-end">
+                  <span class="badge" style="background:var(--a-paper);">BIR</span>
+                  <span class="dots">
+                    <span class="dot dot--good"></span>
+                    <span class="dot dot--warn"></span>
+                    <span class="dot"></span>
+                  </span>
+                </span>
+              </button>
+
+            </div>
+          </div>
+
+          <div style="height:var(--sp-24);"></div>
+        </div>
+
+        <!-- Bottom nav — Care active -->
+        <nav class="tab-bar" aria-label="Primary">
+          <button class="tab" aria-label="Home">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span>
+            Home
+          </button>
+          <button class="tab" aria-label="Schedule">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
+            Schedule
+          </button>
+          <button class="tab is-active" aria-current="page" aria-label="Care">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S4 14.5 4 9a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 5.5-8 11-8 11Z"/></svg></span>
+            Care
+          </button>
+          <button class="tab" aria-label="Time">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            Time
+          </button>
+          <button class="tab" aria-label="More">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span>
+            More
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         FRAME 2 — RESIDENT PROFILE
+         =================================================================== -->
+    <div class="frame-col">
+      <p class="frame-cap">Resident profile · James Whitaker</p>
+      <!-- theme this whole profile to Oak House -->
+      <div class="phone" style="--house: var(--a-clay);">
+        <div class="phone-screen">
+
+          <!-- Back bar -->
+          <header class="appbar" style="padding-bottom:var(--sp-8);">
+            <div class="appbar-actions">
+              <button class="btn btn--ghost btn--sm" aria-label="Back to Care hub">
+                <span class="icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span>
+                Care
+              </button>
+            </div>
+            <div class="appbar-actions">
+              <button class="btn btn--ghost btn--sm" aria-label="Edit resident">
+                <span class="icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3 4 9l-1 6 6-1 6.5-6.5a2.1 2.1 0 0 0-3-3Z"/><path d="M14 6l3 3"/></svg></span>
+              </button>
+            </div>
+          </header>
+
+          <!-- Identity header -->
+          <div class="pro-head">
+            <span class="pro-av" aria-hidden="true">JW</span>
+            <div style="flex:1; min-width:0;">
+              <h1 class="h1 serif" style="font-size:var(--fs-24);">James Whitaker</h1>
+              <div class="row-sub" style="white-space:normal; color:var(--a-ink2);">
+                <span class="badge badge--solid">OAK</span>
+                Oak House · Rm 1 · Age 34 · Home
+              </div>
+              <div class="flag-row">
+                <span class="pill pill--bad" style="padding:3px 9px;">Behavior plan</span>
+                <span class="pill pill--bad" style="padding:3px 9px;">Elopement risk</span>
+                <span class="pill pill--warn" style="padding:3px 9px;">Allergy: peanuts</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section tabs (resident-scoped) -->
+          <div class="seg">
+            <div class="chip-row" style="padding:var(--sp-10) var(--sp-16);">
+              <button class="chip chip--active">Overview</button>
+              <button class="chip">Meds</button>
+              <button class="chip">Goals</button>
+              <button class="chip">Health</button>
+              <button class="chip">Incidents<span class="tab-dot" aria-label="needs review"></span></button>
+              <button class="chip">Notes</button>
+              <button class="chip">Documents</button>
+            </div>
+          </div>
+
+          <!-- Open priority banner for this resident -->
+          <div style="padding:var(--sp-12) var(--sp-16) 0;">
+            <div class="prio prio--bad" style="cursor:default;">
+              <span class="prio-ic" aria-hidden="true"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span></span>
+              <span class="prio-body">
+                <span class="prio-title">Behavioral incident — needs review</span>
+                <span class="prio-sub">Today 9:15a · logged by Reni Tate · moderate</span>
+              </span>
+              <span class="prio-meta accent-clay">Review</span>
+            </div>
+          </div>
+
+          <!-- Key info -->
+          <div class="section-header"><span class="section-label">Key info</span></div>
+          <div class="card" style="margin:0 var(--sp-16);">
+            <dl class="kv">
+              <dt>Allergies</dt><dd>Peanuts, tree nuts</dd>
+              <dt>Diagnoses</dt><dd>Autism spectrum disorder</dd>
+              <dt>Diet</dt><dd>Gluten-free</dd>
+              <dt>Guardian</dt><dd>Carol Whitaker · (555) 010-4417</dd>
+              <dt>Physician</dt><dd>Dr. A. Banerjee</dd>
+            </dl>
+          </div>
+
+          <!-- Care areas (resident-scoped entry points) -->
+          <div class="section-header"><span class="section-label">Care areas</span></div>
+          <div class="surface list--bordered" style="margin:0 var(--sp-16);">
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Meds · eMAR</span>
+                <span class="area-sub">Risperidone, Sertraline · next 2:00p</span>
+              </span>
+              <span class="row-end"><span class="pill pill--good" style="padding:2px 8px;">On time</span><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Goals · ISP</span>
+                <span class="area-sub">3 active · "Initiate greeting" 62%</span>
+              </span>
+              <span class="row-end"><span class="pill pill--warn" style="padding:2px 8px;">2 logged today</span><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Health</span>
+                <span class="area-sub">Behavior, sleep, meals · last logged 11:40a</span>
+              </span>
+              <span class="row-end"><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true" style="color:var(--a-clay-text);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Incidents</span>
+                <span class="area-sub">1 open · 3 in last 30 days</span>
+              </span>
+              <span class="row-end"><span class="badge--count" aria-label="1 open">1</span><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 9h6M8 13h8M8 17h5"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Notes · daily log</span>
+                <span class="area-sub">5 entries today · last by Reni Tate</span>
+              </span>
+              <span class="row-end"><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+            <button class="area-row">
+              <span class="icon area-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+              <span class="area-main">
+                <span class="area-title">Documents</span>
+                <span class="area-sub">ISP, behavior plan, consents · 8 files</span>
+              </span>
+              <span class="row-end"><span class="icon chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></span>
+            </button>
+
+          </div>
+
+          <!-- Primary action -->
+          <div style="padding:var(--sp-16);">
+            <button class="btn btn--house btn--block btn--lg" style="--house:var(--a-clay);">
+              <span class="icon icon--sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              Document this shift
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Bottom nav — Care active -->
+        <nav class="tab-bar" aria-label="Primary">
+          <button class="tab" aria-label="Home">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg></span>
+            Home
+          </button>
+          <button class="tab" aria-label="Schedule">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span>
+            Schedule
+          </button>
+          <button class="tab is-active" aria-current="page" aria-label="Care">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S4 14.5 4 9a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 5.5-8 11-8 11Z"/></svg></span>
+            Care
+          </button>
+          <button class="tab" aria-label="Time">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            Time
+          </button>
+          <button class="tab" aria-label="More">
+            <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span>
+            More
+          </button>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

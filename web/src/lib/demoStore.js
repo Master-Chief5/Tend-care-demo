@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [] }
 }
 
 function load() {
@@ -98,9 +98,16 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   shift(birch, 'Toni Alvarez', 'Manager', 8, 16)
   shift(maple, 'Aisha Mendez', 'DSP',     7, 15, 1)
   shift(oak,   'Reni Tate',    'DSP',     7, 15, 1)
+  // The normal seeded shifts read as already published (the week is live).
+  const publishedAt = now()
+  for (const s of store.shifts) { if (s.status !== 'open') s.published_at = publishedAt }
   // One open overnight to show a coverage gap.
   const open = demoAddShift(oak.id, { personName: '', role: 'DSP', startHour: 23, endHour: 7, date: dateFor(0) })
   demoUpdateShift(open.id, { status: 'open' })
+  // An upcoming open day shift at Maple (the demo staff's house) so the DSP
+  // claim flow is demoable — unpublished open shifts stay claimable.
+  const mapleOpen = demoAddShift(maple.id, { personName: '', role: 'DSP', startHour: 15, endHour: 23, date: dateFor(1) })
+  demoUpdateShift(mapleOpen.id, { status: 'open' })
 
   // A couple of incidents + safety drills (surface on each house's Care tab).
   demoAddIncident({ houseId: maple.id, residentId: null, type: 'Fall',       severity: 'Minor',    text: 'Resident slipped on a wet bathroom floor; no injury observed.',          actions: 'Completed body check, no first aid required, notified on-call nurse.', by: 'Aisha Mendez' })
@@ -126,6 +133,13 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoSeedAnnouncements(orgId)
   demoSeedTimeclock(orgId)
   demoSeedTimeOff(orgId)
+  demoSeedKnowledge(orgId)
+  demoSeedEvents(orgId)
+  demoSeedForms(orgId)
+  demoSeedSurveys(orgId)
+  demoSeedQuickTasks(orgId)
+  demoSeedContacts(orgId)
+  demoSeedTickets(orgId)
 
   persist()
 }
@@ -198,6 +212,7 @@ export function demoFetchShifts(houseId, date) {
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id,
       start: Number(s.start_hour), end: Number(s.end_hour),
       person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
+      publishedAt: s.published_at ?? null,
     }))
 }
 
@@ -209,6 +224,7 @@ export function demoFetchShiftsWeek(houseId, weekStart, weekEnd) {
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id, date: s.shift_date,
       start: Number(s.start_hour), end: Number(s.end_hour),
       person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
+      publishedAt: s.published_at ?? null,
     }))
 }
 
@@ -218,6 +234,7 @@ export function demoAddShift(houseId, shift) {
     person_name: shift.personName, staff_id: shift.staffId || null, role: shift.role,
     start_hour: shift.startHour, end_hour: shift.endHour,
     shift_date: shift.date || todayStr(), note: shift.note || null, status: 'scheduled',
+    published_at: shift.publishedAt ?? null,
   }
   store.shifts.push(row); persist()
   return row
@@ -234,12 +251,54 @@ export function demoUpdateShift(id, updates) {
   if (updates.date !== undefined)       s.shift_date = updates.date
   if (updates.note !== undefined)       s.note = updates.note || null
   if (updates.status !== undefined)     s.status = updates.status
+  if (updates.publishedAt !== undefined) s.published_at = updates.publishedAt
   persist()
   return s
 }
 
 export function demoDeleteShift(id) {
   store.shifts = store.shifts.filter(s => s.id !== id); persist()
+}
+
+// Stamp published_at = now on every non-open shift in the week/house scope.
+// Logs an Activity-feed event so the publish shows up. Returns the count published.
+export function demoPublishShiftsWeek(orgId, { houseId = null, weekStart, weekEnd } = {}) {
+  const startStr = asDateStr(weekStart), endStr = asDateStr(weekEnd)
+  const ts = now()
+  let n = 0
+  for (const s of store.shifts) {
+    if (s.shift_date < startStr || s.shift_date > endStr) continue
+    if (houseId && s.house_id !== houseId) continue
+    if (s.status === 'open') continue
+    s.published_at = ts
+    n += 1
+  }
+  store.shiftEvents.push({
+    id: uid('shev'), org_id: orgId, house_id: houseId || null, kind: 'shift_published',
+    actor: 'Schedule', text: `Schedule published — ${n} shift${n === 1 ? '' : 's'}`, at: ts,
+  })
+  persist()
+  return n
+}
+
+// Claim an open shift: assign staff + flip status to the normal 'scheduled'.
+// Logs an Activity-feed event. Returns the updated shift row.
+export function demoClaimShift(id, { staffId, staffName } = {}) {
+  const s = demoUpdateShift(id, { staffId, personName: staffName, status: 'scheduled' })
+  if (s) {
+    store.shiftEvents.push({
+      id: uid('shev'), org_id: null, house_id: s.house_id || null, kind: 'shift_claimed',
+      actor: staffName || 'Someone', text: `${staffName || 'Someone'} claimed an open shift on ${s.shift_date}`, at: now(),
+    })
+    persist()
+  }
+  return s
+}
+
+// Count of open shifts in scope, for the schedule nav badge.
+export function demoCountOpenShifts(orgId, { houseId = null } = {}) {
+  demoSeedOrg()
+  return store.shifts.filter(s => s.status === 'open' && (!houseId || s.house_id === houseId)).length
 }
 
 // ── Staff ───────────────────────────────────────────────────────────────────
@@ -1112,6 +1171,11 @@ export function demoFetchActivityFeed({ houseId = null, limit = 40 } = {}) {
     events.push({ id: `timeoff-${r.id}`, kind: 'time_off', at: r.created_at, actor: name, text: `${name} requested ${r.kind} time off`, houseId: r.house_id || null })
   }
 
+  for (const e of store.shiftEvents) {
+    if (!inHouse(e.house_id)) continue
+    events.push({ id: `shev-${e.id}`, kind: e.kind, at: e.at, actor: e.actor || 'Someone', text: e.text, houseId: e.house_id || null })
+  }
+
   return events
     .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
     .slice(0, limit)
@@ -1236,6 +1300,124 @@ export function demoCountUnreadAnnouncements(orgId, { houseId = null, staffId = 
   return demoFetchAnnouncements(orgId, { houseId, staffId, role }).filter(r => !r._read).length
 }
 
+// ── Knowledge base / Handbook ────────────────────────────────────────────────
+// A searchable SOP / policy / house-binder library. Org-wide (house_id null) or
+// house-scoped articles; everyone reads, supervisors/managers author.
+export function demoSeedKnowledge(orgId) {
+  if (store.kbArticles.length > 0) return
+  const mk = (category, title, body, pinned = false) => store.kbArticles.push({
+    id: uid('kb'), org_id: orgId, house_id: null, category, title, body,
+    pinned, updated_by_name: 'Dana Whitfield', created_at: now(), updated_at: now(),
+  })
+  mk('Medications', 'Medication administration policy',
+    'Follow the six rights for every pass: right resident, right medication, right dose, right route, right time, right documentation.\n\nSign the eMAR immediately after administering — never in advance. Count controlled medications at every shift change with a second staff witness. Report any missed or refused dose to the on-call nurse and document it before the end of shift.', true)
+  mk('Safety', 'Fire & tornado drill procedure',
+    'Run a fire drill monthly and a tornado drill quarterly in each home.\n\nFire: sound the alarm, evacuate all residents to the front-lawn meeting point, account for everyone, then log the evacuation time. Tornado: move everyone to the interior hallway away from windows and account for all residents. Record every drill in the app the same day.', true)
+  mk('Compliance', 'Incident reporting steps',
+    'For any injury, fall, medication error, behavioral event, elopement, or allegation: make sure the resident is safe first, then notify your manager and the on-call nurse.\n\nFile the incident in the app before the end of your shift with what happened, who was involved, the time, and the actions you took. Reportable incidents (abuse, neglect, exploitation, serious injury, death) must also be called in to the supervisor immediately.')
+  mk('Operations', 'New resident intake checklist',
+    'Within 24 hours of admission: confirm the medication list against the pharmacy, record allergies and diet, complete a baseline body check, set up the eMAR and care-plan goals, and note guardian and physician contacts.\n\nWithin the first week: review the behavior support plan with every staff member on the resident’s schedule.')
+  persist()
+}
+
+export function demoFetchKbArticles(orgId, { houseId = null, role = null } = {}) {
+  demoSeedKnowledge(orgId)
+  return store.kbArticles
+    .filter(a => role === 'supervisor' || a.house_id == null || a.house_id === houseId)
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.updated_at || '').localeCompare(a.updated_at || ''))
+    .map(a => ({ ...a }))
+}
+
+export function demoCreateKbArticle(orgId, { houseId, category, title, body, pinned, updatedByName } = {}) {
+  const row = {
+    id: uid('kb'), org_id: orgId, house_id: houseId || null,
+    category: category || null, title: title || '', body: body || '',
+    pinned: !!pinned, updated_by_name: updatedByName || null,
+    created_at: now(), updated_at: now(),
+  }
+  store.kbArticles.push(row); persist()
+  return { ...row }
+}
+
+export function demoUpdateKbArticle(id, updates = {}) {
+  const a = store.kbArticles.find(x => x.id === id)
+  if (!a) return null
+  for (const k of ['category', 'title', 'body', 'pinned']) if (updates[k] !== undefined) a[k] = updates[k]
+  a.updated_at = now(); persist()
+  return { ...a }
+}
+
+export function demoDeleteKbArticle(id) {
+  store.kbArticles = store.kbArticles.filter(a => a.id !== id); persist(); return true
+}
+
+// ── Events / sign-ups ────────────────────────────────────────────────────────
+// Dated trainings / house meetings / appointments with RSVP + capacity.
+export function demoSeedEvents(orgId) {
+  if (store.events.length > 0) return
+  const at = (offDays, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + offDays); d.setHours(h, m, 0, 0); return d.toISOString() }
+  const maple = store.houses.find(h => h.short === 'MAP')
+  store.events.push({ id: uid('evt'), org_id: orgId, house_id: null, title: 'CPR / First Aid recertification', kind: 'training', event_at: at(5, 10), location: 'Riverside training room', capacity: 8, created_by_name: 'Dana Whitfield', status: 'active', created_at: now() })
+  store.events.push({ id: uid('evt'), org_id: orgId, house_id: maple ? maple.id : null, title: 'Maple House monthly meeting', kind: 'meeting', event_at: at(7, 17), location: 'Maple House', capacity: null, created_by_name: 'Priya Nair', status: 'active', created_at: now() })
+  store.events.push({ id: uid('evt'), org_id: orgId, house_id: null, title: 'Medication management refresher', kind: 'training', event_at: at(12, 14), location: 'Online', capacity: 12, created_by_name: 'Dana Whitfield', status: 'active', created_at: now() })
+  persist()
+}
+
+function _augmentEvent(e, staffId) {
+  let going = 0, mine = null
+  for (const r of store.eventRsvps) {
+    if (r.event_id !== e.id) continue
+    if (r.status === 'going') going += 1
+    if (staffId && r.staff_id === staffId) mine = r.status
+  }
+  return { ...e, _goingCount: going, _myRsvp: mine, _spotsLeft: e.capacity != null ? Math.max(0, e.capacity - going) : null }
+}
+
+export function demoFetchEvents(orgId, { houseId = null, role = null, staffId = null, includeArchived = false } = {}) {
+  demoSeedEvents(orgId)
+  const nowMs = Date.now()
+  return store.events
+    .filter(e => role === 'supervisor' || e.house_id == null || e.house_id === houseId)
+    .filter(e => {
+      const past = e.event_at ? new Date(e.event_at).getTime() < nowMs : false
+      return includeArchived ? (past || e.status === 'archived') : (e.status === 'active' && !past)
+    })
+    .sort((a, b) => includeArchived
+      ? (b.event_at || '').localeCompare(a.event_at || '')
+      : (a.event_at || '').localeCompare(b.event_at || ''))
+    .map(e => _augmentEvent(e, staffId))
+}
+
+export function demoCreateEvent(orgId, { houseId, title, kind, eventAt, location, capacity, createdByName } = {}) {
+  const row = {
+    id: uid('evt'), org_id: orgId, house_id: houseId || null,
+    title: title || '', kind: kind || 'meeting', event_at: eventAt || null,
+    location: location || null, capacity: capacity != null ? capacity : null,
+    created_by_name: createdByName || null, status: 'active', created_at: now(),
+  }
+  store.events.push(row); persist()
+  return _augmentEvent(row, null)
+}
+
+export function demoRsvpEvent(orgId, { eventId, staffId, staffName, status } = {}) {
+  const r = store.eventRsvps.find(x => x.event_id === eventId && x.staff_id === (staffId || null))
+  if (r) { r.status = status }
+  else store.eventRsvps.push({ id: uid('rsvp'), event_id: eventId, org_id: orgId, staff_id: staffId || null, staff_name: staffName || null, status })
+  persist(); return true
+}
+
+export function demoArchiveEvent(id) {
+  const e = store.events.find(x => x.id === id); if (e) { e.status = 'archived'; persist() } return true
+}
+export function demoDeleteEvent(id) {
+  store.events = store.events.filter(e => e.id !== id)
+  store.eventRsvps = store.eventRsvps.filter(r => r.event_id !== id)
+  persist(); return true
+}
+export function demoCountMyUpcomingEvents(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  return demoFetchEvents(orgId, { houseId, role, staffId }).filter(e => e._myRsvp === 'going').length
+}
+
 // ── Schedule templates / tools ───────────────────────────────────────────────
 // A template-shift is a day-of-week pattern object:
 //   { dayIndex: 0-6, startHour, endHour, role, personName, staffId, note }
@@ -1349,4 +1531,324 @@ export function demoFetchResidentNotes({ houseId = null, residentId = null, from
 export function demoDeleteResidentNote(id) {
   store.residentNotes = store.residentNotes.filter(n => n.id !== id); persist()
   return true
+}
+
+// ── Forms (no-code form templates + submissions) ─────────────────────────────
+// Templates are org-wide (house_id null) or house-scoped; everyone reads/submits,
+// supervisors/managers build & review. Mirrors Knowledge's scoping.
+const _houseByShort = (short) => store.houses.find(h => h.short === short) || null
+
+export function demoSeedForms(orgId) {
+  if (store.formTemplates.length > 0) return
+  const maple = _houseByShort('MAP')
+  store.formTemplates.push({
+    id: uid('ftpl'), org_id: orgId, house_id: null,
+    name: 'Shift handoff checklist',
+    description: 'Complete at the end of every shift before handing off.',
+    fields: [
+      { key: 'meds_passed', label: 'All scheduled medications passed', type: 'checkbox', required: true },
+      { key: 'incidents', label: 'Any incidents this shift', type: 'select', options: ['None', 'Minor', 'Reported'], required: true },
+      { key: 'notes', label: 'Handoff notes for next shift', type: 'text', required: false },
+    ],
+    created_by_name: 'Priya Nair', created_at: now(),
+  })
+  store.formTemplates.push({
+    id: uid('ftpl'), org_id: orgId, house_id: maple ? maple.id : null,
+    name: 'Vehicle safety check',
+    description: 'Walk-around before any resident transport.',
+    fields: [
+      { key: 'tires', label: 'Tires OK', type: 'checkbox', required: true },
+      { key: 'lights', label: 'Lights working', type: 'checkbox', required: true },
+      { key: 'mileage', label: 'Starting mileage', type: 'number', required: true },
+    ],
+    created_by_name: 'Marcus Lewis', created_at: now(),
+  })
+  // One open submission so the review queue isn't empty.
+  const tpl = store.formTemplates[0]
+  store.formSubmissions.push({
+    id: uid('fsub'), org_id: orgId, house_id: null, template_id: tpl.id,
+    answers: { meds_passed: true, incidents: 'None', notes: 'Quiet evening, all residents settled.' },
+    submitted_by_name: 'Aisha Mendez', submitted_at: now(), status: 'open', reviewed_by_name: null,
+  })
+  persist()
+}
+
+export function demoFetchFormTemplates(orgId, { houseId = null, role = null } = {}) {
+  demoSeedForms(orgId)
+  return store.formTemplates
+    .filter(t => role === 'supervisor' || t.house_id == null || t.house_id === houseId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(t => ({ ...t }))
+}
+
+export function demoCreateFormTemplate(orgId, { houseId, name, description, fields, createdByName } = {}) {
+  const row = {
+    id: uid('ftpl'), org_id: orgId, house_id: houseId || null,
+    name: name || '', description: description || '', fields: Array.isArray(fields) ? fields : [],
+    created_by_name: createdByName || null, created_at: now(),
+  }
+  store.formTemplates.push(row); persist()
+  return { ...row }
+}
+
+export function demoDeleteFormTemplate(id) {
+  store.formTemplates = store.formTemplates.filter(t => t.id !== id)
+  store.formSubmissions = store.formSubmissions.filter(s => s.template_id !== id)
+  persist(); return true
+}
+
+export function demoFetchFormSubmissions(orgId, { templateId = null, houseId = null } = {}) {
+  demoSeedForms(orgId)
+  return store.formSubmissions
+    .filter(s => (!templateId || s.template_id === templateId) && (!houseId || s.house_id === houseId || s.house_id == null))
+    .sort((a, b) => (b.submitted_at || '').localeCompare(a.submitted_at || ''))
+    .map(s => ({ ...s }))
+}
+
+export function demoSubmitForm(orgId, { templateId, houseId, answers, submittedByName } = {}) {
+  const row = {
+    id: uid('fsub'), org_id: orgId, house_id: houseId || null, template_id: templateId || null,
+    answers: answers && typeof answers === 'object' ? answers : {},
+    submitted_by_name: submittedByName || null, submitted_at: now(),
+    status: 'open', reviewed_by_name: null,
+  }
+  store.formSubmissions.unshift(row); persist()
+  return { ...row }
+}
+
+export function demoReviewFormSubmission(id, { reviewedByName } = {}) {
+  const s = store.formSubmissions.find(x => x.id === id)
+  if (!s) return null
+  s.status = 'reviewed'; s.reviewed_by_name = reviewedByName || null
+  persist(); return { ...s }
+}
+
+// ── Surveys (staff pulse / training feedback) ────────────────────────────────
+// Org-wide or house-scoped; rows augmented with _responseCount and _myResponded.
+export function demoSeedSurveys(orgId) {
+  if (store.surveys.length > 0) return
+  store.surveys.push({
+    id: uid('svy'), org_id: orgId, house_id: null,
+    title: 'Team morale pulse',
+    questions: [
+      { q: 'How supported do you feel this month?', type: 'rating' },
+      { q: 'Do you have the supplies you need?', type: 'yesno' },
+      { q: 'Anything we should change?', type: 'text' },
+    ],
+    anonymous: true, created_by_name: 'Dana Whitfield', status: 'active', created_at: now(),
+  })
+  persist()
+}
+
+function _augmentSurvey(s, staffId) {
+  let count = 0, mine = false
+  for (const r of store.surveyResponses) {
+    if (r.survey_id !== s.id) continue
+    count += 1
+    if (staffId && r.staff_id === staffId) mine = true
+  }
+  return { ...s, _responseCount: count, _myResponded: mine }
+}
+
+export function demoFetchSurveys(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  demoSeedSurveys(orgId)
+  return store.surveys
+    .filter(s => role === 'supervisor' || s.house_id == null || s.house_id === houseId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(s => _augmentSurvey(s, staffId))
+}
+
+export function demoCreateSurvey(orgId, { houseId, title, questions, anonymous, createdByName } = {}) {
+  const row = {
+    id: uid('svy'), org_id: orgId, house_id: houseId || null,
+    title: title || '', questions: Array.isArray(questions) ? questions : [],
+    anonymous: !!anonymous, created_by_name: createdByName || null,
+    status: 'active', created_at: now(),
+  }
+  store.surveys.push(row); persist()
+  return _augmentSurvey(row, null)
+}
+
+export function demoSubmitSurveyResponse(orgId, { surveyId, staffId, answers } = {}) {
+  const existing = store.surveyResponses.find(r => r.survey_id === surveyId && r.staff_id === (staffId || null))
+  if (existing) {
+    existing.answers = answers && typeof answers === 'object' ? answers : {}
+    existing.submitted_at = now()
+  } else {
+    store.surveyResponses.push({
+      id: uid('sresp'), org_id: orgId, survey_id: surveyId || null, staff_id: staffId || null,
+      answers: answers && typeof answers === 'object' ? answers : {}, submitted_at: now(),
+    })
+  }
+  persist(); return true
+}
+
+export function demoCloseSurvey(id) {
+  const s = store.surveys.find(x => x.id === id)
+  if (s) { s.status = 'closed'; persist() }
+  return true
+}
+
+export function demoDeleteSurvey(id) {
+  store.surveys = store.surveys.filter(s => s.id !== id)
+  store.surveyResponses = store.surveyResponses.filter(r => r.survey_id !== id)
+  persist(); return true
+}
+
+// ── Quick tasks (assignable one-off tasks with due dates) ────────────────────
+export function demoSeedQuickTasks(orgId) {
+  if (store.quickTasks.length > 0) return
+  const maple = _houseByShort('MAP')
+  const oak = _houseByShort('OAK')
+  const at = (offDays, h = 17) => { const d = new Date(); d.setDate(d.getDate() + offDays); d.setHours(h, 0, 0, 0); return d.toISOString() }
+  store.quickTasks.push({
+    id: uid('qtask'), org_id: orgId, house_id: maple ? maple.id : null,
+    title: 'Restock first-aid kit', notes: 'Bandages and gloves running low in the office.',
+    assigned_staff_id: null, assigned_name: 'Aisha Mendez', due_at: at(1),
+    status: 'open', created_by_name: 'Priya Nair', created_at: now(), done_at: null, done_by_name: null,
+  })
+  store.quickTasks.push({
+    id: uid('qtask'), org_id: orgId, house_id: oak ? oak.id : null,
+    title: 'Confirm pharmacy delivery window', notes: '',
+    assigned_staff_id: null, assigned_name: 'Marcus Lewis', due_at: at(2, 12),
+    status: 'open', created_by_name: 'Marcus Lewis', created_at: now(), done_at: null, done_by_name: null,
+  })
+  persist()
+}
+
+export function demoFetchQuickTasks(orgId, { houseId = null, assignedStaffId = null, status = null } = {}) {
+  demoSeedQuickTasks(orgId)
+  return store.quickTasks
+    .filter(t => (!houseId || t.house_id === houseId || t.house_id == null) &&
+      (!assignedStaffId || t.assigned_staff_id === assignedStaffId) &&
+      (!status || t.status === status))
+    .sort((a, b) => (a.due_at || '￿').localeCompare(b.due_at || '￿') || (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(t => ({ ...t }))
+}
+
+export function demoCreateQuickTask(orgId, { houseId, title, notes, assignedStaffId, assignedName, dueAt, createdByName } = {}) {
+  const row = {
+    id: uid('qtask'), org_id: orgId, house_id: houseId || null,
+    title: title || '', notes: notes || '', assigned_staff_id: assignedStaffId || null,
+    assigned_name: assignedName || null, due_at: dueAt || null, status: 'open',
+    created_by_name: createdByName || null, created_at: now(), done_at: null, done_by_name: null,
+  }
+  store.quickTasks.push(row); persist()
+  return { ...row }
+}
+
+export function demoCompleteQuickTask(id, doneByName) {
+  const t = store.quickTasks.find(x => x.id === id)
+  if (!t) return null
+  t.status = 'done'; t.done_at = now(); t.done_by_name = doneByName || null
+  persist(); return { ...t }
+}
+
+export function demoReopenQuickTask(id) {
+  const t = store.quickTasks.find(x => x.id === id)
+  if (!t) return null
+  t.status = 'open'; t.done_at = null; t.done_by_name = null
+  persist(); return { ...t }
+}
+
+export function demoDeleteQuickTask(id) {
+  store.quickTasks = store.quickTasks.filter(t => t.id !== id); persist(); return true
+}
+
+// ── Directory (external contacts) ────────────────────────────────────────────
+export function demoSeedContacts(orgId) {
+  if (store.contacts.length > 0) return
+  const maple = _houseByShort('MAP')
+  const mk = (name, kind, orgName, phone, email, notes, houseId = null) => store.contacts.push({
+    id: uid('cnt'), org_id: orgId, house_id: houseId, name, kind, org_name: orgName,
+    phone, email, notes, created_at: now(),
+  })
+  mk('Riverside Pharmacy', 'pharmacy', 'Riverside Pharmacy', '555-0142', 'rx@riversidepharmacy.example', 'Delivery before noon weekdays.')
+  mk('Dr. Helen Voss', 'physician', 'Northside Family Medicine', '555-0178', 'hvoss@northsidemed.example', 'Primary care for several residents.')
+  mk('Andre Bell', 'case_manager', 'County DD Services', '555-0193', 'abell@countydds.example', 'Case manager — ISP reviews.', maple ? maple.id : null)
+  mk('Crisis & On-call Line', 'emergency', 'Regional Crisis Network', '555-0911', '', 'Available 24/7 for behavioral crises.')
+  persist()
+}
+
+export function demoFetchContacts(orgId, { houseId = null, role = null } = {}) {
+  demoSeedContacts(orgId)
+  return store.contacts
+    .filter(c => role === 'supervisor' || c.house_id == null || c.house_id === houseId)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .map(c => ({ ...c }))
+}
+
+export function demoCreateContact(orgId, { houseId, name, kind, orgName, phone, email, notes } = {}) {
+  const row = {
+    id: uid('cnt'), org_id: orgId, house_id: houseId || null,
+    name: name || '', kind: kind || 'other', org_name: orgName || '',
+    phone: phone || '', email: email || '', notes: notes || '', created_at: now(),
+  }
+  store.contacts.push(row); persist()
+  return { ...row }
+}
+
+export function demoUpdateContact(id, updates = {}) {
+  const c = store.contacts.find(x => x.id === id)
+  if (!c) return null
+  if (updates.name !== undefined)    c.name = updates.name
+  if (updates.kind !== undefined)    c.kind = updates.kind
+  if (updates.orgName !== undefined) c.org_name = updates.orgName
+  if (updates.phone !== undefined)   c.phone = updates.phone
+  if (updates.email !== undefined)   c.email = updates.email
+  if (updates.notes !== undefined)   c.notes = updates.notes
+  persist(); return { ...c }
+}
+
+export function demoDeleteContact(id) {
+  store.contacts = store.contacts.filter(c => c.id !== id); persist(); return true
+}
+
+// ── Help Desk (internal ticketing) ───────────────────────────────────────────
+export function demoSeedTickets(orgId) {
+  if (store.tickets.length > 0) return
+  const maple = _houseByShort('MAP')
+  store.tickets.push({
+    id: uid('tkt'), org_id: orgId, house_id: maple ? maple.id : null,
+    topic: 'maintenance', subject: 'Kitchen faucet leaking', body: 'Slow drip under the sink at Maple; bucket in place for now.',
+    status: 'open', priority: 'med', created_by_name: 'Aisha Mendez', created_by_staff_id: null,
+    assigned_to_name: null, created_at: now(), updated_at: now(),
+  })
+  store.tickets.push({
+    id: uid('tkt'), org_id: orgId, house_id: null,
+    topic: 'it', subject: 'Tablet won’t hold a charge', body: 'The shared documentation tablet dies within an hour.',
+    status: 'in_progress', priority: 'low', created_by_name: 'Marcus Lewis', created_by_staff_id: null,
+    assigned_to_name: 'Dana Whitfield', created_at: now(), updated_at: now(),
+  })
+  persist()
+}
+
+export function demoFetchTickets(orgId, { houseId = null, role = null, staffId = null } = {}) {
+  demoSeedTickets(orgId)
+  return store.tickets
+    .filter(t => role === 'supervisor' || t.house_id == null || t.house_id === houseId ||
+      (staffId && t.created_by_staff_id === staffId))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(t => ({ ...t }))
+}
+
+export function demoCreateTicket(orgId, { houseId, topic, subject, body, priority, createdByName, createdByStaffId } = {}) {
+  const row = {
+    id: uid('tkt'), org_id: orgId, house_id: houseId || null,
+    topic: topic || 'other', subject: subject || '', body: body || '',
+    status: 'open', priority: priority || 'med',
+    created_by_name: createdByName || null, created_by_staff_id: createdByStaffId || null,
+    assigned_to_name: null, created_at: now(), updated_at: now(),
+  }
+  store.tickets.unshift(row); persist()
+  return { ...row }
+}
+
+export function demoUpdateTicket(id, { status, assignedToName } = {}) {
+  const t = store.tickets.find(x => x.id === id)
+  if (!t) return null
+  if (status !== undefined) t.status = status
+  if (assignedToName !== undefined) t.assigned_to_name = assignedToName || null
+  t.updated_at = now()
+  persist(); return { ...t }
 }

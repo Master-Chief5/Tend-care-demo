@@ -35,13 +35,33 @@ DS_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome \
   want them bundled instead, download the woff2 and wire `cfg.extraFonts`.
 
 ## Upload status
-- Upload to claude.ai/design was BLOCKED in the build session: design auth
-  isn't available in claude.ai/code web (`/design-login` needs a terminal).
-  The validated bundle lives at `ds-bundle/` (gitignored). To finish: run from a
-  design-authed environment (terminal `/design-login`, or Claude Design
-  "Send to Claude Code Web"), then `list_projects` → create project → finalize
-  plan → upload `ds-bundle/` per the skill's §5. `projectId` is NOT yet recorded
-  in config because nothing was uploaded.
+- **DONE (2026-06-23).** All 10 components uploaded to project **"Design System"**
+  `66bd1bde-91ba-4002-8586-e508cb632498` (now pinned as `projectId` in config).
+  58 files, render check clean, all 10 graded `good`, `_ds_sync.json` anchor
+  written last. URL: https://claude.ai/design/p/66bd1bde-91ba-4002-8586-e508cb632498
+  Future runs are normal re-syncs (atomic path, since projectId is now pinned).
+
+## Windows build environment (this machine)
+- **Node is now installed** via winget: `winget install OpenJS.NodeJS.LTS --source winget`
+  (the `msstore` source fails a cert check — always pass `--source winget`). It
+  lives under `…\WinGet\Packages\OpenJS.NodeJS.LTS_*\node-v24.*-win-x64\` and is
+  NOT on the bash PATH — prepend that dir to `PATH` in each shell call.
+- **npm TLS:** set `NODE_OPTIONS=--use-system-ca` for every npm/node command —
+  the corporate root CA is only in the Windows cert store, so the default bundled
+  CAs fail with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` (same root cause as the git
+  schannel issue). With `--use-system-ca` it just works.
+- **Render check without a 200MB download:** system Chrome is installed at
+  `C:\Program Files\Google\Chrome\Application\chrome.exe`. Install only the
+  Playwright JS pkg (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright`) into
+  `.ds-sync/`, then run validate/capture with
+  `DS_CHROMIUM_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"`.
+- **esbuild:** npm's allow-scripts policy blocks its postinstall, but the
+  `@esbuild/win32-x64` optional binary installs anyway and esbuild works — ignore
+  the `allow-scripts` warning.
+- **`DesignSync(finalize_plan)` `localDir` must be an ABSOLUTE path** here —
+  a relative `./ds-bundle` double-resolved to `…\ds-bundle\ds-bundle` (ENOENT).
+- design-system build: `cd design-system && npm install && npm install --no-save
+  react@^18 react-dom@^18 && npm run build` (peers aren't auto-installed).
 
 ## Re-sync risks
 - `design-system/` is hand-authored and small (10 primitives). Adding app

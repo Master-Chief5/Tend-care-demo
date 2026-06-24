@@ -4,7 +4,7 @@ import { summarizeWeek, fmtHrs } from '../lib/scheduleSummary'
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses } from '../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift } from '../lib/db'
 
 // "7:00 AM" style label from a decimal hour — so AM/PM is always explicit.
 function hourLabel(h) {
@@ -484,6 +484,34 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, onCl
   )
 }
 
+// DSP-facing "Claim shift" sheet for an open (unfilled) shift in their house.
+function ClaimSheet({ shift, house, busy, onClaim, onClose }) {
+  const color = house?.color || 'var(--a-clay)'
+  const dateLabel = fmtDayLabel(new Date(shift.date + 'T12:00:00'))
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color, border: `1.5px dashed ${color}`, padding: '2px 8px', borderRadius: 999 }}>Open shift</span>
+        </div>
+        <div className="serif" style={{ fontSize: 24, letterSpacing: '-0.02em', marginTop: 6 }}>Claim this shift?</div>
+        <div style={{ marginTop: 12, background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: color }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>{house?.name || shift.role}</span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 6 }}>{dateLabel} · {hourLabel(shift.start)}–{hourLabel(shift.end)}</div>
+          <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 2 }}>{shift.role}{shift.note ? ` · “${shift.note}”` : ''}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: '1px solid var(--a-line)', background: 'var(--a-card)', color: 'var(--a-ink2)', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>Cancel</button>
+          <button onClick={onClaim} disabled={busy} style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>{busy ? 'Claiming…' : 'Claim shift'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
@@ -529,6 +557,27 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   useEffect(() => { reload() }, [reload])
 
   const closeAndReload = () => { setModal(null); reload() }
+
+  // A DSP (employee) can CLAIM an open shift in their house. Optimistically flip
+  // the shift to theirs, then persist + refresh.
+  const isStaff = user?.role === 'staff'
+  const [claiming, setClaiming] = useState(false)
+  const claimOpenShift = async (shift) => {
+    if (claiming) return
+    setClaiming(true)
+    const staffId = user?.staffId || `demo-${user?.role}`
+    setWeekShifts(prev => prev.map(s => s.id === shift.id
+      ? { ...s, status: 'scheduled', staffId, person: user?.name || s.person } : s))
+    setModal(null)
+    try { await claimShift(shift.id, { staffId, staffName: user?.name }) } catch { /* ignore */ }
+    setClaiming(false)
+    reload()
+  }
+  // When a staffer taps a shift: open the claim sheet for an open shift, else edit.
+  const onShiftTap = (s) => {
+    if (isStaff && s.status === 'open') setModal({ mode: 'claim', shift: s })
+    else setModal({ mode: 'edit', shift: s })
+  }
 
   // Navigation: a week step for day/week, a month step for month; Today resets.
   const step = view === 'month' ? (n) => setAnchorDate(d => addMonths(d, n)) : (n) => setAnchorDate(d => addDays(d, n * 7))
@@ -620,12 +669,21 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
-          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} isMine={isMine} onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} isMine={isMine} onShiftClick={onShiftTap} />
         </div>
       </div>
       <TabBar active="sched" />
 
-      {modal && (
+      {modal && modal.mode === 'claim' && (
+        <ClaimSheet
+          shift={modal.shift}
+          house={displayHouses.find(h => h.id === modal.shift.house)}
+          busy={claiming}
+          onClaim={() => claimOpenShift(modal.shift)}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal && modal.mode !== 'claim' && (
         <ShiftModal
           user={user}
           houses={pickerHouses}
