@@ -21,7 +21,7 @@ function shiftsToTemplate(shifts, weekDates) {
     dayIndex: weekDates.indexOf(s.date),
     startHour: s.start, endHour: s.end,
     role: s.role || 'DSP', personName: s.person || '', staffId: s.staffId || null,
-    note: s.note || '', house: s.house,
+    note: s.note || '', requiredCert: s.requiredCert || null, house: s.house,
   })).filter(t => t.dayIndex >= 0 && t.personName)
 }
 

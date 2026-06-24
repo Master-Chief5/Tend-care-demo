@@ -6,6 +6,18 @@ const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 
 import { useNowMinute } from '../hooks/useNowMinute'
 import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift, fetchTimeOffRequests } from '../lib/db'
 import { approvedLeaveOn, findOverlap } from '../lib/scheduleSafety'
+import { certStatus } from './People'
+
+// Common certs offered as the optional cert-gate on a shift.
+const SHIFT_CERTS = ['Medication Administration', 'CPR / First Aid', 'First Aid']
+
+// The candidate staffer's matching cert for `requiredCert` (case-insensitive
+// name match), or null if they don't have one tracked at all.
+function matchingCert(certs = [], requiredCert) {
+  if (!requiredCert) return null
+  const want = requiredCert.trim().toLowerCase()
+  return (certs || []).find(c => (c.name || '').trim().toLowerCase() === want) || null
+}
 
 // "7:00 AM" style label from a decimal hour — so AM/PM is always explicit.
 function hourLabel(h) {
@@ -364,6 +376,7 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
   const [endTime, setEndTime] = useState(editShift ? hourToTime(editShift.end) : '15:00')
   const [houseId, setHouseId] = useState(initialHouse)
   const [note, setNote] = useState(editShift?.note || '')
+  const [requiredCert, setRequiredCert] = useState(editShift?.requiredCert || '')
   const [repeatDays, setRepeatDays] = useState([])
   const [weeks, setWeeks] = useState(4)
   const [staff, setStaff] = useState([])
@@ -385,8 +398,16 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
 
   // Scheduler-safety: warn (don't block) if this assignment lands on approved
   // leave or double-books the same person on the same day.
-  const candidateStaffId = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase())?.id || null
+  const candidateStaff = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase()) || null
+  const candidateStaffId = candidateStaff?.id || null
   const trimmedName = personName.trim()
+
+  // Cert gate: when this shift requires a cert, check the typed candidate's
+  // matching cert. Warn (don't block) if it's missing or expired/expiring.
+  const certMatch = requiredCert ? matchingCert(candidateStaff?.certs, requiredCert) : null
+  const certState = requiredCert ? certStatus(certMatch?.expires) : null
+  // rank: 0 valid · 1 no date · 2 expiring · 3 expired. Missing cert entirely also warns.
+  const certBlocked = !!requiredCert && !!trimmedName && (!certMatch || certState.rank >= 2)
   const onLeave = trimmedName ? approvedLeaveOn(timeOff, { staffId: candidateStaffId, name: trimmedName, dateStr: date }) : []
   const overlap = (trimmedName && dur > 0)
     ? findOverlap(weekShifts, { staffId: candidateStaffId, name: trimmedName, dateStr: date, start: sH, end: eH, exceptId: editShift?.id })
@@ -400,11 +421,11 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
     // that worker's app can reliably flag "your shift".
     const staffId = staff.find(s => s.name.trim().toLowerCase() === personName.trim().toLowerCase())?.id || null
     if (editShift) {
-      await updateShift(editShift.id, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date, note: note.trim() })
+      await updateShift(editShift.id, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date, note: note.trim(), requiredCert: requiredCert || null })
     } else {
       const dates = expandRepeatDates(date, repeatDays, weeks)
       for (const d of dates) {
-        await addShift(user.orgId, houseId, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date: d, note: note.trim() })
+        await addShift(user.orgId, houseId, { personName: personName.trim(), staffId, role, startHour: sH, endHour: eH, date: d, note: note.trim(), requiredCert: requiredCert || null })
       }
     }
     setSaving(false)
@@ -434,6 +455,14 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
           <SuggestInput autoFocus options={staff.map(s => s.name)} value={personName} onChange={setPersonName}
             placeholder={staff.length ? 'Staff member name' : 'Type a name (or add staff first)'}
             style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+          {requiredCert && trimmedName && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: -4, paddingLeft: 2, fontSize: 11.5, color: 'var(--a-ink3)' }}>
+              <span>{requiredCert}:</span>
+              {certBlocked
+                ? <span style={{ fontSize: 10, fontWeight: 700, color: '#a93a25', background: '#fadcd7', padding: '2px 8px', borderRadius: 999 }}>{certMatch ? `cert ${certState.rank >= 3 ? 'expired' : certState.label.toLowerCase()}` : 'cert missing'}</span>
+                : <span style={{ fontSize: 10, fontWeight: 700, color: '#3f604d', background: '#dee6df', padding: '2px 8px', borderRadius: 999 }}>cert valid</span>}
+            </div>
+          )}
           <div>
             <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Day</div>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
@@ -465,6 +494,21 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
             style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
             {['DSP', 'Lead', 'Mgr', 'PT', 'Awake OT'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }}>Required certification (optional)</div>
+            <select value={requiredCert} onChange={e => setRequiredCert(e.target.value)}
+              style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }}>
+              <option value="">No cert required</option>
+              {SHIFT_CERTS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {certBlocked && (
+            <div style={{ fontSize: 12.5, color: '#a93a25', background: 'rgba(176,92,60,0.08)', border: '1px solid #e3b6ad', borderRadius: 8, padding: '8px 12px', lineHeight: 1.35 }}>
+              {!certMatch
+                ? <><strong>Missing required cert.</strong> {trimmedName} has no <strong>{requiredCert}</strong> on file. This shift requires it — assign anyway only if you've verified coverage.</>
+                : <><strong>{requiredCert} {certState.rank >= 3 ? 'expired' : 'expiring'}.</strong> {trimmedName}’s {requiredCert} is {certState.label.toLowerCase()}. This shift requires an active cert.</>}
+            </div>
+          )}
           {houses.length > 1 && (
             <select value={houseId} onChange={e => setHouseId(e.target.value)} disabled={!!editShift}
               style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', opacity: editShift ? 0.7 : 1 }}>

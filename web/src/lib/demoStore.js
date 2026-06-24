@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], recognitions: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [], behaviorPlans: [], behaviorEvents: [] }
 }
 
 function load() {
@@ -87,9 +87,10 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
 
   // Today's shifts (+ a couple tomorrow so the week view isn't bare).
   const dateFor = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return _ds(d) }
-  const shift = (house, who, role, s, e, off = 0) =>
-    demoAddShift(house.id, { personName: who, staffId: staffId(who), role, startHour: s, endHour: e, date: dateFor(off) })
-  shift(maple, 'Aisha Mendez', 'DSP',     7, 15)
+  const shift = (house, who, role, s, e, off = 0, requiredCert = null) =>
+    demoAddShift(house.id, { personName: who, staffId: staffId(who), role, startHour: s, endHour: e, date: dateFor(off), requiredCert })
+  // Maple morning is a med-pass: it requires an active Medication Administration cert.
+  shift(maple, 'Aisha Mendez', 'DSP',     7, 15, 0, 'Medication Administration')
   shift(maple, 'Jay Brooks',   'DSP',    15, 23)
   shift(maple, 'Priya Nair',   'Manager', 9, 17)
   shift(oak,   'Reni Tate',    'DSP',     7, 15)
@@ -141,6 +142,7 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   // Reuse the existing lazy seeders so Updates / Activity / Time are populated
   // from the same first load (each is internally guarded against duplicates).
   demoSeedAnnouncements(orgId)
+  demoSeedRecognitions(orgId)
   demoSeedTimeclock(orgId)
   demoSeedTimeOff(orgId)
   demoSeedKnowledge(orgId)
@@ -152,6 +154,7 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoSeedTickets(orgId)
   demoSeedAppointments(orgId)
   demoSeedResidentFunds(orgId)
+  demoSeedBehaviorPlans(orgId)
 
   persist()
 }
@@ -223,7 +226,8 @@ export function demoFetchShifts(houseId, date) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
+      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null,
+      requiredCert: s.required_cert ?? null, status: s.status,
       publishedAt: s.published_at ?? null,
     }))
 }
@@ -235,7 +239,8 @@ export function demoFetchShiftsWeek(houseId, weekStart, weekEnd) {
     .map(s => ({
       id: s.id, house: houseJoin(s.house_id)?.slug ?? s.house_id, date: s.shift_date,
       start: Number(s.start_hour), end: Number(s.end_hour),
-      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null, status: s.status,
+      person: s.person_name, staffId: s.staff_id ?? null, role: s.role, note: s.note ?? null,
+      requiredCert: s.required_cert ?? null, status: s.status,
       publishedAt: s.published_at ?? null,
     }))
 }
@@ -245,7 +250,8 @@ export function demoAddShift(houseId, shift) {
     id: uid('shift'), house_id: houseId,
     person_name: shift.personName, staff_id: shift.staffId || null, role: shift.role,
     start_hour: shift.startHour, end_hour: shift.endHour,
-    shift_date: shift.date || todayStr(), note: shift.note || null, status: 'scheduled',
+    shift_date: shift.date || todayStr(), note: shift.note || null,
+    required_cert: shift.requiredCert || null, status: 'scheduled',
     published_at: shift.publishedAt ?? null,
   }
   store.shifts.push(row); persist()
@@ -262,6 +268,7 @@ export function demoUpdateShift(id, updates) {
   if (updates.endHour !== undefined)    s.end_hour = updates.endHour
   if (updates.date !== undefined)       s.shift_date = updates.date
   if (updates.note !== undefined)       s.note = updates.note || null
+  if (updates.requiredCert !== undefined) s.required_cert = updates.requiredCert || null
   if (updates.status !== undefined)     s.status = updates.status
   if (updates.publishedAt !== undefined) s.published_at = updates.publishedAt
   persist()
@@ -864,6 +871,98 @@ export function demoDeleteHealthLog(id) {
   store.healthLogs = store.healthLogs.filter(h => h.id !== id); persist()
 }
 
+// ── Behavior support plans (BSP) + structured ABC behavior events ────────────
+// A behavior_plans row captures the resident's target behaviors and the staff
+// playbook (antecedent strategies, replacement behaviors, intervention steps).
+// behavior_events are structured ABC data points (one per occurrence) used to
+// drive the per-target-behavior frequency mini-chart.
+export function demoSeedBehaviorPlans(orgId) {
+  if (store.behaviorPlans.length > 0) return
+  const james = store.residents.find(r => r.name === 'James Whitaker')
+  if (!james) return
+  const plan = {
+    id: uid('bsp'), org_id: orgId, house_id: james.house_id, resident_id: james.id,
+    resident_name: james.name,
+    target_behaviors: ['Elopement', 'Escalation / aggression'],
+    antecedent_strategies: 'Keep transitions predictable — give a 5-minute warning before any change. Watch for early signs (pacing, repeated questions about leaving). Offer choices to keep a sense of control.',
+    replacement_behaviors: 'Ask for a break using his break card. Walk to the sensory corner. Tell staff "I need space" instead of leaving the building.',
+    intervention_steps: '1. Stay calm, lower your voice, give physical space.\n2. Acknowledge the feeling ("I can see you\'re frustrated").\n3. Offer the break card and the quiet space.\n4. If he heads for an exit, do NOT block — walk alongside, keep him safe, radio for a second staff.\n5. Once calm, debrief gently and log the ABC entry.',
+    created_by_name: 'Marcus Lewis', created_at: now(), updated_at: now(),
+  }
+  store.behaviorPlans.push(plan)
+
+  // A handful of seeded ABC data points across the last ~2 weeks so the
+  // frequency chart has real bars on first load.
+  const ev = (offDays, h, behavior, antecedent, consequence, intervention, intensity) => {
+    const d = new Date(); d.setDate(d.getDate() - offDays); d.setHours(h, 0, 0, 0)
+    store.behaviorEvents.push({
+      id: uid('bev'), org_id: orgId, house_id: james.house_id, resident_id: james.id, plan_id: plan.id,
+      occurred_at: d.toISOString(), antecedent, behavior, consequence, intervention, intensity,
+      recorded_by: 'Reni Tate', created_at: now(),
+    })
+  }
+  ev(12, 15, 'Escalation / aggression', 'Asked to end screen time', 'Calmed with break', 'Offered break card + quiet space', 'Moderate')
+  ev(9, 16, 'Elopement', 'Front door left open during delivery', 'Returned safely', 'Walked alongside, radioed second staff', 'Mild')
+  ev(6, 14, 'Escalation / aggression', 'Loud noise from kitchen', 'De-escalated in ~10 min', 'Lowered voice, gave space', 'Moderate')
+  ev(3, 17, 'Escalation / aggression', 'Transition to dinner', 'Redirected', 'Gave 5-min warning, offered choice', 'Mild')
+  ev(1, 11, 'Elopement', 'Wanted to go to the store', 'Redirected to schedule board', 'Reviewed daily plan together', 'Mild')
+  persist()
+}
+
+export function demoFetchBehaviorPlans(orgId, houseId = null, residentId = null) {
+  demoSeedBehaviorPlans(orgId)
+  return store.behaviorPlans
+    .filter(p => (!houseId || p.house_id === houseId) && (!residentId || p.resident_id === residentId))
+    .map(p => ({ ...p, targetBehaviors: p.target_behaviors || [], residentId: p.resident_id, residentName: p.resident_name, createdByName: p.created_by_name, createdAt: p.created_at, updatedAt: p.updated_at }))
+}
+export function demoCreateBehaviorPlan(orgId, plan) {
+  const row = {
+    id: uid('bsp'), org_id: orgId, house_id: plan.houseId || null, resident_id: plan.residentId || null,
+    resident_name: plan.residentName || (plan.residentId ? residentName(plan.residentId) : null),
+    target_behaviors: plan.targetBehaviors || [], antecedent_strategies: plan.antecedentStrategies || '',
+    replacement_behaviors: plan.replacementBehaviors || '', intervention_steps: plan.interventionSteps || '',
+    created_by_name: plan.createdByName || null, created_at: now(), updated_at: now(),
+  }
+  store.behaviorPlans.push(row); persist()
+  return { ...row, targetBehaviors: row.target_behaviors, residentId: row.resident_id, residentName: row.resident_name, createdByName: row.created_by_name, createdAt: row.created_at, updatedAt: row.updated_at }
+}
+export function demoUpdateBehaviorPlan(id, updates) {
+  const p = store.behaviorPlans.find(x => x.id === id)
+  if (!p) return null
+  if (updates.targetBehaviors !== undefined)      p.target_behaviors = updates.targetBehaviors
+  if (updates.antecedentStrategies !== undefined) p.antecedent_strategies = updates.antecedentStrategies
+  if (updates.replacementBehaviors !== undefined) p.replacement_behaviors = updates.replacementBehaviors
+  if (updates.interventionSteps !== undefined)    p.intervention_steps = updates.interventionSteps
+  p.updated_at = now(); persist()
+  return p
+}
+export function demoDeleteBehaviorPlan(id) {
+  store.behaviorPlans = store.behaviorPlans.filter(p => p.id !== id)
+  store.behaviorEvents = store.behaviorEvents.filter(e => e.plan_id !== id); persist()
+}
+
+export function demoFetchBehaviorEvents(orgId, { residentId = null, planId = null, limit = 60 } = {}) {
+  return store.behaviorEvents
+    .filter(e => (!residentId || e.resident_id === residentId) && (!planId || e.plan_id === planId))
+    .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
+    .slice(0, limit)
+    .map(e => ({ id: e.id, residentId: e.resident_id, planId: e.plan_id, occurredAt: e.occurred_at, antecedent: e.antecedent, behavior: e.behavior, consequence: e.consequence, intervention: e.intervention, intensity: e.intensity, by: e.recorded_by }))
+}
+export function demoCreateBehaviorEvent(orgId, entry) {
+  const row = {
+    id: uid('bev'), org_id: orgId, house_id: entry.houseId || null, resident_id: entry.residentId || null,
+    plan_id: entry.planId || null, occurred_at: entry.occurredAt || now(),
+    antecedent: entry.antecedent || '', behavior: entry.behavior || '', consequence: entry.consequence || '',
+    intervention: entry.intervention || '', intensity: entry.intensity || null,
+    recorded_by: entry.by || null, created_at: now(),
+  }
+  store.behaviorEvents.unshift(row); persist()
+  return { id: row.id, residentId: row.resident_id, planId: row.plan_id, occurredAt: row.occurred_at, antecedent: row.antecedent, behavior: row.behavior, consequence: row.consequence, intervention: row.intervention, intensity: row.intensity, by: row.recorded_by }
+}
+export function demoDeleteBehaviorEvent(id) {
+  store.behaviorEvents = store.behaviorEvents.filter(e => e.id !== id); persist()
+}
+
 // ── Safety drills (fire, tornado, evacuation) ────────────────────────────────
 export function demoAddDrill(d) {
   const row = {
@@ -1248,7 +1347,7 @@ function _augmentAnnouncement(a, staffId) {
   return { ...a, _read: read, _myVote: myVote, _pollCounts: counts, _readCount: readCount }
 }
 
-export function demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead } = {}) {
+export function demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead, publishAt } = {}) {
   const row = {
     id: uid('ann'), org_id: orgId, house_id: houseId || null,
     author_staff_id: authorStaffId || null, author_name: authorName || null, author_role: authorRole || null,
@@ -1257,6 +1356,7 @@ export function demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorNa
     poll_question: pollQuestion || null,
     poll_options: (pollOptions && pollOptions.length) ? pollOptions : null,
     require_read: !!requireRead,
+    publish_at: publishAt || null,
     created_at: now(),
   }
   store.announcements.push(row); persist()
@@ -1265,13 +1365,25 @@ export function demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorNa
 
 export function demoFetchAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
   demoSeedAnnouncements(orgId)
+  const nowMs = Date.now()
   return store.announcements
     .filter(a =>
       (role === 'supervisor' || a.house_id == null || a.house_id === houseId) &&
-      (!a.audience_roles || a.audience_roles.length === 0 || a.audience_roles.includes(role))
+      (!a.audience_roles || a.audience_roles.length === 0 || a.audience_roles.includes(role)) &&
+      // Scheduled posts stay hidden until due — except for their own author.
+      (!a.publish_at || new Date(a.publish_at).getTime() <= nowMs || (staffId && a.author_staff_id === staffId))
     )
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
     .map(a => _augmentAnnouncement(a, staffId))
+}
+
+// Reader names for one announcement (newest first). Used by the "Seen by N"
+// expander in the admin announcement card.
+export function demoFetchAnnouncementReaders(orgId, announcementId) {
+  return store.announcementReads
+    .filter(r => r.announcement_id === announcementId)
+    .sort((a, b) => (b.read_at || '').localeCompare(a.read_at || ''))
+    .map(r => ({ staffId: r.staff_id || null, name: r.staff_name || 'Staff', readAt: r.read_at || null }))
 }
 
 export function demoMarkAnnouncementRead(orgId, { announcementId, staffId, staffName } = {}) {
@@ -1310,6 +1422,53 @@ export function demoDeleteAnnouncement(id) {
 export function demoCountUnreadAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
   demoSeedAnnouncements(orgId)
   return demoFetchAnnouncements(orgId, { houseId, staffId, role }).filter(r => !r._read).length
+}
+
+// ── Recognitions / Kudos ─────────────────────────────────────────────────────
+// A peer-recognition feed surfaced alongside Updates. Any role can give kudos to
+// a staff member (a short message + a badge). `badge` ∈ star|heart|leaf.
+export function demoSeedRecognitions(orgId) {
+  if (store.recognitions.length > 0) return
+  const maple = store.houses.find(h => h.short === 'MAP')
+  const oak = store.houses.find(h => h.short === 'OAK')
+  const aisha = store.staff.find(s => s.name === 'Aisha Mendez')
+  const reni = store.staff.find(s => s.name === 'Reni Tate')
+
+  store.recognitions.push({
+    id: uid('kudo'), org_id: orgId, house_id: maple ? maple.id : null,
+    to_staff_id: aisha ? aisha.id : null, to_staff_name: 'Aisha Mendez',
+    from_name: 'Priya Nair', from_role: 'manager', badge: 'star',
+    message: 'Caught a low glove supply at Maple and restocked before anyone asked. Thank you for staying ahead of things!',
+    created_at: now(),
+  })
+  store.recognitions.push({
+    id: uid('kudo'), org_id: orgId, house_id: oak ? oak.id : null,
+    to_staff_id: reni ? reni.id : null, to_staff_name: 'Reni Tate',
+    from_name: 'Marcus Lewis', from_role: 'manager', badge: 'heart',
+    message: 'Handled the afternoon escalation with so much patience and care. The whole house felt calmer afterward.',
+    created_at: now(),
+  })
+  persist()
+}
+
+export function demoFetchRecognitions(orgId, { houseId = null, role = null } = {}) {
+  demoSeedRecognitions(orgId)
+  return store.recognitions
+    .filter(r => role === 'supervisor' || r.house_id == null || r.house_id === houseId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .map(r => ({ ...r }))
+}
+
+export function demoCreateRecognition(orgId, { houseId, toStaffId, toStaffName, fromName, fromRole, badge, message } = {}) {
+  const row = {
+    id: uid('kudo'), org_id: orgId, house_id: houseId || null,
+    to_staff_id: toStaffId || null, to_staff_name: toStaffName || null,
+    from_name: fromName || null, from_role: fromRole || null,
+    badge: badge || 'star', message: message || '',
+    created_at: now(),
+  }
+  store.recognitions.push(row); persist()
+  return { ...row }
 }
 
 // ── Knowledge base / Handbook ────────────────────────────────────────────────
@@ -1584,6 +1743,7 @@ export function demoApplyShiftsToWeek(orgId, { houseId, weekDates, shifts } = {}
     demoAddShift(houseId, {
       personName: ts.personName, staffId: ts.staffId || null, role: ts.role,
       startHour: ts.startHour, endHour: ts.endHour, date, note: ts.note || null,
+      requiredCert: ts.requiredCert || null,
     })
     inserted += 1
   }

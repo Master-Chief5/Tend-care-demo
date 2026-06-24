@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS announcements (
 CREATE INDEX IF NOT EXISTS announcements_org_house_created_idx
   ON announcements (org_id, house_id, created_at);
 
+-- Optional scheduled publish time. NULL = published immediately; a future
+-- timestamp hides the post from the feed (except its author) until it is due.
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS publish_at timestamptz;
+
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "announcements_select" ON announcements;

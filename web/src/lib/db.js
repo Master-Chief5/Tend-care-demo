@@ -54,6 +54,7 @@ export async function fetchShifts(orgId, houseId, date) {
     staffId: s.staff_id ?? null,
     role:   s.role,
     note:   s.note ?? null,
+    requiredCert: s.required_cert ?? null,
     status: s.status,
     publishedAt: s.published_at ?? null,
   }))
@@ -88,6 +89,7 @@ export async function fetchShiftsWeek(orgId, houseId, weekStart, weekEnd) {
     staffId: s.staff_id ?? null,
     role:   s.role,
     note:   s.note ?? null,
+    requiredCert: s.required_cert ?? null,
     status: s.status,
     publishedAt: s.published_at ?? null,
   }))
@@ -109,6 +111,7 @@ export async function addShift(orgId, houseId, shift) {
       end_hour:    shift.endHour,
       shift_date:  shift.date || toDateStr(new Date()),
       note:        shift.note || null,
+      required_cert: shift.requiredCert || null,
       status:      'scheduled',
       published_at: shift.publishedAt ?? null,
     })
@@ -129,6 +132,7 @@ export async function updateShift(id, updates) {
   if (updates.endHour !== undefined)    patch.end_hour = updates.endHour
   if (updates.date !== undefined)       patch.shift_date = updates.date
   if (updates.note !== undefined)       patch.note = updates.note || null
+  if (updates.requiredCert !== undefined) patch.required_cert = updates.requiredCert || null
   if (updates.status !== undefined)     patch.status = updates.status
   if (updates.publishedAt !== undefined) patch.published_at = updates.publishedAt
   const { data, error } = await supabase.from('shifts').update(patch).eq('id', id).select().single()
@@ -1098,6 +1102,83 @@ export async function deleteHealthLog(id) {
   if (supabase) await supabase.from('health_logs').delete().eq('id', id)
 }
 
+// ── Behavior support plans (BSP) + structured ABC behavior events ────────────
+export async function fetchBehaviorPlans(orgId, { houseId = null, residentId = null } = {}) {
+  if (isDemoMode) return demo.demoFetchBehaviorPlans(orgId, houseId, residentId)
+  if (!supabase || !orgId) return []
+  let q = supabase.from('behavior_plans').select('*').eq('org_id', orgId).order('created_at', { ascending: true })
+  if (houseId) q = q.eq('house_id', houseId)
+  if (residentId) q = q.eq('resident_id', residentId)
+  const { data, error } = await q
+  if (error) { console.error('fetchBehaviorPlans:', error.message); return [] }
+  return (data || []).map(p => ({
+    id: p.id, houseId: p.house_id, residentId: p.resident_id, residentName: p.resident_name,
+    targetBehaviors: p.target_behaviors || [], antecedentStrategies: p.antecedent_strategies,
+    replacementBehaviors: p.replacement_behaviors, interventionSteps: p.intervention_steps,
+    createdByName: p.created_by_name, createdAt: p.created_at, updatedAt: p.updated_at,
+  }))
+}
+export async function createBehaviorPlan(orgId, plan) {
+  if (isDemoMode) return demo.demoCreateBehaviorPlan(orgId, plan)
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('behavior_plans').insert({
+    org_id: orgId, house_id: plan.houseId || null, resident_id: plan.residentId || null,
+    resident_name: plan.residentName || null, target_behaviors: plan.targetBehaviors || [],
+    antecedent_strategies: plan.antecedentStrategies || null, replacement_behaviors: plan.replacementBehaviors || null,
+    intervention_steps: plan.interventionSteps || null, created_by_name: plan.createdByName || null,
+  }).select().single()
+  if (error) { console.error('createBehaviorPlan:', error.message); return null }
+  return {
+    id: data.id, houseId: data.house_id, residentId: data.resident_id, residentName: data.resident_name,
+    targetBehaviors: data.target_behaviors || [], antecedentStrategies: data.antecedent_strategies,
+    replacementBehaviors: data.replacement_behaviors, interventionSteps: data.intervention_steps,
+    createdByName: data.created_by_name, createdAt: data.created_at, updatedAt: data.updated_at,
+  }
+}
+export async function updateBehaviorPlan(id, updates) {
+  if (isDemoMode) return demo.demoUpdateBehaviorPlan(id, updates)
+  if (!supabase || !id) return null
+  const patch = { updated_at: new Date().toISOString() }
+  if (updates.targetBehaviors !== undefined)      patch.target_behaviors = updates.targetBehaviors
+  if (updates.antecedentStrategies !== undefined) patch.antecedent_strategies = updates.antecedentStrategies || null
+  if (updates.replacementBehaviors !== undefined) patch.replacement_behaviors = updates.replacementBehaviors || null
+  if (updates.interventionSteps !== undefined)    patch.intervention_steps = updates.interventionSteps || null
+  const { error } = await supabase.from('behavior_plans').update(patch).eq('id', id)
+  if (error) console.error('updateBehaviorPlan:', error.message)
+}
+export async function deleteBehaviorPlan(id) {
+  if (isDemoMode) return demo.demoDeleteBehaviorPlan(id)
+  if (supabase) await supabase.from('behavior_plans').delete().eq('id', id)
+}
+
+// Structured ABC data points (one per occurrence), newest-first.
+export async function fetchBehaviorEvents(orgId, { residentId = null, planId = null, limit = 60 } = {}) {
+  if (isDemoMode) return demo.demoFetchBehaviorEvents(orgId, { residentId, planId, limit })
+  if (!supabase || !orgId) return []
+  let q = supabase.from('behavior_events').select('*').eq('org_id', orgId).order('occurred_at', { ascending: false }).limit(limit)
+  if (residentId) q = q.eq('resident_id', residentId)
+  if (planId) q = q.eq('plan_id', planId)
+  const { data, error } = await q
+  if (error) { console.error('fetchBehaviorEvents:', error.message); return [] }
+  return (data || []).map(e => ({ id: e.id, residentId: e.resident_id, planId: e.plan_id, occurredAt: e.occurred_at, antecedent: e.antecedent, behavior: e.behavior, consequence: e.consequence, intervention: e.intervention, intensity: e.intensity, by: e.recorded_by }))
+}
+export async function createBehaviorEvent(orgId, entry) {
+  if (isDemoMode) return demo.demoCreateBehaviorEvent(orgId, entry)
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase.from('behavior_events').insert({
+    org_id: orgId, house_id: entry.houseId || null, resident_id: entry.residentId || null, plan_id: entry.planId || null,
+    occurred_at: entry.occurredAt || new Date().toISOString(), antecedent: entry.antecedent || null,
+    behavior: entry.behavior || null, consequence: entry.consequence || null, intervention: entry.intervention || null,
+    intensity: entry.intensity || null, recorded_by: entry.by || null,
+  }).select().single()
+  if (error) { console.error('createBehaviorEvent:', error.message); return null }
+  return { id: data.id, residentId: data.resident_id, planId: data.plan_id, occurredAt: data.occurred_at, antecedent: data.antecedent, behavior: data.behavior, consequence: data.consequence, intervention: data.intervention, intensity: data.intensity, by: data.recorded_by }
+}
+export async function deleteBehaviorEvent(id) {
+  if (isDemoMode) return demo.demoDeleteBehaviorEvent(id)
+  if (supabase) await supabase.from('behavior_events').delete().eq('id', id)
+}
+
 export async function fetchIncidents(orgId, houseId) {
   if (isDemoMode) return demo.demoFetchIncidents(houseId)
   if (!supabase || !orgId) return []
@@ -1668,8 +1749,8 @@ export async function fetchActivityFeed(orgId, { houseId = null, limit = 40 } = 
 
 // Create an announcement. Returns the inserted row, augmented with zeroed
 // engagement fields (_read=false, _myVote=null, _pollCounts=zeros, _readCount=0).
-export async function createAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead } = {}) {
-  if (isDemoMode) return demo.demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead })
+export async function createAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead, publishAt } = {}) {
+  if (isDemoMode) return demo.demoCreateAnnouncement(orgId, { houseId, authorStaffId, authorName, authorRole, title, body, bg, audienceRoles, pollQuestion, pollOptions, requireRead, publishAt })
   if (!supabase || !orgId) return null
   const { data, error } = await supabase
     .from('announcements')
@@ -1686,6 +1767,7 @@ export async function createAnnouncement(orgId, { houseId, authorStaffId, author
       poll_question:   pollQuestion || null,
       poll_options:    (pollOptions && pollOptions.length) ? pollOptions : null,
       require_read:    !!requireRead,
+      publish_at:      publishAt || null,
     })
     .select()
     .single()
@@ -1713,7 +1795,12 @@ export async function fetchAnnouncements(orgId, { houseId = null, staffId = null
     .limit(100)
   if (error) { console.error('fetchAnnouncements:', error.message); return [] }
 
-  const rows = data || []
+  // Scheduled posts (future publish_at) stay hidden until due — except for
+  // their own author, who sees them with a "Scheduled" pill.
+  const nowMs = Date.now()
+  const rows = (data || []).filter(r =>
+    !r.publish_at || new Date(r.publish_at).getTime() <= nowMs || (staffId && r.author_staff_id === staffId)
+  )
   if (rows.length === 0) return []
   const ids = rows.map(r => r.id)
 
@@ -1800,11 +1887,63 @@ export async function deleteAnnouncement(id) {
   return true
 }
 
+// Reader names for one announcement (newest first). For the admin "Seen by N"
+// expander. Returns [{ staffId, name, readAt }].
+export async function fetchAnnouncementReaders(orgId, announcementId) {
+  if (isDemoMode) return demo.demoFetchAnnouncementReaders(orgId, announcementId)
+  if (!supabase || !announcementId) return []
+  const { data, error } = await supabase
+    .from('announcement_reads')
+    .select('staff_id, staff_name, read_at')
+    .eq('announcement_id', announcementId)
+    .order('read_at', { ascending: false })
+  if (error) { console.error('fetchAnnouncementReaders:', error.message); return [] }
+  return (data || []).map(r => ({ staffId: r.staff_id || null, name: r.staff_name || 'Staff', readAt: r.read_at || null }))
+}
+
 // Count of visible announcements this staff hasn't read yet (for badges).
 export async function countUnreadAnnouncements(orgId, { houseId = null, staffId = null, role = null } = {}) {
   if (isDemoMode) return demo.demoCountUnreadAnnouncements(orgId, { houseId, staffId, role })
   const rows = await fetchAnnouncements(orgId, { houseId, staffId, role })
   return rows.filter(r => !r._read).length
+}
+
+// ── Recognitions / Kudos ─────────────────────────────────────────────────────
+// A peer-recognition feed surfaced alongside Updates. Any role can give kudos.
+// Returns rows newest-first. RLS scopes by house + role.
+export async function fetchRecognitions(orgId, { houseId = null, role = null } = {}) {
+  if (isDemoMode) return demo.demoFetchRecognitions(orgId, { houseId, role })
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase
+    .from('recognitions')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) { console.error('fetchRecognitions:', error.message); return [] }
+  return data || []
+}
+
+// Give kudos to a staff member. Returns the inserted row.
+export async function createRecognition(orgId, { houseId, toStaffId, toStaffName, fromName, fromRole, badge, message } = {}) {
+  if (isDemoMode) return demo.demoCreateRecognition(orgId, { houseId, toStaffId, toStaffName, fromName, fromRole, badge, message })
+  if (!supabase || !orgId) return null
+  const { data, error } = await supabase
+    .from('recognitions')
+    .insert({
+      org_id:        orgId,
+      house_id:      houseId || null,
+      to_staff_id:   toStaffId || null,
+      to_staff_name: toStaffName || null,
+      from_name:     fromName || null,
+      from_role:     fromRole || null,
+      badge:         badge || 'star',
+      message:       message || '',
+    })
+    .select()
+    .single()
+  if (error) { console.error('createRecognition:', error.message); return null }
+  return data
 }
 
 // ── Knowledge base / Handbook ────────────────────────────────────────────────
@@ -2423,6 +2562,7 @@ export async function applyShiftsToWeek(orgId, { houseId, weekDates, shifts } = 
         end_hour:    ts.endHour,
         shift_date:  date,
         note:        ts.note || null,
+        required_cert: ts.requiredCert || null,
         status:      'scheduled',
       })
     if (error) { console.error('applyShiftsToWeek:', error.message); continue }
