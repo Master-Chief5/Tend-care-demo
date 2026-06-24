@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchGoals, addGoal, deleteGoal, recordGoalData, fetchGoalData } from '../lib/db'
-import { IconPlus } from './icons'
+import { IconPlus, IconX, IconFlag } from './icons'
 
 // Prompt hierarchy used for ISP / habilitation goal data collection.
 const LEVELS = [
@@ -44,7 +44,7 @@ function GoalCard({ goal, user, houseUuid, houseColor, canEdit, onDelete }) {
           {goal.target && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>🎯 {goal.target}</div>}
           {goal.method && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2, lineHeight: 1.35 }}>{goal.method}</div>}
         </div>
-        {canEdit && <button onClick={() => onDelete(goal.id)} aria-label="Delete goal" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>}
+        {canEdit && <button onClick={() => onDelete(goal.id)} aria-label="Delete goal" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}><IconX size={17} /></button>}
       </div>
 
       {/* Quick data entry — tap the prompt level given this time. */}
@@ -83,6 +83,12 @@ function GoalForm({ user, houseUuid, residents, onClose, onSaved }) {
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const save = async (e) => {
     e.preventDefault(); if (!title.trim() || saving) return
     setSaving(true)
@@ -91,7 +97,7 @@ function GoalForm({ user, houseUuid, residents, onClose, onSaved }) {
   }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label="New ISP goal" style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 4 }}>New ISP goal</div>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>Staff log prompt level each time they work on this goal.</div>
         <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -145,7 +151,7 @@ export function Goals({ user, houseUuid, houseColor = 'var(--a-ink)', residents 
 
       {!loading && goals.length === 0 && (
         <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '22px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 26, marginBottom: 8 }}>🎯</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: 'var(--a-ink3)' }}><IconFlag size={26} /></div>
           <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>No goals yet</div>
           <div style={{ fontSize: 12, color: 'var(--a-ink3)', lineHeight: 1.5 }}>
             {residents.length === 0 ? 'Add a resident first, then set their ISP goals.' : canEdit ? 'Add each resident’s ISP / habilitation goals so staff can log progress every shift.' : 'No goals have been set for this house yet.'}

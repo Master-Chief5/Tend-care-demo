@@ -3,7 +3,7 @@ import {
   fetchFormTemplates, createFormTemplate, deleteFormTemplate,
   fetchFormSubmissions, submitForm, reviewFormSubmission,
 } from '../lib/db'
-import { IconBook, IconCheck, IconPlus } from '../components/icons'
+import { IconBook, IconCheck, IconPlus, IconX } from '../components/icons'
 
 // "Forms" screen — a no-code Forms module (shift checklists, safety
 // walkthroughs, audits).
@@ -291,9 +291,9 @@ function Build({ orgId, houseId, staffName, onBuilt }) {
                     </div>
                   </div>
                   <button type="button" onClick={() => removeField(i)} aria-label="Remove field" style={{
-                    flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-                    padding: '2px 4px', color: 'var(--a-ink3)',
-                  }}>✕</button>
+                    flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+                    padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+                  }}><IconX size={13} /></button>
                 </div>
               ))}
             </div>

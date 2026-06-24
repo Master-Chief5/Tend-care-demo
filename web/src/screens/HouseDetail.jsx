@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident, fetchHouseGeofences, setHouseGeofence } from '../lib/db'
-import { IconChev, IconChat, IconPlus } from '../components/icons'
+import { IconChev, IconChat, IconPlus, IconPin, IconClipboard, IconAlert } from '../components/icons'
 import { MapPicker } from '../components/MapPicker'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -91,6 +91,13 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
   const [saving, setSaving] = useState(false)
 
   const toggleFlag = (f) => setFlags(p => p.includes(f) ? p.filter(x => x !== f) : [...p, f])
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
 
@@ -110,7 +117,7 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label={resident ? (editing ? 'Edit resident' : (name || 'Resident')) : 'Add resident'} style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="serif" style={{ fontSize: 22 }}>{resident ? (editing ? 'Edit resident' : name) : 'Add resident'}</div>
           {resident && !editing && canManage && <button type="button" onClick={() => setEditing(true)} style={{ border: 0, background: 'transparent', color: 'var(--a-sage)', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Edit</button>}
@@ -214,7 +221,7 @@ function GeofenceCard({ user, house, color }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, marginBottom: 14 }}>
-      <span style={{ fontSize: 15 }}>📍</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', color: color, flexShrink: 0 }}><IconPin size={15} /></span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)' }}>Geofence{status ? ` · ${status.radiusM} m radius` : ''}</div>
         <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>{status ? 'On-duty staff who leave it are flagged on your team map.' : 'Set a location + radius to flag staff who leave it.'}</div>
@@ -324,7 +331,7 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
             display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
             background: `${c}12`, border: `1px solid ${c}55`, borderRadius: 14, padding: '13px 15px',
           }}>
-            <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19 }}>📝</span>
+            <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconClipboard size={19} color="#fff" /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>Shift documentation</div>
               <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 1 }}>Guided, one question at a time — notes, health, goals, meds, incidents. Export to PDF.</div>
@@ -383,7 +390,7 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [] })
                     <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 1 }}>{sub}</div>
                     {(flags.length > 0 || r.allergies) && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                        {r.allergies && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: '#fadcd7', padding: '1px 6px', borderRadius: 999 }}>⚠ {r.allergies}</span>}
+                        {r.allergies && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#a93a25', background: '#fadcd7', padding: '1px 6px', borderRadius: 999 }}><IconAlert size={10} color="#a93a25" /> {r.allergies}</span>}
                         {flags.slice(0, 3).map(f => <span key={f} style={{ fontSize: 9, fontWeight: 700, color: 'var(--a-ink2)', background: 'var(--a-paper)', padding: '1px 6px', borderRadius: 999, border: '1px solid var(--a-line)' }}>{f}</span>)}
                       </div>
                     )}

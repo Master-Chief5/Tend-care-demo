@@ -30,7 +30,7 @@ const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
-import { IconPlus, IconCar } from '../components/icons'
+import { IconPlus, IconCar, IconPin, IconCheck } from '../components/icons'
 
 export function VehicleRow({ name, sub, status, last, onClick }) {
   const m = {
@@ -91,7 +91,7 @@ function TripForm({ initial, defaultDriver = '', lockDriver = false, staffNames,
       <div>
         <AddressInput placeholder="Destination (e.g. Dr. Patel, 14 Oak St)" value={destination} onChange={(v) => { setDestination(v); setDestCoords(null) }} style={inputStyle} />
         <button type="button" onClick={() => setShowMap(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', marginTop: 6, padding: '2px 2px' }}>
-          📍 Pick on map{destCoords ? ' ✓' : ''}
+          <IconPin size={13} /> Pick on map{destCoords ? <IconCheck size={13} /> : ''}
         </button>
       </div>
       {lockDriver ? (
@@ -131,10 +131,15 @@ function TripModal({ title, initial, defaultDriver = '', lockDriver = false, sta
     await onSave(data)
     setSaving(false)
   }
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: hint ? 4 : 16 }}>{title}</div>
         {hint && <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{hint}</div>}
         <TripForm initial={initial} defaultDriver={defaultDriver} lockDriver={lockDriver} staffNames={staffNames} residentNames={residentNames}
@@ -184,10 +189,15 @@ function VehicleModal({ onClose, onSave }) {
     await onSave(data)
     setSaving(false)
   }
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
+      <div role="dialog" aria-modal="true" aria-label="Add vehicle" style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add vehicle</div>
         <VehicleForm onSave={handleSave} onCancel={onClose} saving={saving} />
       </div>
@@ -526,7 +536,7 @@ export function ScreenA_Driving({ user }) {
 
           {!loading && trips.length === 0 && activeTrips.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>🚐</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconCar size={32} /></div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No trips yet</div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Start trip" when leaving, or "Log past" to record a completed one.</div>
             </div>

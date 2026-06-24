@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   fetchKbArticles, createKbArticle, updateKbArticle, deleteKbArticle,
 } from '../lib/db'
-import { IconSearch, IconStar, IconBook } from '../components/icons'
+import { IconSearch, IconStar, IconBook, IconX } from '../components/icons'
 
 // "Handbook" screen — a searchable SOP / policy / house-binder library.
 //   • everyone reads; search + category filter chips.
@@ -78,9 +78,9 @@ function ArticleCard({ row, isAdmin, onEdit, onDelete }) {
               fontFamily: 'Geist', padding: '2px 6px', color: 'var(--a-ink3)',
             }}>Edit</button>
             <button onClick={remove} aria-label="Delete article" style={{
-              background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-              padding: '2px 4px', color: 'var(--a-ink3)',
-            }}>✕</button>
+              background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+              padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+            }}><IconX size={13} /></button>
           </div>
         )}
       </div>

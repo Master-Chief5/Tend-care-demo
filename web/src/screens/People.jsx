@@ -4,7 +4,7 @@ import { StaffFormModal, StaffStatus } from '../components/StaffFormModal'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
-import { IconPlus, IconSearch, IconChev } from '../components/icons'
+import { IconPlus, IconSearch, IconChev, IconPeople } from '../components/icons'
 import { SuggestInput } from '../components/SuggestInput'
 
 const CERT_SUGGESTIONS = ['CPR', 'First Aid', 'Medication Administration', 'CPI / Crisis Prevention', 'Bloodborne Pathogens', 'Abuse & Neglect Prevention', 'Fire Safety', 'Mandated Reporter']
@@ -232,7 +232,7 @@ export function ScreenA_Staff({ user, onLogout }) {
         <div style={{ overflowY: 'auto', flex: 1, padding: '4px 22px 24px' }}>
           {staffList.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconPeople size={32} /></div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No staff yet</div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add" to add your first team member.</div>
             </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   fetchSurveys, createSurvey, submitSurveyResponse, closeSurvey, deleteSurvey,
 } from '../lib/db'
-import { IconCheck, IconStar, IconBook } from '../components/icons'
+import { IconCheck, IconStar, IconBook, IconX } from '../components/icons'
 
 // "Surveys" screen — staff pulse + training-feedback surveys.
 //   • everyone: Active / Closed chips; take an active survey (one response each).
@@ -198,7 +198,7 @@ function Results({ row }) {
                 {entries.map(([k, v]) => {
                   const n = Number(v) || 0
                   const pct = total > 0 ? Math.round((n / total) * 100) : 0
-                  const label = isRating ? `${k} ★` : k
+                  const label = k
                   return (
                     <div key={k} style={{
                       position: 'relative', overflow: 'hidden',
@@ -207,7 +207,7 @@ function Results({ row }) {
                     }}>
                       <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: 'rgba(0,0,0,0.05)' }} />
                       <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
-                        <span style={{ color: 'var(--a-ink2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        <span style={{ color: 'var(--a-ink2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{label}{isRating && <IconStar size={12} />}</span>
                         <span style={{ color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{n} · {pct}%</span>
                       </div>
                     </div>
@@ -270,9 +270,9 @@ function SurveyCard({ row, isAdmin, onTake, onClose, onDelete }) {
               }}>Close</button>
             )}
             <button onClick={remove} aria-label="Delete survey" style={{
-              background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-              padding: '2px 4px', color: 'var(--a-ink3)',
-            }}>✕</button>
+              background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+              padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+            }}><IconX size={13} /></button>
           </div>
         )}
       </div>
@@ -438,8 +438,8 @@ function Builder({ orgId, houseId, staffName, onCreated, onCancel }) {
                     {(TYPE_LABEL[q.type] || q.type).toUpperCase()}
                   </span>
                   <button type="button" onClick={() => removeQuestion(i)} aria-label="Remove question" style={{
-                    background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '2px 4px', color: 'var(--a-ink3)',
-                  }}>✕</button>
+                    background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1, padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+                  }}><IconX size={13} /></button>
                 </div>
                 <input value={q.q} onChange={e => setQ(i, { q: e.target.value })} placeholder="Question text"
                   style={inputStyle} />

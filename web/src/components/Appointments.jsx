@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAppointments, createAppointment, updateAppointment, deleteAppointment } from '../lib/db'
-import { IconCal, IconCar, IconCheck, IconPlus } from './icons'
+import { IconCal, IconCar, IconCheck, IconPlus, IconX } from './icons'
 
 // Per-resident medical appointment tracker, surfaced inside the Health section.
 // Upcoming list reuses the Events/Driving card style: date, provider, type, and
@@ -123,7 +123,7 @@ function ApptCard({ row, residentName, canManage, onComplete, onDelete }) {
           {row.provider && <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', marginTop: 1 }}>{row.provider}</div>}
         </div>
         {canManage && (
-          <button onClick={() => onDelete(row.id)} aria-label="Delete appointment" style={{ background: 'transparent', border: 0, cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '2px 4px', color: 'var(--a-ink3)' }}>✕</button>
+          <button onClick={() => onDelete(row.id)} aria-label="Delete appointment" style={{ background: 'transparent', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '2px 4px', color: 'var(--a-ink3)' }}><IconX size={15} /></button>
         )}
       </div>
 

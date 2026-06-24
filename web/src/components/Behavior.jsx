@@ -3,7 +3,7 @@ import {
   fetchBehaviorPlans, createBehaviorPlan, updateBehaviorPlan, deleteBehaviorPlan,
   fetchBehaviorEvents, createBehaviorEvent, deleteBehaviorEvent,
 } from '../lib/db'
-import { IconPlus } from './icons'
+import { IconPlus, IconX } from './icons'
 
 // Intensity scale used on the ABC quick-entry + colours the frequency bars.
 const INTENSITY = [
@@ -265,7 +265,7 @@ function PlanCard({ user, houseUuid, plan, color, canEdit, onChanged }) {
                   )}
                   <div style={{ fontSize: 10, color: 'var(--a-ink3)', marginTop: 2 }}>{shortDate(e.occurredAt)}{e.by ? ` · ${e.by}` : ''}</div>
                 </div>
-                {canEdit && <button onClick={() => delEvent(e.id)} aria-label="Delete entry" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>}
+                {canEdit && <button onClick={() => delEvent(e.id)} aria-label="Delete entry" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}><IconX size={16} /></button>}
               </div>
             ))}
           </div>
@@ -292,6 +292,12 @@ function PlanForm({ user, houseUuid, residents, existingResidentIds, onClose, on
   const toggleTarget = (b) => setTargets(p => p.includes(b) ? p.filter(x => x !== b) : [...p, b])
   const addNewTarget = () => { const t = newTarget.trim(); if (t && !targets.includes(t)) setTargets(p => [...p, t]); setNewTarget('') }
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const save = async (e) => {
     e.preventDefault()
     if (!residentId || saving) return
@@ -308,7 +314,7 @@ function PlanForm({ user, houseUuid, residents, existingResidentIds, onClose, on
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label="New behavior support plan" style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 4 }}>New behavior support plan</div>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>Define target behaviors + the staff playbook. Staff log ABC data each time a behavior occurs.</div>
         {available.length === 0 ? (

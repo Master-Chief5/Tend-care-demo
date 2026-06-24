@@ -5,7 +5,7 @@ import {
   fetchAnnouncementReaders, fetchStaff,
   fetchRecognitions, createRecognition,
 } from '../lib/db'
-import { IconStar, IconHeart, IconLeaf } from '../components/icons'
+import { IconStar, IconHeart, IconLeaf, IconX, IconCheck, IconEye, IconChev, IconDown, IconMegaphone } from '../components/icons'
 
 // "Updates / Announcements" screen — a calm, plain compose + feed (no AI).
 // Role-aware:
@@ -163,9 +163,10 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
           </div>
           {isAdmin && (
             <button onClick={remove} aria-label="Delete update" style={{
-              flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
+              flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
               padding: '2px 4px', color: onColor ? 'rgba(255,255,255,0.85)' : 'var(--a-ink3)',
-            }}>✕</button>
+              display: 'inline-flex', alignItems: 'center',
+            }}><IconX size={15} /></button>
           )}
         </div>
       </div>
@@ -208,8 +209,8 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
                     background: mine ? 'rgba(110,140,110,0.22)' : 'rgba(0,0,0,0.05)',
                   }} />
                   <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
-                    <span style={{ color: 'var(--a-ink)', fontWeight: mine ? 700 : 500 }}>
-                      {mine && '✓ '}{opt}
+                    <span style={{ color: 'var(--a-ink)', fontWeight: mine ? 700 : 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {mine && <IconCheck size={14} color="var(--a-sage)" />}{opt}
                     </span>
                     <span style={{ color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
                   </div>
@@ -240,7 +241,7 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
               display: 'flex', alignItems: 'center', gap: 5,
             }}>
               Seen by {Number(row?._readCount) || 0}
-              <span style={{ color: 'var(--a-ink3)', fontSize: 11 }}>{readersOpen ? '▾' : '▸'}</span>
+              <span style={{ color: 'var(--a-ink3)', display: 'inline-flex', alignItems: 'center' }}>{readersOpen ? <IconDown size={13} /> : <IconChev size={13} />}</span>
             </button>
             {readersOpen && (
               <div style={{ marginTop: 8 }}>
@@ -267,7 +268,7 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
                       {nonReaders.length <= 6 ? `: ${nonReaders.map(s => s.name).join(', ')}` : ''}
                     </div>
                     {reminded ? (
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-sage)' }}>Reminder sent ✓</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-sage)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Reminder sent <IconCheck size={13} /></div>
                     ) : (
                       <button onClick={remind} style={{
                         padding: '7px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist',
@@ -277,7 +278,7 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
                   </div>
                 )}
                 {readers != null && nonReaders.length === 0 && (roster || []).length > 0 && (
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-sage)', marginTop: 8 }}>Everyone in scope has read this ✓</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--a-sage)', marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Everyone in scope has read this <IconCheck size={13} /></div>
                 )}
               </div>
             )}
@@ -290,8 +291,8 @@ function AnnouncementCard({ row, orgId, staffId, staffName, isAdmin, roster, onC
             {row?.author_name || 'Staff'}{row?.author_role ? ` · ${row.author_role}` : ''} · {fmtDate(row?.created_at)}
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {row?.require_read && row?._read && <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>Read ✓</span>}
-            <span>👁 {Number(row?._readCount) || 0}</span>
+            {row?.require_read && row?._read && <span style={{ color: 'var(--a-sage)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>Read <IconCheck size={12} /></span>}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconEye size={14} /> {Number(row?._readCount) || 0}</span>
           </div>
         </div>
       </div>
@@ -338,7 +339,7 @@ function Feed({ orgId, houseId, staffId, staffName, role, isAdmin, rows, setRows
         <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--a-ink3)', fontSize: 13 }}>Loading…</div>
       )}
       {!loading && list.length === 0 && (
-        <EmptyState emoji="📣" title="No updates yet."
+        <EmptyState emoji={<IconMegaphone size={26} color="var(--a-ink3)" />} title="No updates yet."
           sub={isAdmin ? 'No updates yet — post the first one.' : undefined} />
       )}
       {list.map(r => (
@@ -487,8 +488,9 @@ function Compose({ orgId, houseId, staffId, staffName, role, onPosted }) {
                   {pollOptions.length > 2 && (
                     <button type="button" onClick={() => removeOption(i)} aria-label="Remove option" style={{
                       flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: '1px solid var(--a-line)',
-                      background: 'var(--a-card)', color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, fontFamily: 'Geist',
-                    }}>−</button>
+                      background: 'var(--a-card)', color: 'var(--a-ink3)', cursor: 'pointer', lineHeight: 1, fontFamily: 'Geist',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}><IconX size={14} /></button>
                   )}
                 </div>
               ))}

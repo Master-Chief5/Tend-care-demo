@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { fetchResources, addResource, deleteResource, fetchHouses } from '../lib/db'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
-import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown } from '../components/icons'
+import { IconPlus, IconChev, IconFlag, IconArrow, IconUp, IconDown, IconBox } from '../components/icons'
 import { COMMON_SUPPLIES } from '../data/suggestions'
 import { SuggestInput } from '../components/SuggestInput'
 
@@ -208,8 +208,8 @@ function MonthSpendGraph({ items }) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>Spent · {MONTHS_F[now.getMonth()]}</div>
         {lastMonthTotal > 0 && (
-          <div style={{ fontSize: 11, fontWeight: 600, color: delta > 0 ? '#a93a25' : '#3f7050' }}>
-            {delta > 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs last mo
+          <div style={{ fontSize: 11, fontWeight: 600, color: delta > 0 ? '#a93a25' : '#3f7050', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            {delta > 0 ? <IconUp size={12} /> : <IconDown size={12} />} {fmt(Math.abs(delta))} vs last mo
           </div>
         )}
       </div>
@@ -255,10 +255,16 @@ function AddItemModal({ user, houses, onClose, onAdded }) {
     if (item) onAdded(item)
   }
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label="Add item" style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add item</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <SuggestInput
@@ -346,7 +352,7 @@ export function ScreenA_Resources({ user }) {
 
           {!loading && items.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconBox size={32} /></div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No items yet</div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add item" to log a supply or resource needed.</div>
             </div>

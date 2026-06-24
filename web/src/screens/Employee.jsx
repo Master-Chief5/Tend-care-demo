@@ -50,10 +50,17 @@ function AddTaskModal({ user, onClose, onAdded }) {
   const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
   const canSubmit = text.trim() && (isSupervisorOrMgr ? !!assignedId : !!user?.staffId)
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
+      <div role="dialog" aria-modal="true" aria-label="Add task"
+        style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px', maxHeight: '85dvh', overflowY: 'auto' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 16 }}>Add task</div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {isSupervisorOrMgr && (
@@ -138,8 +145,8 @@ export function ScreenA_MyDay({ user }) {
                 <div style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%`, height: '100%', background: 'var(--a-sage)', borderRadius: 999, transition: 'width 0.3s' }} />
               </div>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 600 }}>
-              {tasks.length === 0 ? 'No tasks yet' : done === tasks.length ? '✓ All done!' : `${tasks.length - done} left`}
+            <span style={{ fontSize: 11, color: 'var(--a-sage)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              {tasks.length === 0 ? 'No tasks yet' : done === tasks.length ? <><IconCheck size={12} /> All done!</> : `${tasks.length - done} left`}
             </span>
           </div>
         </div>
@@ -187,7 +194,7 @@ export function ScreenA_MyDay({ user }) {
           })}
           {!loading && tasks.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>☀️</div>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><IconCal size={28} color="var(--a-ink3)" /></div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nothing scheduled for today</div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Tap "Add task" below to log something to do.</div>
             </div>

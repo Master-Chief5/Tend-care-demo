@@ -4,7 +4,7 @@ import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
 import { TabBar } from '../components/ui/TabBar'
 import { TendLogo } from '../components/ui/TendLogo'
-import { IconChat, IconChev, IconPlus, IconDots, IconArrow } from '../components/icons'
+import { IconChat, IconChev, IconPlus, IconDots, IconArrow, IconHome } from '../components/icons'
 import { fetchShifts, fetchTrips, fetchStaff, fetchHouseAlerts, fetchResidents, fetchMedPass, fetchIncidents, fetchDrills, fetchActiveTrips, fetchResources } from '../lib/db'
 
 // One "Needs attention" row — a tinted tag (Shop / Med / Note / Drive) + text.
@@ -297,7 +297,7 @@ export function ScreenA_Houses({ user, houses = [], onHouseClick, onTeamChat, on
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px 24px' }}>
           {visibleHouses.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 40, marginBottom: 14 }}>🏠</div>
+              <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center' }}><IconHome size={36} color="var(--a-ink3)" /></div>
               <div className="serif" style={{ fontSize: 22, fontWeight: 500, marginBottom: 8, color: 'var(--a-ink)' }}>No houses yet</div>
               <div style={{ fontSize: 13.5, lineHeight: 1.6, maxWidth: 260, margin: '0 auto 24px' }}>
                 {isSupervisor

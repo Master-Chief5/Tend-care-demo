@@ -3,7 +3,7 @@ import {
   fetchQuickTasks, createQuickTask, completeQuickTask, reopenQuickTask, deleteQuickTask,
   fetchStaff,
 } from '../lib/db'
-import { IconCheck, IconClock } from '../components/icons'
+import { IconCheck, IconClock, IconX } from '../components/icons'
 
 // "Quick Tasks" screen — assignable one-off tasks with due dates: the
 // "waiting for you" queue.
@@ -86,9 +86,9 @@ function TaskCard({ row, isAdmin, onToggle, onDelete }) {
               }}>{scopeTag.toUpperCase()}</span>
               {isAdmin && (
                 <button onClick={remove} aria-label="Delete task" style={{
-                  background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-                  padding: '2px 4px', color: 'var(--a-ink3)',
-                }}>✕</button>
+                  background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+                  padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+                }}><IconX size={13} /></button>
               )}
             </div>
           </div>

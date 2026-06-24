@@ -7,7 +7,7 @@ import { useNowMinute } from '../../hooks/useNowMinute'
 import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchTimeOffRequests } from '../../lib/db'
 import { approvedLeaveOn, findOverlap } from '../../lib/scheduleSafety'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
-import { IconChev, IconKey, IconPlus, IconFilter } from '../../components/icons'
+import { IconChev, IconKey, IconPlus, IconFilter, IconAlert, IconCheck, IconX } from '../../components/icons'
 import { SuggestInput } from '../../components/SuggestInput'
 import { ScheduleWeekTools, WeekSummary } from './ScheduleTools'
 
@@ -150,7 +150,7 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
       )}
       {(late || swap || here || open) && (
         <div style={{ marginTop: 'auto', paddingTop: 6, display: 'flex', gap: 4 }}>
-          {here && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>● CLOCKED IN</span>}
+          {here && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff', display: 'inline-block' }} /> CLOCKED IN</span>}
           {late && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>LATE · 12m</span>}
           {swap && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>SWAP REQ</span>}
           {open && <span style={{ fontSize: 9, fontWeight: 700, color: houseColor, background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>NEEDS FILL</span>}
@@ -377,12 +377,12 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
           <span style={{ fontWeight: 600, color: 'var(--a-ink)' }}>Coverage</span>
           <span style={{ color: 'var(--a-ink2)' }}><strong className="tnum">{staffed}</strong>/<span className="tnum">{totalCells}</span> house-days staffed</span>
           {gaps.length > 0 ? (
-            <span style={{ color: 'var(--a-clay)' }}>
-              ⚠ <strong className="tnum">{gaps.length}</strong> gap{gaps.length === 1 ? '' : 's'}
+            <span style={{ color: 'var(--a-clay)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <IconAlert size={14} /> <strong className="tnum">{gaps.length}</strong> gap{gaps.length === 1 ? '' : 's'}
               <span style={{ color: 'var(--a-ink3)', fontWeight: 400 }}> · {gaps.slice(0, 6).map(g => `${g.short} ${g.dow} ${g.num}`).join(', ')}{gaps.length > 6 ? ` +${gaps.length - 6} more` : ''}</span>
             </span>
           ) : (
-            <span style={{ color: 'var(--a-sage)', fontWeight: 600 }}>✓ Every house covered all week</span>
+            <span style={{ color: 'var(--a-sage)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconCheck size={14} /> Every house covered all week</span>
           )}
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Drag a shift to move it to another day</span>
@@ -534,13 +534,19 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
   const labelStyle = { fontSize: 11, color: 'var(--a-ink3)', marginBottom: 4, paddingLeft: 2 }
   const canSubmit = !!personName.trim() && !!houseUuid && !saving
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: 420, maxWidth: 'calc(100vw - 40px)', background: 'var(--a-bg)', border: '1px solid var(--a-line)', borderRadius: 16, padding: '22px 24px 26px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+      <div role="dialog" aria-modal="true" aria-label={editShift ? 'Edit shift' : 'Add shift'} style={{ width: 420, maxWidth: 'calc(100vw - 40px)', background: 'var(--a-bg)', border: '1px solid var(--a-line)', borderRadius: 16, padding: '22px 24px 26px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>{editShift ? 'Edit shift' : 'Add shift'}</div>
-          <button onClick={onClose} style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', fontSize: 20, cursor: 'pointer', lineHeight: 1, fontFamily: 'Geist' }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', cursor: 'pointer', lineHeight: 1, fontFamily: 'Geist', display: 'inline-flex' }}><IconX size={20} /></button>
         </div>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

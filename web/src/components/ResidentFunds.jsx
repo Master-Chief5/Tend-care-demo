@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchResidentFunds, addResidentFundEntry, deleteResidentFundEntry, residentFundsBalance } from '../lib/db'
-import { IconPlus } from './icons'
+import { IconPlus, IconX } from './icons'
 
 // Resident personal-funds (PNI) ledger — a regulatory deposit/withdrawal record
 // per resident with a running balance. Supervisors/managers record entries; DSPs
@@ -181,7 +181,7 @@ export function ResidentFunds({ user, houseUuid, houseColor = 'var(--a-ink)', re
                   {isW ? '−' : '+'}{money(f.amount)}
                 </span>
                 {canManage && (
-                  <button onClick={() => remove(f.id)} aria-label="Delete entry" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, padding: '0 2px', flexShrink: 0 }}>×</button>
+                  <button onClick={() => remove(f.id)} aria-label="Delete entry" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: '0 2px', flexShrink: 0 }}><IconX size={16} /></button>
                 )}
               </div>
             )

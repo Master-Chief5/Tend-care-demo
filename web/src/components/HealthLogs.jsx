@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchHealthLogs, addHealthLog, deleteHealthLog } from '../lib/db'
+import { IconX, IconActivity } from './icons'
 
 // The recurring resident health trackers a group home is expected to keep.
 const TRACKERS = [
@@ -112,6 +113,12 @@ function LogSheet({ tracker, residentId, residentName, user, houseUuid, onClose,
   const [abc, setAbc] = useState({ antecedent: '', behavior: '', consequence: '' })
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const save = async (e) => {
     e.preventDefault(); if (saving) return
     const detail = {}
@@ -129,7 +136,7 @@ function LogSheet({ tracker, residentId, residentName, user, houseUuid, onClose,
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label={`Log ${tracker.label}`} style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div className="serif" style={{ fontSize: 22, marginBottom: 2 }}>{tracker.emoji} {tracker.label}</div>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 14 }}>{residentName}</div>
         <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -278,7 +285,7 @@ function SeizureRollup({ seizureLogs }) {
   if (seizureLogs.length === 0) return null
   return (
     <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>⚡ Seizure frequency</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}><IconActivity size={13} color="#a93a25" /> Seizure frequency</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
         <span style={statPill}>This week <strong style={{ color: week > 0 ? CLAY : 'var(--a-ink)' }}>{week}</strong></span>
         <span style={statPill}>This month <strong style={{ color: 'var(--a-ink)' }}>{month}</strong></span>
@@ -378,7 +385,7 @@ export function HealthLogs({ user, houseUuid, houseColor = 'var(--a-ink)', resid
                       </div>
                       <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 1 }}>{fmtWhen(h.occurredAt)}{h.by ? ` · ${h.by}` : ''}{h.note ? ` · ${h.note}` : ''}</div>
                     </div>
-                    <button onClick={() => del(h.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, padding: '0 2px', flexShrink: 0 }}>×</button>
+                    <button onClick={() => del(h.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: '0 2px', flexShrink: 0 }}><IconX size={16} /></button>
                   </div>
                 )
               })}

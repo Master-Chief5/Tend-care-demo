@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { fetchHouses, fetchMessages, sendMessage } from '../lib/db'
+import { IconChat } from './icons'
 
 // Live team chat backed by the `messages` table. Channels are house-scoped:
 //   • "All staff" — org-wide (house_id null), everyone can read/post
@@ -103,7 +104,7 @@ export function TeamChat({ user, desktop = false }) {
     <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: desktop ? '20px 28px' : '12px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {!loading && messages.length === 0 && (
         <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--a-ink3)', padding: 40 }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>💬</div>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}><IconChat size={26} color="var(--a-ink3)" /></div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>No messages yet</div>
           <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>Start the conversation with {selected?.label}.</div>
         </div>

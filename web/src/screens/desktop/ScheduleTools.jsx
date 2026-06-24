@@ -5,6 +5,7 @@ import {
 } from '../../lib/db'
 import { summarizeWeek, fmtHrs } from '../../lib/scheduleSummary'
 import { dBtnGhost } from './Desktop'
+import { IconCheck, IconDown, IconX } from '../../components/icons'
 
 // Connecteam-style scheduling tools, layered on top of the existing week grid
 // without touching its rendering: a per-day + weekly hours/shifts/staff summary,
@@ -186,14 +187,14 @@ export function ScheduleWeekTools({ user, houses, weekDates, shifts, onChanged }
       )}
       {nonOpen.length > 0 && (
         allPublished
-          ? <span style={{ ...pill, color: 'var(--a-sage)', borderColor: 'var(--a-sage)', background: 'rgba(74,107,86,0.08)' }}>Published ✓</span>
+          ? <span style={{ ...pill, color: 'var(--a-sage)', borderColor: 'var(--a-sage)', background: 'rgba(74,107,86,0.08)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Published <IconCheck size={13} /></span>
           : <span style={{ ...pill, color: 'var(--a-clay)', borderColor: '#e3b6ad', background: 'rgba(176,92,60,0.08)' }}>Draft</span>
       )}
       <button onClick={publishWeek} disabled={!!busy || !nonOpen.length || allPublished} style={btn}>{busy === 'publish' ? 'Publishing…' : 'Publish week'}</button>
       <button onClick={copyLastWeek} disabled={!!busy} style={btn}>{busy === 'copy' ? 'Copying…' : 'Copy last week'}</button>
       <button onClick={saveTemplate} disabled={!!busy} style={btn}>{busy === 'save' ? 'Saving…' : 'Save as template'}</button>
       <div ref={menuRef} style={{ position: 'relative' }}>
-        <button onClick={() => setMenu(m => !m)} disabled={!!busy} style={btn}>Templates ▾</button>
+        <button onClick={() => setMenu(m => !m)} disabled={!!busy} style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Templates <IconDown size={13} /></button>
         {menu && (
           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50, width: 260, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, boxShadow: '0 12px 36px rgba(0,0,0,0.14)', padding: 6 }}>
             <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, padding: '6px 10px 4px' }}>Apply a template</div>
@@ -206,7 +207,7 @@ export function ScheduleWeekTools({ user, houses, weekDates, shifts, onChanged }
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)' }}>{t.name}</div>
                   <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{(t.shifts || []).length} shift{(t.shifts || []).length === 1 ? '' : 's'}{t.created_by_name ? ` · ${t.created_by_name}` : ''}</div>
                 </button>
-                <button onClick={() => removeTemplate(t)} title="Delete template" style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 15, padding: '4px 8px', borderRadius: 6 }}>×</button>
+                <button onClick={() => removeTemplate(t)} title="Delete template" aria-label="Delete template" style={{ border: 0, background: 'transparent', color: 'var(--a-ink3)', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, display: 'inline-flex' }}><IconX size={15} /></button>
               </div>
             ))}
           </div>

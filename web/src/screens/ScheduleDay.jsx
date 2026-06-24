@@ -443,10 +443,16 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
   const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }
   const canSave = personName.trim() && !saving && dur > 0
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
+      <div role="dialog" aria-modal="true" aria-label={editShift ? 'Edit shift' : 'Add shift'} style={{ width: '100%', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div className="serif" style={{ fontSize: 22 }}>{editShift ? 'Edit shift' : 'Add shift'}</div>
           {editShift && <button type="button" onClick={remove} style={{ border: 0, background: 'transparent', color: '#a93a25', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>}
@@ -552,9 +558,14 @@ function ShiftModal({ user, houses, defaultDate, defaultHouseId, editShift, time
 function ClaimSheet({ shift, house, busy, onClaim, onClose }) {
   const color = house?.color || 'var(--a-clay)'
   const dateLabel = fmtDayLabel(new Date(shift.date + 'T12:00:00'))
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
+      <div role="dialog" aria-modal="true" aria-label="Claim this shift" onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color, border: `1.5px dashed ${color}`, padding: '2px 8px', borderRadius: 999 }}>Open shift</span>
         </div>

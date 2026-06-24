@@ -9,7 +9,7 @@ import { Toast } from '../../components/ui/Toast'
 import { Pill } from '../../components/ui/Pill'
 import { StaffCard, certStatus } from '../People'
 import { DStat, DHouseCard, DDecision, DTopBar, dCard, dBtnSolid, dBtnGhost } from './Desktop'
-import { IconPlus, IconSearch, IconChev, IconChat, IconArrow, IconCheck } from '../../components/icons'
+import { IconPlus, IconSearch, IconChev, IconChat, IconArrow, IconCheck, IconHome, IconPeople, IconLeaf } from '../../components/icons'
 import { TeamChat } from '../../components/TeamChat'
 import { StaffRanking } from './StaffRanking'
 
@@ -219,7 +219,7 @@ export function PageTodayDesktop({ onHouseClick, user, houses = [], onNavigate }
             </div>
             {attention.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--a-ink3)' }}>
-                <div style={{ fontSize: 26, marginBottom: 6 }}>✓</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6, color: 'var(--a-sage)' }}><IconCheck size={26} /></div>
                 <div style={{ fontSize: 13.5, color: 'var(--a-ink2)', fontWeight: 500 }}>You're all caught up</div>
                 <div style={{ fontSize: 12, marginTop: 2 }}>No open supply, med, note or shift items today.</div>
               </div>
@@ -335,7 +335,7 @@ export function PageHousesDesktop({ onHouseClick, user, houses = [], onNavigate 
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         {houseData.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--a-ink3)' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🏠</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconHome size={32} /></div>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No houses yet</div>
             <div style={{ fontSize: 13, lineHeight: 1.5 }}>Go to House Setup to create your first house.</div>
           </div>
@@ -467,7 +467,7 @@ export function PageStaffDesktop({ user, houses = [] }) {
           {loading && <div style={{ color: 'var(--a-ink3)', fontSize: 13, paddingTop: 12 }}>Loading…</div>}
           {!loading && staffList.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconPeople size={32} /></div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No staff yet</div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>Hire your first team member to get started.</div>
             </div>
@@ -590,7 +590,7 @@ export function PageOrientationDesktop({ onNavigate }) {
         actions={<button onClick={() => onNavigate?.('staff')} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add hire</button>} />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
         <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '36px 20px', textAlign: 'center', color: 'var(--a-ink3)' }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>🌱</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconLeaf size={30} /></div>
           <div className="serif" style={{ fontSize: 20, color: 'var(--a-ink)', marginBottom: 6 }}>No one is onboarding right now</div>
           <div style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
             When you add a new hire, they'll appear here with their 30-day progress against the plan below.

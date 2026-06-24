@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   fetchEvents, createEvent, rsvpEvent, archiveEvent, deleteEvent,
 } from '../lib/db'
-import { IconStar, IconCal, IconCheck } from '../components/icons'
+import { IconStar, IconCal, IconCheck, IconX } from '../components/icons'
 
 // "Events" screen — trainings, house meetings, appointments with sign-ups.
 // Role-aware:
@@ -124,9 +124,9 @@ function EventCard({ row, staffId, staffName, orgId, isAdmin, isPast, onChange, 
               }}>Archive</button>
             )}
             <button onClick={remove} aria-label="Delete event" style={{
-              background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-              padding: '2px 4px', color: 'var(--a-ink3)',
-            }}>✕</button>
+              background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+              padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+            }}><IconX size={13} /></button>
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ function EventCard({ row, staffId, staffName, orgId, isAdmin, isPast, onChange, 
         <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 6, textAlign: 'center' }}>This event is full.</div>
       )}
       {isPast && isGoing && (
-        <div style={{ fontSize: 11.5, color: 'var(--a-sage)', fontWeight: 600, marginTop: 10 }}>You attended ✓</div>
+        <div style={{ fontSize: 11.5, color: 'var(--a-sage)', fontWeight: 600, marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}>You attended <IconCheck size={13} /></div>
       )}
       {isPast && isDeclined && (
         <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 10 }}>You didn't attend.</div>

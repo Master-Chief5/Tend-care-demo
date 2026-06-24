@@ -8,6 +8,7 @@ import {
   overtimeFor, buildTimesheet, punchWorked, dateOf,
 } from '../lib/timesheet'
 import { TimeOffPanel } from '../components/TimeOffPanel'
+import { IconClock, IconCal, IconCheck, IconPin } from '../components/icons'
 
 // "Time clock + Timesheets + Approvals" screen. Role-aware:
 //   • admins (supervisor/manager): Who's in · Timesheets · Requests
@@ -133,7 +134,7 @@ function WhoseIn({ orgId, houseId }) {
       )}
 
       {!loading && list.length === 0 && (
-        <EmptyState emoji="🌙" title="Nobody is clocked in right now." sub="Live status updates as staff punch in." />
+        <EmptyState emoji={<IconClock size={28} />} title="Nobody is clocked in right now." sub="Live status updates as staff punch in." />
       )}
 
       {list.map(p => (
@@ -143,7 +144,7 @@ function WhoseIn({ orgId, houseId }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--a-ink)' }}>{p.staff_name || 'Staff'}</div>
             <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1 }}>
               {p.role || 'staff'} · since {fmtClock(p.clock_in_at)}
-              {p.in_lat != null && <span> · 📍</span>}
+              {p.in_lat != null && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}> · <IconPin size={11} /></span>}
             </div>
           </div>
           <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 15, fontWeight: 700, color: 'var(--a-sage)' }}>
@@ -229,7 +230,7 @@ function PeriodGrid({ orgId, houseId, staffId, singleStaff }) {
       )}
 
       {!loading && staffRows.length === 0 && (
-        <EmptyState emoji="🗓️" title={singleStaff ? 'No hours logged this period yet.' : 'No timesheet data for this period yet.'}
+        <EmptyState emoji={<IconCal size={28} />} title={singleStaff ? 'No hours logged this period yet.' : 'No timesheet data for this period yet.'}
           sub={singleStaff ? 'Your worked hours will show up here.' : undefined} />
       )}
 
@@ -278,7 +279,7 @@ function StaffSheetCard({ row, singleStaff, approved, onApprove }) {
         </div>
         {!singleStaff && (
           approved ? (
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--a-sage)' }}>Approved ✓</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--a-sage)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Approved <IconCheck size={13} /></span>
           ) : (
             <button onClick={onApprove} style={{
               padding: '6px 14px', borderRadius: 999, border: 0, background: 'var(--a-sage)', color: '#fff',
@@ -365,7 +366,7 @@ function AdminRequests({ orgId, houseId, user }) {
       )}
 
       {!loading && (pending || []).length === 0 && (decided || []).length === 0 && (
-        <EmptyState emoji="🎉" title="No pending requests." />
+        <EmptyState emoji={<IconCheck size={28} />} title="No pending requests." />
       )}
 
       {(pending || []).map(r => (

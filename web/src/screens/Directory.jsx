@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   fetchContacts, createContact, updateContact, deleteContact,
 } from '../lib/db'
-import { IconSearch, IconPeople } from '../components/icons'
+import { IconSearch, IconPeople, IconX } from '../components/icons'
 
 // "Directory" screen — a searchable list of EXTERNAL work contacts: the numbers
 // DSPs reach for on shift (pharmacy, physicians, case managers, guardians,
@@ -91,9 +91,9 @@ function ContactCard({ row, isAdmin, onEdit, onDelete }) {
               fontFamily: 'Geist', padding: '2px 6px', color: 'var(--a-ink3)',
             }}>Edit</button>
             <button onClick={remove} aria-label="Delete contact" style={{
-              background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13, lineHeight: 1,
-              padding: '2px 4px', color: 'var(--a-ink3)',
-            }}>✕</button>
+              background: 'transparent', border: 0, cursor: 'pointer', lineHeight: 1,
+              padding: '2px 4px', color: 'var(--a-ink3)', display: 'inline-flex',
+            }}><IconX size={13} /></button>
           </div>
         )}
       </div>

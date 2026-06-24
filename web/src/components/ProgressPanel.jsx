@@ -3,6 +3,7 @@ import {
   fetchGoals, fetchGoalData, fetchHealthLogs, fetchIncidents, fetchDailyLog,
   addResidentNote, fetchResidentNotes, deleteResidentNote,
 } from '../lib/db'
+import { IconX, IconPrinter, IconAlert } from './icons'
 
 // Resident progress notes persist via db.js (Supabase in prod, the in-memory
 // demo store in demo). The report builders below are kept local to this panel —
@@ -227,7 +228,7 @@ export function ProgressPanel({ user, houseUuid, houseColor = 'var(--a-ink)', re
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '4px 0 10px' }}>
         <span className="serif" style={{ fontSize: 20, color: 'var(--a-ink)' }}>Progress &amp; reports</span>
-        <button onClick={() => window.print()} style={chipBase(false)}>🖨 Print</button>
+        <button onClick={() => window.print()} style={{ ...chipBase(false), display: 'inline-flex', alignItems: 'center', gap: 5 }}><IconPrinter size={14} /> Print</button>
       </div>
 
       <select value={selectedResidentId} onChange={e => setSelectedResidentId(e.target.value)} style={{ ...input, marginBottom: 10 }}>
@@ -277,7 +278,7 @@ export function ProgressPanel({ user, houseUuid, houseColor = 'var(--a-ink)', re
                     <span style={{ fontSize: 9.5, fontWeight: 700, color: c.tc, background: c.bg, padding: '1px 6px', borderRadius: 3 }}>{n.category}</span>
                     <span className="tnum" style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>{n.note_date}</span>
                     {n.author_name && <span style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>· {n.author_name}</span>}
-                    <button onClick={() => del(n.id)} aria-label="Delete note" style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
+                    <button onClick={() => del(n.id)} aria-label="Delete note" style={{ marginLeft: 'auto', background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '0 2px' }}><IconX size={16} /></button>
                   </div>
                   <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.4 }}>{n.body}</div>
                 </div>
@@ -361,7 +362,7 @@ export function ProgressPanel({ user, houseUuid, houseColor = 'var(--a-ink)', re
                       border: t.recurring ? 0 : '1px solid var(--a-line)',
                     }}>
                       {t.type} <span className="tnum">×{t.count}</span>
-                      {t.recurring && <span style={{ fontWeight: 700, opacity: 0.95 }}>⚠ recurring</span>}
+                      {t.recurring && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 700, opacity: 0.95 }}><IconAlert size={12} color="#fff" /> recurring</span>}
                     </span>
                   ))}
                 </div>

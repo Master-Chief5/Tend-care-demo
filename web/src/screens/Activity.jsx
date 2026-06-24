@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { fetchActivityFeed } from '../lib/db'
+import { IconClock, IconEdit, IconLeaf, IconAlert, IconActivity } from '../components/icons'
 
 // Calm, read-only activity feed (like Connecteam's "Activity Log"). Role-aware:
 //   • admins (supervisor/manager): scoped feed for their house / all houses
@@ -34,12 +35,12 @@ function dayLabel(d) {
 }
 
 const KIND_ICON = {
-  clock_in:        '⏱️',
-  clock_out:       '🔚',
-  shift_edit:      '✏️',
-  time_off:        '🌴',
-  work_hour_limit: '⚠️',
-  auto_clock_out:  '🌙',
+  clock_in:        IconClock,
+  clock_out:       IconClock,
+  shift_edit:      IconEdit,
+  time_off:        IconLeaf,
+  work_hour_limit: IconAlert,
+  auto_clock_out:  IconClock,
 }
 
 function EmptyState({ emoji, title, sub }) {
@@ -53,15 +54,16 @@ function EmptyState({ emoji, title, sub }) {
 }
 
 function EventRow({ ev }) {
-  const icon = KIND_ICON[ev?.kind] || '•'
+  const Icon = KIND_ICON[ev?.kind] || IconActivity
   const text = ev?.text || (ev?.actor ? `${ev.actor}` : 'Activity')
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '10px 0' }}>
       <div style={{
         width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
         background: 'var(--a-paper)', border: '1px solid var(--a-line)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
-      }}>{icon}</div>
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--a-ink2)',
+      }}><Icon size={15} /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, color: 'var(--a-ink)', lineHeight: 1.4, wordBreak: 'break-word' }}>{text}</div>
         {ev?.actor && ev?.text && (
@@ -118,7 +120,7 @@ export function ScreenA_Activity({ user, desktop = false }) {
       )}
 
       {!loading && groups.length === 0 && (
-        <EmptyState emoji="🍃" title="No recent activity." />
+        <EmptyState emoji={<IconLeaf size={26} color="var(--a-ink3)" />} title="No recent activity." />
       )}
 
       {groups.map(g => (
@@ -143,7 +145,7 @@ export function ScreenA_Activity({ user, desktop = false }) {
       padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist',
       cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
       background: 'var(--a-card)', color: 'var(--a-ink2)', border: '1px solid var(--a-line)',
-    }}>↻ Refresh</button>
+    }}>Refresh</button>
   )
 
   if (desktop) {
