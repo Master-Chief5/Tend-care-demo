@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchPunches } from '../../lib/db'
 import { punchWorked, fmtHM } from '../../lib/timesheet'
+import { IconAward } from '../../components/icons'
 
 // Staff ranking — an honest, activity-based leaderboard computed from the real
 // time-clock data (worked hours + shifts in a date range). Ranks by hours, then
@@ -22,7 +23,8 @@ const PRESETS = [
   { id: '30d', label: 'Last 30 days' },
   { id: 'quarter', label: 'This quarter' },
 ]
-const MEDAL = ['🥇', '🥈', '🥉']
+// Podium accent colours for the top three ranks (gold / silver / bronze).
+const PODIUM = ['#a47012', '#6f7785', '#9a6334']
 const AV = ['var(--a-sage)', 'var(--a-clay)', '#3c5887', '#a47012', '#2f9489', '#8a5a9e']
 const colorFor = (s) => { let n = 0; const t = String(s || '?'); for (let i = 0; i < t.length; i++) n = (n + t.charCodeAt(i)) % AV.length; return AV[n] }
 
@@ -77,7 +79,7 @@ export function StaffRanking({ user }) {
 
       {!loading && rows.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--a-ink3)' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🏆</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><IconAward size={32} color="var(--a-ink3)" sw={1.6} /></div>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No clock-ins this period yet</div>
           <div style={{ fontSize: 13, lineHeight: 1.5 }}>Rankings build from time-clock punches as staff work shifts.</div>
         </div>
@@ -85,9 +87,15 @@ export function StaffRanking({ user }) {
 
       {!loading && rows.map((r, i) => (
         <div key={(r.name || '') + i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, marginBottom: 8 }}>
-          <div style={{ width: 26, textAlign: 'center', fontSize: i < 3 ? 18 : 13, fontWeight: 700, color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>
-            {i < 3 ? MEDAL[i] : i + 1}
-          </div>
+          {i < 3 ? (
+            <div title={`Rank ${i + 1}`} style={{ width: 26, height: 26, flexShrink: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${PODIUM[i]}22`, color: PODIUM[i], fontWeight: 700, fontSize: 13, fontVariantNumeric: 'tabular-nums', border: `1px solid ${PODIUM[i]}55` }}>
+              {i + 1}
+            </div>
+          ) : (
+            <div style={{ width: 26, textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--a-ink3)', fontVariantNumeric: 'tabular-nums' }}>
+              {i + 1}
+            </div>
+          )}
           <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: colorFor(r.name), color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {(r.name || '?').trim()[0]?.toUpperCase() || '?'}
           </div>

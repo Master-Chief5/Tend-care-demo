@@ -304,8 +304,12 @@ export function demoPublishShiftsWeek(orgId, { houseId = null, weekStart, weekEn
 
 // Claim an open shift: assign staff + flip status to the normal 'scheduled'.
 // Logs an Activity-feed event. Returns the updated shift row.
+// NOTE: shift publish/claim activity events (store.shiftEvents) are demo-only —
+// the Supabase path does not write an equivalent activity feed row.
 export function demoClaimShift(id, { staffId, staffName } = {}) {
-  const s = demoUpdateShift(id, { staffId, personName: staffName, status: 'scheduled' })
+  // Stamp published_at so the claimed shift stays visible to the staffer (the
+  // staff publishGate hides shifts with no published_at).
+  const s = demoUpdateShift(id, { staffId, personName: staffName, status: 'scheduled', publishedAt: now() })
   if (s) {
     store.shiftEvents.push({
       id: uid('shev'), org_id: null, house_id: s.house_id || null, kind: 'shift_claimed',
@@ -946,7 +950,8 @@ export function demoUpdateBehaviorPlan(id, updates) {
   if (updates.replacementBehaviors !== undefined) p.replacement_behaviors = updates.replacementBehaviors
   if (updates.interventionSteps !== undefined)    p.intervention_steps = updates.interventionSteps
   p.updated_at = now(); persist()
-  return p
+  // Mirror demoCreateBehaviorPlan so demo + Supabase return the same shape.
+  return { ...p, targetBehaviors: p.target_behaviors, residentId: p.resident_id, residentName: p.resident_name, createdByName: p.created_by_name, createdAt: p.created_at, updatedAt: p.updated_at }
 }
 export function demoDeleteBehaviorPlan(id) {
   store.behaviorPlans = store.behaviorPlans.filter(p => p.id !== id)
@@ -954,6 +959,7 @@ export function demoDeleteBehaviorPlan(id) {
 }
 
 export function demoFetchBehaviorEvents(orgId, { residentId = null, planId = null, limit = 60 } = {}) {
+  demoSeedBehaviorPlans(orgId)
   return store.behaviorEvents
     .filter(e => (!residentId || e.resident_id === residentId) && (!planId || e.plan_id === planId))
     .sort((a, b) => (b.occurred_at || '').localeCompare(a.occurred_at || ''))
@@ -2011,14 +2017,23 @@ export function demoCreateSurvey(orgId, { houseId, title, questions, anonymous, 
 }
 
 export function demoSubmitSurveyResponse(orgId, { surveyId, staffId, answers } = {}) {
-  const existing = store.surveyResponses.find(r => r.survey_id === surveyId && r.staff_id === (staffId || null))
+  // Anonymous surveys must never store who responded. Look up the survey's
+  // anonymous flag and force staff_id=null when set. Dedup only applies to
+  // non-anonymous responses (which carry a staff_id).
+  const svy = store.surveys.find(x => x.id === surveyId)
+  const anonymous = !!(svy && svy.anonymous)
+  const effectiveStaffId = anonymous ? null : (staffId || null)
+  const cleanAnswers = answers && typeof answers === 'object' ? answers : {}
+  const existing = anonymous
+    ? null
+    : store.surveyResponses.find(r => r.survey_id === surveyId && r.staff_id === effectiveStaffId)
   if (existing) {
-    existing.answers = answers && typeof answers === 'object' ? answers : {}
+    existing.answers = cleanAnswers
     existing.submitted_at = now()
   } else {
     store.surveyResponses.push({
-      id: uid('sresp'), org_id: orgId, survey_id: surveyId || null, staff_id: staffId || null,
-      answers: answers && typeof answers === 'object' ? answers : {}, submitted_at: now(),
+      id: uid('sresp'), org_id: orgId, survey_id: surveyId || null, staff_id: effectiveStaffId,
+      answers: cleanAnswers, submitted_at: now(),
     })
   }
   persist(); return true

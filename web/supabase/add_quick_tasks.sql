@@ -51,6 +51,7 @@ CREATE POLICY "quick_tasks_select" ON quick_tasks FOR SELECT USING (
 -- Anyone in the org may create a task.
 CREATE POLICY "quick_tasks_insert" ON quick_tasks FOR INSERT WITH CHECK (
   org_id = auth_org_id()
+  AND (auth_staff_role() = 'supervisor' OR house_id IS NULL OR house_id = auth_house_id())
 );
 -- Anyone in scope may update a task (e.g. to complete or reopen it).
 CREATE POLICY "quick_tasks_update" ON quick_tasks FOR UPDATE USING (

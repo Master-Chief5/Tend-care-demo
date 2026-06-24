@@ -77,9 +77,10 @@ DROP POLICY IF EXISTS "event_rsvps_select" ON event_rsvps;
 DROP POLICY IF EXISTS "event_rsvps_insert" ON event_rsvps;
 DROP POLICY IF EXISTS "event_rsvps_update" ON event_rsvps;
 
--- Org-scoped read so attendance counts are visible.
+-- Admins see attendance; non-admins see only their own RSVP.
 CREATE POLICY "event_rsvps_select" ON event_rsvps FOR SELECT USING (
   org_id = auth_org_id()
+  AND (auth_staff_role() IN ('supervisor','manager') OR staff_id = auth_staff_id())
 );
 CREATE POLICY "event_rsvps_insert" ON event_rsvps FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND (staff_id = auth_staff_id() OR staff_id IS NULL)

@@ -43,6 +43,7 @@ CREATE POLICY "recognitions_select" ON recognitions FOR SELECT USING (
 -- Any authenticated staff in the org can give kudos.
 CREATE POLICY "recognitions_insert" ON recognitions FOR INSERT WITH CHECK (
   org_id = auth_org_id()
+  AND (auth_staff_role() = 'supervisor' OR house_id IS NULL OR house_id = auth_house_id())
 );
 CREATE POLICY "recognitions_delete" ON recognitions FOR DELETE USING (
   org_id = auth_org_id() AND auth_staff_role() = 'supervisor'

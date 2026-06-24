@@ -534,10 +534,10 @@ export function ScreenA_Forms({ user, desktop = false }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--a-bg)' }}>
         <div style={{ padding: '18px 28px 10px', borderBottom: '1px solid var(--a-line)' }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em', marginBottom: isAdmin ? 10 : 0 }}>Forms</div>
-          {isAdmin && <Chips />}
+          {isAdmin && Chips()}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 28px' }}>
-          <Body />
+          {Body()}
         </div>
       </div>
     )
@@ -548,9 +548,9 @@ export function ScreenA_Forms({ user, desktop = false }) {
       <div style={{ padding: '14px 22px 8px' }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Forms</div>
       </div>
-      {isAdmin && <Chips />}
+      {isAdmin && Chips()}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 24px' }}>
-        <Body />
+        {Body()}
       </div>
     </div>
   )

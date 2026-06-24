@@ -88,9 +88,10 @@ DROP POLICY IF EXISTS "announcement_reads_select" ON announcement_reads;
 DROP POLICY IF EXISTS "announcement_reads_insert" ON announcement_reads;
 DROP POLICY IF EXISTS "announcement_reads_delete" ON announcement_reads;
 
--- Authors/admins can see who read; org-scoped read is fine.
+-- Admins see who read; non-admins see only their own read receipt.
 CREATE POLICY "announcement_reads_select" ON announcement_reads FOR SELECT USING (
   org_id = auth_org_id()
+  AND (auth_staff_role() IN ('supervisor','manager') OR staff_id = auth_staff_id())
 );
 CREATE POLICY "announcement_reads_insert" ON announcement_reads FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND (staff_id = auth_staff_id() OR staff_id IS NULL)
@@ -117,6 +118,7 @@ DROP POLICY IF EXISTS "announcement_poll_votes_update" ON announcement_poll_vote
 
 CREATE POLICY "announcement_poll_votes_select" ON announcement_poll_votes FOR SELECT USING (
   org_id = auth_org_id()
+  AND (auth_staff_role() IN ('supervisor','manager') OR staff_id = auth_staff_id())
 );
 CREATE POLICY "announcement_poll_votes_insert" ON announcement_poll_votes FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND (staff_id = auth_staff_id() OR staff_id IS NULL)

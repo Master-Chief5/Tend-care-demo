@@ -666,7 +666,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   // (unpublished) shifts aren't final and shouldn't show as if they were.
   // Supervisors/managers always see the full draft. Open shifts stay visible so
   // they remain claimable.
-  const publishGate = (s) => !isStaff || s.status === 'open' || !!s.publishedAt
+  const publishGate = (s) => !isStaff || s.status === 'open' || !!s.publishedAt || isMine(s)
   const schedulePublished = !isStaff || weekShifts.every(s => s.status === 'open' || !!s.publishedAt)
   const visibleWeekShifts = isStaff ? weekShifts.filter(publishGate) : weekShifts
 

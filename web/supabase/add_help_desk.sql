@@ -59,6 +59,7 @@ CREATE POLICY "tickets_select" ON tickets FOR SELECT USING (
 CREATE POLICY "tickets_insert" ON tickets FOR INSERT WITH CHECK (
   org_id = auth_org_id()
   AND (created_by_staff_id = auth_staff_id() OR created_by_staff_id IS NULL)
+  AND (auth_staff_role() = 'supervisor' OR house_id IS NULL OR house_id = auth_house_id())
 );
 -- Only managers/supervisors triage (change status, set assignee).
 CREATE POLICY "tickets_update" ON tickets FOR UPDATE USING (

@@ -169,7 +169,9 @@ export async function publishShiftsWeek(orgId, { houseId = null, weekStart, week
 // Returns the updated shift.
 export async function claimShift(shiftId, { staffId, staffName } = {}) {
   if (isDemoMode) return demo.demoClaimShift(shiftId, { staffId, staffName })
-  return updateShift(shiftId, { staffId, personName: staffName, status: 'scheduled' })
+  // Stamp published_at so the claimed shift stays visible to the staffer (the
+  // staff publishGate hides shifts with no published_at).
+  return updateShift(shiftId, { staffId, personName: staffName, status: 'scheduled', publishedAt: new Date().toISOString() })
 }
 
 // Count of open (unfilled) shifts in scope, for the schedule nav badge.
@@ -1143,8 +1145,15 @@ export async function updateBehaviorPlan(id, updates) {
   if (updates.antecedentStrategies !== undefined) patch.antecedent_strategies = updates.antecedentStrategies || null
   if (updates.replacementBehaviors !== undefined) patch.replacement_behaviors = updates.replacementBehaviors || null
   if (updates.interventionSteps !== undefined)    patch.intervention_steps = updates.interventionSteps || null
-  const { error } = await supabase.from('behavior_plans').update(patch).eq('id', id)
-  if (error) console.error('updateBehaviorPlan:', error.message)
+  const { data, error } = await supabase.from('behavior_plans').update(patch).eq('id', id).select().single()
+  if (error) { console.error('updateBehaviorPlan:', error.message); return null }
+  // Mirror createBehaviorPlan / demoUpdateBehaviorPlan so callers get the same shape.
+  return {
+    id: data.id, houseId: data.house_id, residentId: data.resident_id, residentName: data.resident_name,
+    targetBehaviors: data.target_behaviors || [], antecedentStrategies: data.antecedent_strategies,
+    replacementBehaviors: data.replacement_behaviors, interventionSteps: data.intervention_steps,
+    createdByName: data.created_by_name, createdAt: data.created_at, updatedAt: data.updated_at,
+  }
 }
 export async function deleteBehaviorPlan(id) {
   if (isDemoMode) return demo.demoDeleteBehaviorPlan(id)
@@ -2324,10 +2333,21 @@ export async function createSurvey(orgId, { houseId, title, questions, anonymous
 export async function submitSurveyResponse(orgId, { surveyId, staffId, answers } = {}) {
   if (isDemoMode) return demo.demoSubmitSurveyResponse(orgId, { surveyId, staffId, answers })
   if (!supabase || !orgId || !surveyId) return false
-  const { error } = await supabase.from('survey_responses').upsert(
-    { org_id: orgId, survey_id: surveyId, staff_id: staffId || null,
-      answers: answers && typeof answers === 'object' ? answers : {} },
-    { onConflict: 'survey_id,staff_id' })
+  // Anonymous surveys must never store who responded. Look up the survey's
+  // anonymous flag and force staff_id=null when set. Dedup (onConflict) only
+  // applies to non-anonymous responses (which carry a staff_id).
+  let anonymous = false
+  const { data: svy } = await supabase.from('surveys').select('anonymous').eq('id', surveyId).single()
+  if (svy && svy.anonymous) anonymous = true
+  const effectiveStaffId = anonymous ? null : (staffId || null)
+  const payload = { org_id: orgId, survey_id: surveyId, staff_id: effectiveStaffId,
+    answers: answers && typeof answers === 'object' ? answers : {} }
+  if (anonymous) {
+    const { error } = await supabase.from('survey_responses').insert(payload)
+    if (error) { console.error('submitSurveyResponse:', error.message); return false }
+    return true
+  }
+  const { error } = await supabase.from('survey_responses').upsert(payload, { onConflict: 'survey_id,staff_id' })
   if (error) { console.error('submitSurveyResponse:', error.message); return false }
   return true
 }
@@ -2430,6 +2450,8 @@ export async function fetchQuickTasks(orgId, { houseId = null, assignedStaffId =
   if (isDemoMode) return demo.demoFetchQuickTasks(orgId, { houseId, assignedStaffId, status })
   if (!supabase || !orgId) return []
   let q = supabase.from('quick_tasks').select('*').eq('org_id', orgId)
+  // Match the demo: scope to the house but include org-wide (null-house) rows.
+  if (houseId) q = q.or('house_id.eq.' + houseId + ',house_id.is.null')
   if (assignedStaffId) q = q.eq('assigned_staff_id', assignedStaffId)
   if (status) q = q.eq('status', status)
   const { data, error } = await q.order('due_at', { ascending: true }).limit(300)
@@ -2484,6 +2506,8 @@ export async function countOverdueQuickTasks(orgId, { houseId = null, assignedSt
   if (!supabase || !orgId) return 0
   let q = supabase.from('quick_tasks').select('id', { count: 'exact', head: true })
     .eq('org_id', orgId).eq('status', 'open').lt('due_at', new Date().toISOString())
+  // Match the demo: scope to the house but include org-wide (null-house) rows.
+  if (houseId) q = q.or('house_id.eq.' + houseId + ',house_id.is.null')
   if (assignedStaffId) q = q.eq('assigned_staff_id', assignedStaffId)
   const { count, error } = await q
   if (error) { console.error('countOverdueQuickTasks:', error.message); return 0 }

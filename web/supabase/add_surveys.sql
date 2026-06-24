@@ -79,9 +79,10 @@ DROP POLICY IF EXISTS "survey_responses_select" ON survey_responses;
 DROP POLICY IF EXISTS "survey_responses_insert" ON survey_responses;
 DROP POLICY IF EXISTS "survey_responses_delete" ON survey_responses;
 
--- Org-scoped read so admins can tally results.
+-- Admins tally results; non-admins see only their own responses.
 CREATE POLICY "survey_responses_select" ON survey_responses FOR SELECT USING (
   org_id = auth_org_id()
+  AND (auth_staff_role() IN ('supervisor','manager') OR staff_id = auth_staff_id())
 );
 CREATE POLICY "survey_responses_insert" ON survey_responses FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND (staff_id = auth_staff_id() OR staff_id IS NULL)
@@ -89,3 +90,27 @@ CREATE POLICY "survey_responses_insert" ON survey_responses FOR INSERT WITH CHEC
 CREATE POLICY "survey_responses_delete" ON survey_responses FOR DELETE USING (
   org_id = auth_org_id() AND staff_id = auth_staff_id()
 );
+
+-- ── enforce anonymity at the DB ──────────────────────────────────────────────
+-- When the parent survey is flagged anonymous, strip staff_id on insert so a
+-- respondent can never be linked to their answers (defense in depth — the app
+-- already omits it, but RLS-permitted inserts must not be able to override this).
+CREATE OR REPLACE FUNCTION survey_responses_enforce_anonymity()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM surveys s WHERE s.id = NEW.survey_id AND s.anonymous = true) THEN
+    NEW.staff_id := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS survey_responses_anonymity ON survey_responses;
+CREATE TRIGGER survey_responses_anonymity
+  BEFORE INSERT ON survey_responses
+  FOR EACH ROW
+  EXECUTE FUNCTION survey_responses_enforce_anonymity();

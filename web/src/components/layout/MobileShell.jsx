@@ -25,6 +25,7 @@ import { ScreenA_HelpDesk } from '../../screens/HelpDesk'
 import { ScreenA_Home } from '../../screens/Home'
 import { ScreenA_CareHub } from '../../screens/CareHub'
 import { ResidentProfile } from '../../screens/ResidentProfile'
+import { PageOrientationDesktop, PageComplianceDesktop } from '../../screens/desktop/Pages'
 import { IconHome, IconCal, IconChat, IconCar, IconPeople, IconCheck, IconCart, IconHeart, IconClock, IconActivity, IconMegaphone, IconBook, IconStar, IconDots, IconChev, IconClipboard, IconChart, IconPhone, IconHelp, IconAward } from '../icons'
 import { useTripTracking } from '../../hooks/useTripTracking'
 import { useDutyTracking } from '../../hooks/useDutyTracking'
@@ -88,6 +89,8 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     case 'tasks': return <ScreenA_Tasks user={user} />
     case 'directory': return <ScreenA_Directory user={user} />
     case 'helpdesk': return <ScreenA_HelpDesk user={user} />
+    case 'compliance': return <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}><PageComplianceDesktop user={user} houses={houses} /></div>
+    case 'orientation': return <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}><PageOrientationDesktop onNavigate={switchTab} /></div>
     case 'more':   return <MoreMenu onNavigate={switchTab} role={role} />
     case 'staff':  return <ScreenA_Staff user={user} onLogout={onLogout} onNavigate={switchTab} />
     case 'me':     return <ScreenA_Me user={user} onLogout={onLogout} onNavigate={switchTab} />
@@ -102,6 +105,11 @@ function MoreMenu({ onNavigate, role = 'supervisor' }) {
   const isStaff = role === 'staff'
   const isSupervisor = role === 'supervisor'
   const items = [
+    // Staff get a direct entry to their assigned home (the 'house' screen is
+    // otherwise unreachable from the mobile tab bar).
+    ...(isStaff ? [
+      { id: 'house', label: 'My house', icon: IconHome, sub: 'Your assigned home' },
+    ] : []),
     { id: 'updates',  label: 'Updates',  icon: IconMegaphone, sub: 'Announcements & shoutouts' },
     { id: 'team',     label: 'Team',     icon: IconChat,      sub: 'Messages & house channels' },
     { id: 'drive',    label: 'Transport', icon: IconCar,      sub: 'Trips, mileage & vehicles' },
@@ -110,10 +118,12 @@ function MoreMenu({ onNavigate, role = 'supervisor' }) {
     ...(!isStaff ? [
       { id: 'houses',   label: 'Houses',   icon: IconHome,     sub: 'Every house at a glance' },
       { id: 'activity', label: 'Activity', icon: IconActivity, sub: 'Live map & on-shift status' },
+      { id: 'compliance', label: 'Compliance', icon: IconCheck, sub: 'Certifications & license expiry' },
     ] : []),
     ...(isSupervisor ? [
       { id: 'staff',    label: 'Staff',    icon: IconPeople,   sub: 'Roster, roles & certifications' },
       { id: 'setup',    label: 'Add house', icon: IconHome,    sub: 'Create & configure a house' },
+      { id: 'orientation', label: 'Orientation', icon: IconBook, sub: 'New-hire onboarding' },
     ] : []),
     { id: 'handbook', label: 'Handbook', icon: IconBook, sub: 'Policies, SOPs & house binders' },
     { id: 'events',   label: 'Events',   icon: IconStar, sub: 'Trainings & house meetings' },

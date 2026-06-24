@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { TendLogo } from '../ui/TendLogo'
-import { IconArrow, IconSearch, IconCheck } from '../icons'
+import { IconArrow, IconSearch, IconCheck, IconHome, IconPeople } from '../icons'
 import { ROLES } from '../../data/constants'
 import { supabase, isDemoMode } from '../../lib/supabase'
 import { searchOrganizations, registerAsStaff, createOrgAndSupervisor } from '../../lib/db'
@@ -281,14 +281,14 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
       {/* Role selection */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
         {[
-          { id: 'supervisor', label: 'Supervisor', sub: 'I run the organization', emoji: '🏢' },
-          { id: 'staff',      label: 'Staff / DSP', sub: 'I work at a group home', emoji: '🤝' },
+          { id: 'supervisor', label: 'Supervisor', sub: 'I run the organization', icon: IconHome },
+          { id: 'staff',      label: 'Staff / DSP', sub: 'I work at a group home', icon: IconPeople },
         ].map(opt => {
           const active = accountType === opt.id
           return (
             <button key={opt.id} type="button" onClick={() => { setAccountType(opt.id); setError(null) }}
               style={{ padding: '14px 12px', borderRadius: 12, border: active ? '2px solid var(--a-ink)' : '1px solid var(--a-line)', background: active ? 'var(--a-card)' : 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: 'Geist, sans-serif', position: 'relative' }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{opt.emoji}</div>
+              <div style={{ marginBottom: 6 }}><opt.icon size={20} color={active ? 'var(--a-ink)' : 'var(--a-ink2)'} sw={1.7} /></div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--a-ink)' }}>{opt.label}</div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginTop: 2, lineHeight: 1.4 }}>{opt.sub}</div>
               {active && (

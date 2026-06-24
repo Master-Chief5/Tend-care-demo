@@ -134,17 +134,18 @@ function DesktopRail({ tab, setTab, user, onLogout, houses, counts = {} }) {
   const renderItem = ({ id, icon: Ico, label, count }) => {
     const active = tab === id
     return (
-      <div key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined} style={{
+      <button type="button" key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined} style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8,
         background: active ? 'var(--a-card)' : 'transparent',
         color: active ? 'var(--a-ink)' : 'var(--a-ink2)',
         border: active ? '1px solid var(--a-line)' : '1px solid transparent',
         cursor: 'pointer', marginBottom: 2,
+        font: 'inherit', textAlign: 'left', width: '100%',
       }}>
         <Ico size={16} sw={1.7} color={active ? 'var(--a-sage)' : undefined} />
         <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, flex: 1 }}>{label}</span>
         {count != null && <span style={{ fontSize: 10.5, color: 'var(--a-ink3)', background: 'var(--a-paper)', border: '1px solid var(--a-line)', padding: '0 6px', borderRadius: 999, fontWeight: 500 }}>{count}</span>}
-      </div>
+      </button>
     )
   }
 
@@ -173,14 +174,14 @@ function DesktopRail({ tab, setTab, user, onLogout, houses, counts = {} }) {
           </div>
         </>
       )}
-      <div onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer' }}>
+      <button type="button" onClick={onLogout} aria-label="Sign out" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px', background: 'var(--a-card)', borderRadius: 10, border: '1px solid var(--a-line)', cursor: 'pointer', font: 'inherit', textAlign: 'left', width: '100%', color: 'var(--a-ink)' }}>
         <div style={{ width: 30, height: 30, borderRadius: '50%', background: u.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12 }}>{initial}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
           <div style={{ fontSize: 10.5, color: 'var(--a-ink3)' }}>Sign out</div>
         </div>
         <IconArrow size={13} color="var(--a-ink3)" />
-      </div>
+      </button>
     </div>
   )
 }
@@ -257,6 +258,18 @@ export function DesktopShell({ user, onLogout }) {
   useTripTracking(effUser)
   useDutyTracking(effUser)
 
+  // Close the HouseDetail / Resident overlay modals on Escape.
+  useEffect(() => {
+    if (!houseDetail && !residentDetail) return
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return
+      if (residentDetail) setResidentDetail(null)
+      else if (houseDetail) setHouseDetail(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [houseDetail, residentDetail])
+
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <GeoStatusBanner />
@@ -274,7 +287,7 @@ export function DesktopShell({ user, onLogout }) {
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
-          <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
+          <div role="dialog" aria-modal="true" aria-label="House detail" style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
             <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
           </div>
         </div>
@@ -289,7 +302,7 @@ export function DesktopShell({ user, onLogout }) {
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setResidentDetail(null) }}
         >
-          <div style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
+          <div role="dialog" aria-modal="true" aria-label="Resident profile" style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
             <ResidentProfile resident={residentDetail} user={effUser} onBack={() => setResidentDetail(null)} houses={houses} />
           </div>
         </div>

@@ -92,6 +92,7 @@ CREATE POLICY "form_submissions_select" ON form_submissions FOR SELECT USING (
 -- Any role in scope may submit a filled-out form.
 CREATE POLICY "form_submissions_insert" ON form_submissions FOR INSERT WITH CHECK (
   org_id = auth_org_id()
+  AND (auth_staff_role() = 'supervisor' OR house_id IS NULL OR house_id = auth_house_id())
 );
 -- Only managers/supervisors review (mark reviewed) submissions.
 CREATE POLICY "form_submissions_update" ON form_submissions FOR UPDATE USING (

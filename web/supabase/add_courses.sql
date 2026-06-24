@@ -84,9 +84,10 @@ DROP POLICY IF EXISTS "course_completions_insert" ON course_completions;
 DROP POLICY IF EXISTS "course_completions_update" ON course_completions;
 DROP POLICY IF EXISTS "course_completions_delete" ON course_completions;
 
--- Admins see the whole org roll-up; org-scoped read is fine.
+-- Admins see the whole org roll-up; non-admins see only their own completions.
 CREATE POLICY "course_completions_select" ON course_completions FOR SELECT USING (
   org_id = auth_org_id()
+  AND (auth_staff_role() IN ('supervisor','manager') OR staff_id = auth_staff_id())
 );
 CREATE POLICY "course_completions_insert" ON course_completions FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND (staff_id = auth_staff_id() OR staff_id IS NULL)

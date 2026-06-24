@@ -54,6 +54,7 @@ CREATE POLICY "behavior_plans_select" ON behavior_plans FOR SELECT USING (
 -- Only managers/supervisors create / edit / delete plans.
 CREATE POLICY "behavior_plans_insert" ON behavior_plans FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')
+  AND (resident_id IS NULL OR resident_id IN (SELECT id FROM residents r WHERE r.org_id = auth_org_id() AND (auth_staff_role()='supervisor' OR r.house_id IS NULL OR r.house_id = auth_house_id())))
 );
 CREATE POLICY "behavior_plans_update" ON behavior_plans FOR UPDATE USING (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')
@@ -103,5 +104,5 @@ CREATE POLICY "behavior_events_insert" ON behavior_events FOR INSERT WITH CHECK 
 );
 CREATE POLICY "behavior_events_delete" ON behavior_events FOR DELETE USING (
   org_id = auth_org_id()
-  AND (auth_staff_role() IN ('supervisor','manager') OR house_id = auth_house_id())
+  AND auth_staff_role() IN ('supervisor','manager')
 );

@@ -51,6 +51,7 @@ CREATE POLICY "resident_funds_select" ON resident_funds FOR SELECT USING (
 -- Only managers/supervisors record / delete entries (regulatory: DSP read-only).
 CREATE POLICY "resident_funds_insert" ON resident_funds FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')
+  AND (resident_id IS NULL OR resident_id IN (SELECT id FROM residents r WHERE r.org_id = auth_org_id() AND (auth_staff_role()='supervisor' OR r.house_id IS NULL OR r.house_id = auth_house_id())))
 );
 CREATE POLICY "resident_funds_delete" ON resident_funds FOR DELETE USING (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')

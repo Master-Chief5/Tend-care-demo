@@ -64,9 +64,11 @@ function TakeSurvey({ row, staffId, onSubmitted, onCancel }) {
     if (!canSubmit) return
     setSaving(true)
     let ok = null
+    // Anonymous surveys must not be tied back to the responder: drop staffId.
+    const submitStaffId = row?.anonymous ? null : staffId
     try {
       ok = await Promise.resolve(submitSurveyResponse(row.orgId || undefined, {
-        surveyId: row.id, staffId, answers,
+        surveyId: row.id, staffId: submitStaffId, answers,
       })).catch(() => null)
     } catch { ok = null }
     setSaving(false)
@@ -536,6 +538,9 @@ export function ScreenA_Surveys({ user, desktop = false }) {
     if (ok && id) {
       setRows(prev => (prev || []).map(x => x && x.id === id
         ? { ...x, _myResponded: true, _responseCount: (Number(x._responseCount) || 0) + 1 } : x))
+      // Admins see per-survey Results (tallies/averages) — refetch so those
+      // recompute after a self-submit instead of only bumping the count.
+      if (isAdmin) load()
     } else {
       load()
     }
@@ -592,10 +597,10 @@ export function ScreenA_Surveys({ user, desktop = false }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--a-bg)' }}>
         <div style={{ padding: '18px 28px 10px', borderBottom: '1px solid var(--a-line)' }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em', marginBottom: isAdmin ? 10 : 0 }}>Surveys</div>
-          {isAdmin && <Chips />}
+          {isAdmin && Chips()}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 28px' }}>
-          <Body />
+          {Body()}
         </div>
       </div>
     )
@@ -606,9 +611,9 @@ export function ScreenA_Surveys({ user, desktop = false }) {
       <div style={{ padding: '14px 22px 8px' }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Surveys</div>
       </div>
-      {isAdmin && <Chips />}
+      {isAdmin && Chips()}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 24px' }}>
-        <Body />
+        {Body()}
       </div>
     </div>
   )

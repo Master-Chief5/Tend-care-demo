@@ -52,6 +52,7 @@ CREATE POLICY "appointments_select" ON appointments FOR SELECT USING (
 -- Only managers/supervisors create / edit / delete.
 CREATE POLICY "appointments_insert" ON appointments FOR INSERT WITH CHECK (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')
+  AND (resident_id IS NULL OR resident_id IN (SELECT id FROM residents r WHERE r.org_id = auth_org_id() AND (auth_staff_role()='supervisor' OR r.house_id IS NULL OR r.house_id = auth_house_id())))
 );
 CREATE POLICY "appointments_update" ON appointments FOR UPDATE USING (
   org_id = auth_org_id() AND auth_staff_role() IN ('supervisor','manager')

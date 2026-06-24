@@ -47,6 +47,7 @@ CREATE POLICY "smart_groups_select" ON smart_groups FOR SELECT USING (
 -- Anyone in the org may create a saved audience.
 CREATE POLICY "smart_groups_insert" ON smart_groups FOR INSERT WITH CHECK (
   org_id = auth_org_id()
+  AND (auth_staff_role() = 'supervisor' OR house_id IS NULL OR house_id = auth_house_id())
 );
 -- Only managers/supervisors may delete.
 CREATE POLICY "smart_groups_delete" ON smart_groups FOR DELETE USING (
