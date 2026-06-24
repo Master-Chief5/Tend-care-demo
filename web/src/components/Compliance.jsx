@@ -63,6 +63,8 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
     const occurredAt = occurredDate ? `${occurredDate}T${occurredTime || '00:00'}` : null
     await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, occurredAt, photo: photo || null, by: user?.name || 'Staff' })
     setSaving(false)
+    // Refresh the parent list now so the filed incident (incl. its occurred_at) renders.
+    onSaved?.()
     // Show a clear confirmation, then reset/close so a "Report incident" deep-link feels complete.
     setDone(true)
   }
@@ -383,7 +385,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
         ))}
       </div>
 
-      {showIncident && <IncidentForm user={user} houseUuid={houseUuid} residents={residents} onClose={() => setShowIncident(false)} onSaved={() => { setShowIncident(false); reload() }} />}
+      {showIncident && <IncidentForm user={user} houseUuid={houseUuid} residents={residents} onClose={() => setShowIncident(false)} onSaved={reload} />}
       {showDrill && <DrillForm user={user} houseUuid={houseUuid} onClose={() => setShowDrill(false)} onSaved={() => { setShowDrill(false); reload() }} />}
       {followUp && <FollowUpSheet incident={followUp} user={user} onClose={() => setFollowUp(null)} onSaved={() => { setFollowUp(null); reload() }} />}
     </>

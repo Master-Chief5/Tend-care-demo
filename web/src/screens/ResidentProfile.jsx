@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { IconChev, IconHeart } from '../components/icons'
+import { fetchIncidents } from '../lib/db'
 import { MedPass } from '../components/MedPass'
 import { Goals } from '../components/Goals'
 import { Behavior } from '../components/Behavior'
@@ -42,8 +43,27 @@ const CARE_AREAS = [
   { id: 'health',   title: 'Health',          sub: 'Vitals, sleep, meals, seizures' },
   { id: 'behavior', title: 'Behavior',        sub: 'Behavior plan + ABC incidents' },
   { id: 'progress', title: 'Progress',        sub: 'Trends across this resident’s logs' },
+  { id: 'incidents', title: 'Incidents',      sub: 'Filed incidents for this resident' },
   { id: 'notes',    title: 'Notes · daily log', sub: 'Shift notes for this resident' },
 ]
+
+// Incident severity → badge tone, matching the Hearth status palette used for
+// flags/reports elsewhere (clay for severe, honey for the rest).
+function severityTone(severity) {
+  const bad = /severe|major|critical/i.test(severity || '')
+  return bad
+    ? { bg: '#fadcd7', fg: '#a93a25' }
+    : { bg: '#f5e9d6', fg: '#a47012' }
+}
+
+// Format an incident's date for display (prefers the explicit date, falls back
+// to the created-at timestamp).
+function incidentDate(inc) {
+  const raw = inc.date || inc.at || inc.occurred_at
+  if (!raw) return null
+  const d = new Date(raw); if (isNaN(d)) return String(raw)
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 // A flag pill — clay for alerting flags, honey for cautions, sage otherwise.
 function flagTone(flag) {
@@ -67,6 +87,30 @@ function KeyInfoRow({ label, value, alert }) {
 export function ResidentProfile({ user, resident, houses = [], onBack }) {
   const [area, setArea] = useState('overview')
   const [familyDigest, setFamilyDigest] = useState(false)
+  const [incidents, setIncidents] = useState(null)   // null = not loaded yet
+
+  // Read-only incident history for THIS resident. Fetch the house's incidents
+  // (reusing the same loader the Compliance flow uses) and filter to this
+  // resident; filing lives in the house Compliance flow, not here. Lazy-loaded
+  // the first time the Incidents area is opened.
+  useEffect(() => {
+    if (area !== 'incidents' || !resident || incidents !== null) return
+    let alive = true
+    Promise.resolve(fetchIncidents(user?.orgId, resident.house_id))
+      .then(rows => {
+        if (!alive) return
+        // Match on resident_id; in the Supabase backend the mapped row carries
+        // the joined resident name rather than the id, so fall back to that.
+        const mine = (rows || []).filter(i =>
+          i.resident_id === resident.id ||
+          (i.resident && resident.name && i.resident === resident.name))
+        // Newest-first by recorded date / created timestamp.
+        mine.sort((a, b) => new Date(b.at || b.date || 0) - new Date(a.at || a.date || 0))
+        setIncidents(mine)
+      })
+      .catch(() => { if (alive) setIncidents([]) })
+    return () => { alive = false }
+  }, [area, resident, incidents, user])
 
   // Resolve this resident's house for the accent color + badge. Residents carry
   // house_id (= house._uuid); fall back to the joined `houses` row (Supabase).
@@ -98,6 +142,7 @@ export function ResidentProfile({ user, resident, houses = [], onBack }) {
     { id: 'health', label: 'Health' },
     { id: 'behavior', label: 'Behavior' },
     { id: 'progress', label: 'Progress' },
+    { id: 'incidents', label: 'Incidents' },
     { id: 'notes', label: 'Notes' },
   ]
 
@@ -211,6 +256,47 @@ export function ResidentProfile({ user, resident, houses = [], onBack }) {
           {area === 'health' && <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={scoped} />}
           {area === 'behavior' && <Behavior user={user} houseUuid={houseUuid} houseColor={c} residents={scoped} />}
           {area === 'progress' && <ProgressPanel user={user} houseUuid={houseUuid} houseColor={c} residents={scoped} />}
+
+          {/* Incidents — read-only history of filed incidents for THIS resident,
+              newest-first. Filing happens in the house Compliance flow. */}
+          {area === 'incidents' && (
+            incidents === null ? (
+              <div style={{ fontSize: 13, color: 'var(--a-ink3)', padding: '8px 2px' }}>Loading incidents…</div>
+            ) : incidents.length === 0 ? (
+              <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '20px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: 'var(--a-ink2)', fontWeight: 600 }}>No incidents on file</div>
+                <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 4, lineHeight: 1.45 }}>
+                  Nothing has been filed for {resident.name?.split(' ')[0] || 'this resident'}. Incidents are filed from the house Compliance flow.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {incidents.map(inc => {
+                  const t = severityTone(inc.severity)
+                  const reviewed = inc.status === 'reviewed'
+                  const d = incidentDate(inc)
+                  return (
+                    <div key={inc.id} style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, padding: '13px 15px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--a-ink)' }}>{inc.type || 'Incident'}</span>
+                        {inc.severity && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: t.fg, background: t.bg, padding: '3px 9px', borderRadius: 999 }}>{inc.severity}</span>
+                        )}
+                        <span style={{
+                          marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999,
+                          color: reviewed ? '#3f7d52' : 'var(--a-ink2)',
+                          background: reviewed ? '#dceadf' : 'var(--a-paper)',
+                        }}>{reviewed ? 'Reviewed' : 'Open'}</span>
+                      </div>
+                      {d && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3 }}>{d}{inc.by ? ` · ${inc.by}` : ''}</div>}
+                      {inc.text && <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.45, marginTop: 7 }}>{inc.text}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
           {area === 'notes' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={scoped} />}
         </div>
       </div>
