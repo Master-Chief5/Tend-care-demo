@@ -330,7 +330,7 @@ export function ScreenA_Resources({ user }) {
     <div className="phone-screen">
       <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 4px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px calc(22px + var(--chip-clear, 0px)) 4px 22px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Resources</div>
             <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>Supplies & spend</div>

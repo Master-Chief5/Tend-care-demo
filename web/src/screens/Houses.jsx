@@ -30,7 +30,7 @@ function GreetingHeader({ name, isSupervisor, onAddHouse }) {
   const today = new Date()
   const firstName = name?.split(' ')[0] || 'there'
   return (
-    <div style={{ padding: '10px 22px 8px' }}>
+    <div style={{ padding: '10px calc(22px + var(--chip-clear, 0px)) 8px 22px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginBottom: 2 }}>{fmtDayLabel(today)}</div>
         <TendLogo size={14} style={{ marginTop: 2 }} />

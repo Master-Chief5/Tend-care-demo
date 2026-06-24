@@ -162,7 +162,7 @@ export function ScreenA_Activity({ user, desktop = false }) {
 
   return (
     <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ padding: '14px calc(22px + var(--chip-clear, 0px)) 8px 22px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Activity</div>
         <RefreshBtn />
       </div>

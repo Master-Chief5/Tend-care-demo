@@ -208,7 +208,7 @@ export function ScreenA_Staff({ user, onLogout }) {
     <div className="phone-screen">
       <Toast msg={toast} />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '14px 22px 8px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px calc(22px + var(--chip-clear, 0px)) 8px 22px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div>
             <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Staff</div>
             <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 2 }}>{staffList.length} staff members</div>

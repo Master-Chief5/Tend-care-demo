@@ -177,7 +177,14 @@ export function MobileShell({ user, onLogout }) {
     : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState)
 
   return (
-    <div className="web-app web-mobile" style={{ display: 'flex', flexDirection: 'column', background: 'var(--a-bg)' }}>
+    <div className="web-app web-mobile" style={{
+      display: 'flex', flexDirection: 'column', background: 'var(--a-bg)',
+      // The "PREVIEW AS" persona chip (RoleSwitcher) is a fixed top-right overlay
+      // shown only in demo mode. Expose its width as a CSS var so screen headers
+      // can reserve right-side space and keep top-right actions from sliding under
+      // it. Zero when the chip isn't rendered, so non-demo layout is untouched.
+      '--chip-clear': isDemoMode ? '116px' : '0px',
+    }}>
       <GeoStatusBanner />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
