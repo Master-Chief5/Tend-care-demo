@@ -9,7 +9,8 @@ import { approvedLeaveOn, findOverlap } from '../../lib/scheduleSafety'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter, IconAlert, IconCheck, IconX } from '../../components/icons'
 import { SuggestInput } from '../../components/SuggestInput'
-import { ScheduleWeekTools, WeekSummary } from './ScheduleTools'
+import { ScheduleWeekTools, WeekSummaryFooter } from './ScheduleTools'
+import { WeekGrid } from './WeekGrid'
 
 const DAY_START = 0
 const DAY_END = 24
@@ -336,7 +337,7 @@ function DayScheduleView({ week, selectedDate, onPickDay, onPrev, onNext, onToda
   )
 }
 
-function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev, onNext, onToday, user, onChanged, timeOff = [] }) {
+function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onAddShift, onPrev, onNext, onToday, user, onChanged, timeOff = [] }) {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const weekLabel = `${MONTHS[week[0].date.getMonth()]} ${week[0].num} – ${MONTHS[week[6].date.getMonth()]} ${week[6].num}`
   const openCount = shifts.filter(s => s.status === 'open').length
@@ -358,8 +359,9 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
   const totalCells = houses.length * 7
   const staffed = totalCells - gaps.length
 
-  // Drag-and-drop: move a shift to a different day within the same house.
-  const moveShift = async (id, date) => { await updateShift(id, { date }); onChanged?.() }
+  // Drag-and-drop: move a shift to a different day (and optionally reassign it
+  // to another staffer) — `patch` is { date, staffId?, personName? }.
+  const moveShift = async (id, patch) => { await updateShift(id, patch); onChanged?.() }
 
   return (
     <>
@@ -389,18 +391,15 @@ function WeekScheduleView({ week, houses = [], shifts = [], onShiftClick, onPrev
         </div>
       )}
       <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '180px repeat(7, 1fr)', background: 'var(--a-paper)', borderBottom: '1px solid var(--a-line)' }}>
-          <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>House</div>
-          {week.map((d, i) => (
-            <div key={i} style={{ padding: '10px 0', textAlign: 'center', borderLeft: '1px solid var(--a-line)' }}>
-              <div style={{ fontSize: 10, color: 'var(--a-ink3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{d.dow}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2, color: d.today ? 'var(--a-clay)' : 'var(--a-ink)' }}>{d.num}</div>
-            </div>
-          ))}
-        </div>
-        {houses.map(h => <ScheduleRow key={h.id} house={h} weekShifts={shifts} weekDates={week} onShiftClick={onShiftClick} onMoveShift={isAdmin ? moveShift : undefined} timeOff={timeOff} />)}
+        <WeekGrid
+          user={user} houses={houses} week={week} shifts={shifts} timeOff={timeOff}
+          isAdmin={isAdmin}
+          onShiftClick={onShiftClick}
+          onAddShift={onAddShift}
+          onMoveShift={isAdmin ? moveShift : undefined}
+        />
+        <WeekSummaryFooter shifts={shifts} weekDates={weekDates} />
       </div>
-      <WeekSummary shifts={shifts} weekDates={weekDates} houses={houses} />
     </>
   )
 }
@@ -455,7 +454,7 @@ function MonthScheduleView({ anchorDate, shifts = [], houses = [], onPrev, onNex
   )
 }
 
-function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, editShift, timeOff = [], weekShifts = [], onClose, onSaved, onDeleted }) {
+function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, defaultStaffName = '', isManager, editShift, timeOff = [], weekShifts = [], onClose, onSaved, onDeleted }) {
   const hourToTime = (h) => {
     const total = Math.round((Number(h) || 0) * 60)
     const hh = Math.floor(total / 60) % 24, mm = total % 60
@@ -470,7 +469,7 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, isManager, ed
   const [houseUuid, setHouseUuid] = useState(initialHouse)
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(false)
-  const [personName, setPersonName] = useState(editShift?.person || '')
+  const [personName, setPersonName] = useState(editShift?.person || defaultStaffName || '')
   const [role, setRole] = useState(editShift?.role || 'DSP')
   const [date, setDate] = useState(editShift?.date || defaultDate || toDateStr(new Date()))
   const [startTime, setStartTime] = useState(editShift ? hourToTime(editShift.start) : '07:00')
@@ -644,7 +643,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const isManager = user?.role === 'manager'
   const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
 
-  const [view, setView] = useState('day')
+  const [view, setView] = useState('week')
   const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
   const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
   const [rangeShifts, setRangeShifts] = useState([])
@@ -701,7 +700,8 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         {view === 'week' && (
           <WeekScheduleView week={week} houses={houses} shifts={rangeShifts} {...nav}
             user={user} onChanged={reload} timeOff={timeOff}
-            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })}
+            onAddShift={(opts) => setModal({ mode: 'add', ...opts })} />
         )}
         {view === 'month' && (
           <MonthScheduleView anchorDate={anchorDate} houses={houses} shifts={rangeShifts} {...nav} onPickDay={pickDay} />
@@ -714,8 +714,9 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
           houses={houses}
           isManager={isManager}
           editShift={modal.mode === 'edit' ? modal.shift : null}
-          defaultHouseUuid={houses.find(h => h.id === houseFilter)?._uuid}
-          defaultDate={selectedDate}
+          defaultHouseUuid={modal.houseUuid || houses.find(h => h.id === houseFilter)?._uuid}
+          defaultDate={modal.date || selectedDate}
+          defaultStaffName={modal.staffName || ''}
           timeOff={timeOff}
           weekShifts={rangeShifts}
           onClose={() => setModal(null)}

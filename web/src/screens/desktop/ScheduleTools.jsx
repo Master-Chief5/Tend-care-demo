@@ -91,6 +91,51 @@ export function WeekSummary({ shifts, weekDates, houses = [] }) {
   )
 }
 
+// ── Staff-grid weekly footer: per-day hours strip (aligned to the 220px staff
+//    column) + a totals strip (Hours / Shifts / Staff / Open, Open in clay) ────
+export function WeekSummaryFooter({ shifts, weekDates }) {
+  const { perDay, total } = summarizeWeek(shifts, weekDates)
+  const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
+  const openTotal = (shifts || []).filter(s => s.status === 'open').length
+  const openOn = (date) => (shifts || []).filter(s => s.date === date && s.status === 'open').length
+  const STAFF_COL = 220
+  return (
+    <>
+      {/* per-day hours, aligned under the grid columns */}
+      <div style={{ borderTop: '2px solid var(--a-line)', background: 'var(--a-paper)', overflowX: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `${STAFF_COL}px repeat(7, 1fr)`, minWidth: 1040 }}>
+          <div style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--a-paper)', padding: '10px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--a-ink3)', display: 'flex', alignItems: 'center' }}>Hours / day</div>
+          {(perDay || []).map((d, i) => {
+            const open = openOn(d.date)
+            const today = d.date === todayStr
+            return (
+              <div key={i} style={{ padding: '8px 12px', borderLeft: '1px solid var(--a-line)', background: today ? '#dee6df' : 'transparent' }}>
+                <div className="tnum" style={{ fontSize: 14, fontWeight: 700, color: d.hours > 0 ? 'var(--a-ink)' : 'var(--a-ink3)', lineHeight: 1.15 }}>{fmtHrs(d.hours)}h</div>
+                <div className="tnum" style={{ fontSize: 12, color: open > 0 ? '#a93a25' : 'var(--a-ink3)', fontWeight: open > 0 ? 600 : 400, marginTop: 1 }}>
+                  {d.count} shift{d.count === 1 ? '' : 's'}{open > 0 ? ` · ${open} open` : ''}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {/* totals strip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 32, padding: '14px 16px', borderTop: '1px solid var(--a-line)', background: 'var(--a-card)', borderRadius: '0 0 14px 14px', flexWrap: 'wrap' }}>
+        {[['Hours', fmtHrs(total.hours)], ['Shifts', total.shifts], ['Staff', total.staff]].map(([label, val]) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--a-ink3)' }}>{label}</span>
+            <span className="serif tnum" style={{ fontSize: 24, lineHeight: 1.1 }}>{val}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: openTotal > 0 ? 'var(--a-clay-text)' : 'var(--a-ink3)' }}>Open</span>
+          <span className="serif tnum" style={{ fontSize: 24, lineHeight: 1.1, color: openTotal > 0 ? 'var(--a-clay-text)' : 'var(--a-ink)' }}>{openTotal}</span>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Admin toolbar: copy last week, save/apply/delete templates ───────────────
 export function ScheduleWeekTools({ user, houses, weekDates, shifts, onChanged }) {
   const orgId = user?.orgId
