@@ -45,8 +45,94 @@ function houseJoin(houseId) {
 
 export function demoResetStore() { store = blank(); persist() }
 
+// ── One-time org seed ────────────────────────────────────────────────────────
+// The demo store starts empty (a brand-new account), so a first-time visitor
+// otherwise lands on "No houses yet" across every screen. Seed a small, realistic
+// org ONCE when the store has no houses, building it entirely through the same
+// demoAdd*/demoSeed* helpers the UI uses so every shape stays correct.
+//
+// Guarded on `houses.length`, so it never duplicates and demoResetStore() still
+// clears everything — the next houses read simply re-seeds, the same lazy
+// behaviour as the time-clock / time-off / announcements seeders further down.
+// Staff names match SEED_TC_STAFF so the seeded punches line up with the roster.
+const DEMO_ORG = 'demo-org'
+
+export function demoSeedOrg(orgId = DEMO_ORG) {
+  if (store.houses.length > 0) return
+
+  // Houses ────────────────────────────────────────────────────────────────────
+  const maple = demoAddHouse({ name: 'Maple House', short: 'MAP', color: '#4a6b56', address: '128 Maple Ave',    branch: 'Riverside', managerName: 'Priya Nair' })
+  const oak   = demoAddHouse({ name: 'Oak House',   short: 'OAK', color: '#b05c3c', address: '54 Oakdale Rd',     branch: 'Riverside', managerName: 'Marcus Lewis' })
+  const birch = demoAddHouse({ name: 'Birch House', short: 'BIR', color: '#5a7a9a', address: '901 Birchwood Ln',  branch: 'Northside', managerName: 'Toni Alvarez' })
+
+  // Staff (names mirror the time-clock seed roster so punches map to real people)
+  const staff = [
+    demoInviteStaff(maple.id, { name: 'Priya Nair',    email: 'priya@tend.care',  role: 'manager' }),
+    demoInviteStaff(maple.id, { name: 'Aisha Mendez',  email: 'aisha@tend.care',  role: 'staff' }),
+    demoInviteStaff(maple.id, { name: 'Jay Brooks',    email: 'jay@tend.care',    role: 'staff' }),
+    demoInviteStaff(oak.id,   { name: 'Marcus Lewis',  email: 'marcus@tend.care', role: 'manager' }),
+    demoInviteStaff(oak.id,   { name: 'Reni Tate',     email: 'reni@tend.care',   role: 'staff' }),
+    demoInviteStaff(birch.id, { name: 'Toni Alvarez',  email: 'toni@tend.care',   role: 'manager' }),
+    demoInviteStaff(birch.id, { name: 'Sam Okafor',    email: 'sam@tend.care',    role: 'staff' }),
+  ]
+  const staffId = (name) => (staff.find(s => s.name === name) || {}).id || null
+
+  // Residents — with quick-reference safety flags + allergies (drive the Care tab)
+  demoAddResident(maple.id, { name: 'Robert Hayes',    room: '1', flags: ['Fall risk', 'Diabetic'],           allergies: 'Penicillin',         diagnoses: 'Type 2 diabetes, mild dementia', diet: 'Low sugar' })
+  demoAddResident(maple.id, { name: 'Linda Park',      room: '2', flags: ['Seizure', '1:1 support'],          allergies: 'Latex',              diagnoses: 'Epilepsy',                       diet: 'Regular' })
+  demoAddResident(oak.id,   { name: 'James Whitaker',  room: '1', flags: ['Behavior plan', 'Elopement risk'], allergies: 'Peanuts, tree nuts', diagnoses: 'Autism spectrum disorder',       diet: 'Gluten-free' })
+  demoAddResident(oak.id,   { name: 'Maria Gomez',     room: '2', flags: ['Allergy'],                         allergies: 'Sulfa drugs',        diagnoses: 'Generalized anxiety',            diet: 'Regular' })
+  demoAddResident(birch.id, { name: 'Daniel Cho',      room: '1', flags: ['Fall risk'],                       allergies: '',                   diagnoses: 'Cerebral palsy',                 diet: 'Pureed' })
+  demoAddResident(birch.id, { name: 'Aaliyah Johnson', room: '2', flags: ['Diet', 'Diabetic'],               allergies: 'Shellfish',          diagnoses: 'Type 1 diabetes',                diet: 'Carb-controlled' })
+
+  // Today's shifts (+ a couple tomorrow so the week view isn't bare).
+  const dateFor = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return _ds(d) }
+  const shift = (house, who, role, s, e, off = 0) =>
+    demoAddShift(house.id, { personName: who, staffId: staffId(who), role, startHour: s, endHour: e, date: dateFor(off) })
+  shift(maple, 'Aisha Mendez', 'DSP',     7, 15)
+  shift(maple, 'Jay Brooks',   'DSP',    15, 23)
+  shift(maple, 'Priya Nair',   'Manager', 9, 17)
+  shift(oak,   'Reni Tate',    'DSP',     7, 15)
+  shift(oak,   'Marcus Lewis', 'Manager', 9, 17)
+  shift(birch, 'Sam Okafor',   'DSP',     7, 15)
+  shift(birch, 'Toni Alvarez', 'Manager', 8, 16)
+  shift(maple, 'Aisha Mendez', 'DSP',     7, 15, 1)
+  shift(oak,   'Reni Tate',    'DSP',     7, 15, 1)
+  // One open overnight to show a coverage gap.
+  const open = demoAddShift(oak.id, { personName: '', role: 'DSP', startHour: 23, endHour: 7, date: dateFor(0) })
+  demoUpdateShift(open.id, { status: 'open' })
+
+  // A couple of incidents + safety drills (surface on each house's Care tab).
+  demoAddIncident({ houseId: maple.id, residentId: null, type: 'Fall',       severity: 'Minor',    text: 'Resident slipped on a wet bathroom floor; no injury observed.',          actions: 'Completed body check, no first aid required, notified on-call nurse.', by: 'Aisha Mendez' })
+  demoAddIncident({ houseId: oak.id,   residentId: null, type: 'Behavioral', severity: 'Moderate', text: 'Escalation during the afternoon transition; redirected per behavior plan.', actions: 'Followed BSP de-escalation, offered a quiet space, 1:1 support for ~20 min.', by: 'Reni Tate' })
+  demoAddDrill({ houseId: maple.id, type: 'Fire',    evacTime: '2:45', notes: 'All residents evacuated to the front lawn within the target time.', by: 'Priya Nair',   date: dateFor(-3) })
+  demoAddDrill({ houseId: oak.id,   type: 'Tornado', evacTime: '1:30', notes: 'Sheltered in the interior hallway; accounted for all residents.',    by: 'Marcus Lewis', date: dateFor(-1) })
+
+  // A few supplies per house (with cost, so the Resources spend charts render).
+  demoAddResource(maple.id, { name: 'Paper towels',       qty: 6, unit: 'rolls',   cost: 12.99 })
+  demoAddResource(maple.id, { name: 'Nitrile gloves',     qty: 2, unit: 'boxes',   cost: 18.50 })
+  demoAddResource(oak.id,   { name: 'Disinfectant wipes', qty: 4, unit: 'tubs',    cost: 23.99 })
+  demoAddResource(oak.id,   { name: 'Hand soap',          qty: 3, unit: 'bottles', cost: 9.75 })
+  demoAddResource(birch.id, { name: 'Trash bags',         qty: 1, unit: 'box',     cost: 15.25 })
+  demoAddResource(birch.id, { name: 'Briefs (L)',         qty: 2, unit: 'packs',   cost: 31.00 })
+
+  // Team chat — an org-wide conversation so the Team tab isn't empty.
+  demoSendMessage(orgId, { houseId: null, authorName: 'Dana Whitfield', authorRole: 'supervisor', body: 'Morning team 👋 Reminder to log this month’s fire & tornado drills by Friday — thanks for keeping everyone safe.' })
+  demoSendMessage(orgId, { houseId: null, authorName: 'Priya Nair',     authorRole: 'manager',    body: 'Maple knocked out our fire drill this morning — 2:45 evac, everyone accounted for. ✅' })
+  demoSendMessage(orgId, { houseId: null, authorName: 'Aisha Mendez',   authorRole: 'staff',      body: 'Heads up: we were low on nitrile gloves at Maple, so I added a couple boxes to Supplies.' })
+
+  // Reuse the existing lazy seeders so Updates / Activity / Time are populated
+  // from the same first load (each is internally guarded against duplicates).
+  demoSeedAnnouncements(orgId)
+  demoSeedTimeclock(orgId)
+  demoSeedTimeOff(orgId)
+
+  persist()
+}
+
 // ── Houses ──────────────────────────────────────────────────────────────────
 export function demoFetchHouses() {
+  demoSeedOrg()
   return store.houses.map(h => ({
     id: h.id, slug: h.slug, name: h.name, short: h.short,
     address: h.address ?? '', branch: h.branch ?? '', color: h.color,
