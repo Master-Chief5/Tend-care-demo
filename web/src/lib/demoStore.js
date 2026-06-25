@@ -139,8 +139,14 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoAddMed({ houseId: maple.id, residentId: robertHayes.id, name: 'Acetaminophen', dose: '500 mg', route: 'Oral', prn: true, prnReason: 'Mild pain or fever ≥ 100.4°F', prescriber: 'Dr. Alvarez' })
 
   // ISP goals so the Goals section isn't empty (staff log prompt level per pass).
-  demoAddGoal({ houseId: maple.id, residentId: robertHayes.id, title: 'Brush teeth with minimal prompting', target: 'Independent 4 of 5 days for 30 days', method: 'Hand-over-hand fading to verbal prompts; chart prompt level each pass.' })
-  demoAddGoal({ houseId: maple.id, residentId: lindaPark.id,   title: 'Initiate a social greeting',          target: '3 peer greetings per day for 2 weeks',  method: 'Model the greeting, then pause for her to initiate; praise any attempt.' })
+  const goalBrush = demoAddGoal({ houseId: maple.id, residentId: robertHayes.id, title: 'Brush teeth with minimal prompting', target: 'Independent 4 of 5 days for 30 days', method: 'Hand-over-hand fading to verbal prompts; chart prompt level each pass.' })
+  const goalGreet = demoAddGoal({ houseId: maple.id, residentId: lindaPark.id,   title: 'Initiate a social greeting',          target: '3 peer greetings per day for 2 weeks',  method: 'Model the greeting, then pause for her to initiate; praise any attempt.' })
+  // A week of prompt-level data so each goal shows a real (improving) trend +
+  // an "independent %" — drives the Goals sparkline and the Progress report.
+  const goalTrend = (goal, levels) => levels.forEach((result, i) =>
+    demoRecordGoalData({ houseId: maple.id, goalId: goal.id, residentId: goal.resident_id, date: dateFor(-(levels.length - 1 - i)), result, by: 'Aisha Mendez' }))
+  goalTrend(goalBrush, ['physical', 'model', 'gesture', 'verbal', 'verbal', 'independent', 'independent'])
+  goalTrend(goalGreet, ['model', 'gesture', 'verbal', 'refused', 'verbal', 'independent'])
 
   // Daily log / shift notes so the Notes section reads as an active house.
   demoAddDailyLog({ houseId: maple.id, residentId: robertHayes.id, category: 'General',  text: 'Cheerful at breakfast, ate most of his meal. Walked the garden loop twice.', by: 'Aisha Mendez' })
