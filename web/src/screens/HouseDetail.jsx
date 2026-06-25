@@ -18,7 +18,7 @@ import { ResidentFunds } from '../components/ResidentFunds'
 
 const HOUSE_SECTIONS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'shift', label: 'Shift documentation' },
+  { id: 'shift', label: 'Shift docs' },
   { id: 'meds', label: 'Meds' },
   { id: 'goals', label: 'Goals' },
   { id: 'behavior', label: 'Behavior' },
@@ -314,10 +314,15 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [], i
           </div>
         </div>
 
-        <div style={{ padding: '4px 16px 8px', display: 'flex', gap: 6, flexShrink: 0, overflowX: 'auto' }}>
-          {HOUSE_SECTIONS.map(s => (
-            <button key={s.id} onClick={() => setSection(s.id)} style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: section === s.id ? 'var(--a-ink)' : 'transparent', color: section === s.id ? 'var(--a-card)' : 'var(--a-ink2)', border: section === s.id ? 0 : '1px solid var(--a-line)' }}>{s.label}</button>
-          ))}
+        {/* Section pills scroll horizontally (10 sections > screen width); a
+            right-edge fade hints that more sit off-screen so they're findable. */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ padding: '4px 16px 8px', display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {HOUSE_SECTIONS.map(s => (
+              <button key={s.id} onClick={() => setSection(s.id)} style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: section === s.id ? 'var(--a-ink)' : 'transparent', color: section === s.id ? 'var(--a-card)' : 'var(--a-ink2)', border: section === s.id ? 0 : '1px solid var(--a-line)' }}>{s.label}</button>
+            ))}
+          </div>
+          <div aria-hidden style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 28, pointerEvents: 'none', background: 'linear-gradient(to right, transparent, var(--a-bg))' }} />
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 22px 24px' }}>
           {section === 'overview' && (<>
