@@ -80,10 +80,10 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   // Residents — with quick-reference safety flags + allergies (drive the Care tab)
   const robertHayes = demoAddResident(maple.id, { name: 'Robert Hayes',    room: '1', flags: ['Fall risk', 'Diabetic'],           allergies: 'Penicillin',         diagnoses: 'Type 2 diabetes, mild dementia', diet: 'Low sugar' })
   const lindaPark = demoAddResident(maple.id, { name: 'Linda Park',      room: '2', flags: ['Seizure', '1:1 support'],          allergies: 'Latex',              diagnoses: 'Epilepsy',                       diet: 'Regular' })
-  demoAddResident(oak.id,   { name: 'James Whitaker',  room: '1', flags: ['Behavior plan', 'Elopement risk'], allergies: 'Peanuts, tree nuts', diagnoses: 'Autism spectrum disorder',       diet: 'Gluten-free' })
-  demoAddResident(oak.id,   { name: 'Maria Gomez',     room: '2', flags: ['Allergy'],                         allergies: 'Sulfa drugs',        diagnoses: 'Generalized anxiety',            diet: 'Regular' })
-  demoAddResident(birch.id, { name: 'Daniel Cho',      room: '1', flags: ['Fall risk'],                       allergies: '',                   diagnoses: 'Cerebral palsy',                 diet: 'Pureed' })
-  demoAddResident(birch.id, { name: 'Aaliyah Johnson', room: '2', flags: ['Diet', 'Diabetic'],               allergies: 'Shellfish',          diagnoses: 'Type 1 diabetes',                diet: 'Carb-controlled' })
+  const jamesWhitaker = demoAddResident(oak.id,   { name: 'James Whitaker',  room: '1', flags: ['Behavior plan', 'Elopement risk'], allergies: 'Peanuts, tree nuts', diagnoses: 'Autism spectrum disorder',       diet: 'Gluten-free' })
+  const mariaGomez = demoAddResident(oak.id,   { name: 'Maria Gomez',     room: '2', flags: ['Allergy'],                         allergies: 'Sulfa drugs',        diagnoses: 'Generalized anxiety',            diet: 'Regular' })
+  const danielCho = demoAddResident(birch.id, { name: 'Daniel Cho',      room: '1', flags: ['Fall risk'],                       allergies: '',                   diagnoses: 'Cerebral palsy',                 diet: 'Pureed' })
+  const aaliyahJohnson = demoAddResident(birch.id, { name: 'Aaliyah Johnson', room: '2', flags: ['Diet', 'Diabetic'],               allergies: 'Shellfish',          diagnoses: 'Type 1 diabetes',                diet: 'Carb-controlled' })
 
   // Today's shifts (+ a couple tomorrow so the week view isn't bare).
   const dateFor = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return _ds(d) }
@@ -157,6 +157,18 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoAddHealthLog({ houseId: maple.id, residentId: robertHayes.id, kind: 'meal',   detail: { meal: 'Breakfast', intake: 'Most' }, by: 'Aisha Mendez' })
   demoAddHealthLog({ houseId: maple.id, residentId: lindaPark.id,   kind: 'seizure', amount: 2, detail: { type: 'Brief tonic-clonic', trigger: 'Possible missed sleep', intervention: 'Stayed with her, timed it, cleared the area', postictal: 'Rested ~30 min, oriented after' }, note: 'On-call nurse notified.', by: 'Jay Brooks' })
   demoAddHealthLog({ houseId: maple.id, residentId: lindaPark.id,   kind: 'fluid',  amount: 8, by: 'Aisha Mendez' })
+
+  // Light clinical data for the Oak + Birch residents so no resident profile
+  // reads as empty when the supervisor drills in (diagnosis-appropriate).
+  demoAddMed({ houseId: oak.id, residentId: jamesWhitaker.id, name: 'Risperidone', dose: '1 mg', route: 'Oral', times: ['08:00', '20:00'], prescriber: 'Dr. Okeke' })
+  demoAddGoal({ houseId: oak.id, residentId: jamesWhitaker.id, title: 'Use the break card before escalating', target: 'Independent 3 of 5 days for 30 days', method: 'Prompt the break card at the first early sign; honor the break immediately.' })
+  demoAddHealthLog({ houseId: oak.id, residentId: jamesWhitaker.id, kind: 'meal', detail: { meal: 'Lunch', intake: 'Half' }, by: 'Reni Tate' })
+  demoAddMed({ houseId: oak.id, residentId: mariaGomez.id, name: 'Sertraline', dose: '50 mg', route: 'Oral', times: ['08:00'], prescriber: 'Dr. Okeke' })
+  demoAddGoal({ houseId: oak.id, residentId: mariaGomez.id, title: 'Name a coping skill when anxious', target: 'Uses a skill 4 of 5 prompts', method: 'Review her coping card; praise any naming of a strategy.' })
+  demoAddMed({ houseId: birch.id, residentId: danielCho.id, name: 'Baclofen', dose: '10 mg', route: 'Oral', times: ['08:00', '14:00', '20:00'], prescriber: 'Dr. Reyes' })
+  demoAddHealthLog({ houseId: birch.id, residentId: danielCho.id, kind: 'vitals', detail: { temp: 98.2, bp: '118/76', pulse: 70, o2: 97 }, by: 'Sam Okafor' })
+  demoAddMed({ houseId: birch.id, residentId: aaliyahJohnson.id, name: 'Insulin glargine', dose: '12 units', route: 'Subcutaneous', times: ['21:00'], prescriber: 'Dr. Reyes' })
+  demoAddHealthLog({ houseId: birch.id, residentId: aaliyahJohnson.id, kind: 'vitals', detail: { glucose: 132, pulse: 78 }, by: 'Sam Okafor' })
 
   // A few supplies per house (with cost, so the Resources spend charts render).
   demoAddResource(maple.id, { name: 'Paper towels',       qty: 6, unit: 'rolls',   cost: 12.99 })
