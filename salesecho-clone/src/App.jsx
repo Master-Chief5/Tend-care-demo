@@ -3,6 +3,7 @@ import { content } from './content.js'
 import Nav from './components/Nav.jsx'
 import SignInModal from './components/SignInModal.jsx'
 import InteractiveDemo from './components/InteractiveDemo.jsx'
+import LiveCoach from './components/LiveCoach.jsx'
 
 function IntegrationChips() {
   return (
@@ -78,9 +79,16 @@ function DemoSection({ lang, t }) {
           >
             🎮 {d.interactiveTab}
           </button>
+          <button
+            role="tab"
+            className={`demo-tab ${tab === 'coach' ? 'active' : ''}`}
+            onClick={() => setTab('coach')}
+          >
+            🤖 {d.coachTab}
+          </button>
         </div>
 
-        {tab === 'video' ? (
+        {tab === 'video' && (
           <div className="video-demo">
             <div className="video-frame">
               <button className="video-play" aria-label={d.playLabel}>▶</button>
@@ -90,9 +98,9 @@ function DemoSection({ lang, t }) {
             <p>{d.videoSub}</p>
             <button className="link-btn" onClick={() => setTab('interactive')}>{d.tryLabel}</button>
           </div>
-        ) : (
-          <InteractiveDemo lang={lang} t={t} />
         )}
+        {tab === 'interactive' && <InteractiveDemo lang={lang} t={t} />}
+        {tab === 'coach' && <LiveCoach lang={lang} t={t} />}
       </div>
     </section>
   )
