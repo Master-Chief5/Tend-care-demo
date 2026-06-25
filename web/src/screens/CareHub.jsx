@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { fetchResidents } from '../lib/db'
 import {
   IconChev, IconSearch, IconFilter, IconHeart, IconChart, IconActivity,
-  IconClipboard, IconClock, IconBook,
+  IconClipboard, IconClock, IconBook, IconCart,
 } from '../components/icons'
 
 // ── Care hub (Screen A) ──────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
             <ModTile Icon={IconFilter} label="Incidents" sub="To review" count={1} onClick={() => goToSection('compliance')} />
             <ModTile Icon={IconHeart} label="Behavior" sub="Plans · ABC" onClick={() => goToSection('behavior')} />
             <ModTile Icon={IconBook} label="Notes" sub="Daily log" onClick={() => goToSection('log')} />
-            <ModTile Icon={IconClipboard} label="Documents" sub="ISP · consents" onClick={() => goToSection('overview')} />
+            <ModTile Icon={IconCart} label="Funds" sub="Ledger · spending" onClick={() => goToSection('funds')} />
           </div>
         </div>
 
