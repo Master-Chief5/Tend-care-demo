@@ -176,23 +176,64 @@ export async function claimShift(shiftId, { staffId, staffName } = {}) {
 
 // ── Shift swap / cover requests ──────────────────────────────────────────────
 // A worker asks to be relieved of a shift (optionally naming a coworker to take
-// it); a manager approves (reassign / open) or denies. Demo-backed; the Supabase
-// path is a safe no-op until a swap_requests table is added.
+// it); a manager approves (reassign / open) or denies. Backed by the demo store
+// or the swap_requests table (house-scoped RLS) in real mode.
 export async function createSwapRequest(req = {}) {
   if (isDemoMode) return demo.demoCreateSwapRequest(req)
-  return null
+  if (!supabase || !req.orgId) return null
+  const { data, error } = await supabase.from('swap_requests').insert({
+    org_id: req.orgId, house_id: req.houseId || null, shift_id: req.shiftId,
+    from_staff_id: req.fromStaffId || null, from_name: req.fromName || null,
+    to_staff_id: req.toStaffId || null, to_name: req.toName || null,
+    note: req.note || null, status: 'pending',
+  }).select().single()
+  if (error) { console.error('createSwapRequest:', error.message); return null }
+  return data
 }
 export async function fetchSwapRequests(opts = {}) {
   if (isDemoMode) return demo.demoFetchSwapRequests(opts)
-  return []
+  if (!supabase || !opts.orgId) return []
+  let q = supabase.from('swap_requests')
+    .select('*, houses(name, color), shifts(shift_date, start_hour, end_hour, role, person_name, status)')
+    .eq('org_id', opts.orgId)
+  if (opts.houseId) q = q.eq('house_id', opts.houseId)
+  if (opts.fromStaffId) q = q.eq('from_staff_id', opts.fromStaffId)
+  if (opts.status) q = q.eq('status', opts.status)
+  const { data, error } = await q.order('created_at', { ascending: false })
+  if (error) { console.error('fetchSwapRequests:', error.message); return [] }
+  return (data || []).map(r => ({
+    id: r.id, shiftId: r.shift_id, fromName: r.from_name, fromStaffId: r.from_staff_id,
+    toName: r.to_name, toStaffId: r.to_staff_id, note: r.note, status: r.status,
+    createdAt: r.created_at, resolvedBy: r.resolved_by, resolvedAt: r.resolved_at,
+    houseId: r.house_id, houseName: r.houses?.name || null, houseColor: r.houses?.color || null,
+    date: r.shifts?.shift_date || null, start: r.shifts?.start_hour ?? null, end: r.shifts?.end_hour ?? null,
+    role: r.shifts?.role || null, stillAssignedTo: r.shifts?.person_name || null, shiftStatus: r.shifts?.status || null,
+  }))
 }
-export async function resolveSwapRequest(id, opts = {}) {
-  if (isDemoMode) return demo.demoResolveSwapRequest(id, opts)
-  return null
+export async function resolveSwapRequest(id, { approve, by } = {}) {
+  if (isDemoMode) return demo.demoResolveSwapRequest(id, { approve, by })
+  if (!supabase || !id) return null
+  const { data: r } = await supabase.from('swap_requests').select('*').eq('id', id).single()
+  if (!r || r.status !== 'pending') return null
+  if (approve) {
+    // Reassign the shift to the named coworker, or release it to the open pool.
+    if (r.to_staff_id || r.to_name) await updateShift(r.shift_id, { staffId: r.to_staff_id, personName: r.to_name, status: 'scheduled', publishedAt: new Date().toISOString() })
+    else await updateShift(r.shift_id, { status: 'open', personName: '', staffId: null })
+  }
+  const { data, error } = await supabase.from('swap_requests')
+    .update({ status: approve ? 'approved' : 'denied', resolved_by: by || null, resolved_at: new Date().toISOString() })
+    .eq('id', id).select().single()
+  if (error) { console.error('resolveSwapRequest:', error.message); return null }
+  return data
 }
-export async function countPendingSwaps({ houseId = null } = {}) {
+export async function countPendingSwaps({ orgId = null, houseId = null } = {}) {
   if (isDemoMode) return demo.demoCountPendingSwaps({ houseId })
-  return 0
+  if (!supabase || !orgId) return 0
+  let q = supabase.from('swap_requests').select('*', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'pending')
+  if (houseId) q = q.eq('house_id', houseId)
+  const { count, error } = await q
+  if (error) { console.error('countPendingSwaps:', error.message); return 0 }
+  return count || 0
 }
 
 // Count of open (unfilled) shifts in scope, for the schedule nav badge.
