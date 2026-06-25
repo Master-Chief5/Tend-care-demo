@@ -361,7 +361,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
               <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
                 {isSup && (it.reportable || it.ane_flag || it.severity === 'Serious') && <button onClick={() => setFollowUp(it)} style={{ background: 'transparent', border: 0, color: '#a93a25', fontSize: 12, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Manage</button>}
                 {isSup && it.status === 'open' && <button onClick={() => review(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><IconCheck size={12} sw={2.5} /> Mark reviewed</button>}
-                <button onClick={() => delInc(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>
+                {isSup && <button onClick={() => delInc(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>}
               </div>
             </div>
           )
@@ -380,7 +380,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
               <div style={{ fontSize: 13, fontWeight: 600 }}>{d.type} drill</div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)' }}>{fmtDate(d.date)}{d.evac_time ? ` · evac ${d.evac_time}` : ''}{d.notes ? ` · ${d.notes}` : ''} · by {d.by || 'staff'}</div>
             </div>
-            <button onClick={() => delDrill(d.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>×</button>
+            {isSup && <button onClick={() => delDrill(d.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>×</button>}
           </div>
         ))}
       </div>
