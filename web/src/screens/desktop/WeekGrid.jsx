@@ -100,11 +100,13 @@ export function WeekGrid({ user, houses = [], week, shifts = [], timeOff = [], i
   const [staff, setStaff] = useState([])
   const weekDates = week.map(d => toDateStr(d.date))
 
-  // Pull the staff roster for the visible scope (manager → own house, else all).
+  // Pull the staff roster for the visible scope: any house employee (manager or
+  // DSP) is limited to their own house; only a supervisor sees every house's
+  // roster. Otherwise out-of-scope staff leak in as "Unassigned" rows.
   useEffect(() => {
     let cancelled = false
     if (!user?.orgId) { setStaff([]); return }
-    const houseId = user?.role === 'manager' ? (user.houseId || null) : null
+    const houseId = user?.role === 'supervisor' ? null : (user.houseId || user.houseSlug || null)
     fetchStaff(user.orgId, houseId).then(rows => { if (!cancelled) setStaff(rows || []) })
     return () => { cancelled = true }
   }, [user?.orgId, user?.houseId, user?.role])

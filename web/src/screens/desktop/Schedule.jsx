@@ -640,12 +640,18 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, defaultStaffN
 }
 
 export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
+  const isSupervisor = user?.role === 'supervisor'
   const isManager = user?.role === 'manager'
-  const houses = isManager ? housesProp.filter(h => h.id === user?.houseSlug) : housesProp
+  // House employees (managers AND DSPs) only ever see their own house's
+  // schedule; only a supervisor spans every house. Match on id OR slug so it
+  // works in both the demo (house id === slug) and the real Supabase shape
+  // (house id is a UUID; the user carries house_slug + house_id separately).
+  const isMyHouse = (h) => h.id === user?.houseId || h.slug === user?.houseSlug || h.id === user?.houseSlug
+  const houses = isSupervisor ? housesProp : housesProp.filter(isMyHouse)
 
   const [view, setView] = useState('week')
   const [anchorDate, setAnchorDate] = useState(new Date())   // the focused day/week/month
-  const [houseFilter, setHouseFilter] = useState(isManager ? (user.houseSlug || 'all') : 'all')
+  const [houseFilter, setHouseFilter] = useState('all')
   const [rangeShifts, setRangeShifts] = useState([])
   const [timeOff, setTimeOff] = useState([])   // approved time-off rows for safety checks
   const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', shift }
@@ -662,11 +668,12 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
 
   const reload = useCallback(() => {
     if (!user?.orgId) return
-    const houseId = isManager ? (user.houseId || null) : null
+    // Non-supervisors fetch only their own house's shifts (server-side scope).
+    const houseId = isSupervisor ? null : (user.houseId || user.houseSlug || null)
     fetchShiftsWeek(user.orgId, houseId, rangeStart, rangeEnd).then(setRangeShifts)
     // Approved time-off so the grid can flag staff/days that are on leave.
     fetchTimeOffRequests(user.orgId, { status: 'approved' }).then(setTimeOff).catch(() => setTimeOff([]))
-  }, [user?.orgId, user?.houseId, isManager, rangeKey])
+  }, [user?.orgId, user?.houseId, isSupervisor, rangeKey])
 
   useEffect(() => { reload() }, [reload])
 
@@ -684,7 +691,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         title="Schedule"
         sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <IconKey size={12} sw={2} color="var(--a-sage)" />
-          {isManager ? 'Your house schedule' : 'You see all houses · staff see only their own'}
+          {isSupervisor ? 'You see every house · staff see only their own' : 'Your house schedule'}
         </span>}
         actions={<>
           <ViewToggleDesktop view={view} setView={setView} />

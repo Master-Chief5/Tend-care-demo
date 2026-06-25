@@ -210,10 +210,23 @@ export function DesktopShell({ user, onLogout }) {
     ? { ...user, houseSlug: houses[0].id, houseId: houses[0]._uuid }
     : user
 
+  const role = user.role ?? user.id
+
+  // A house employee (manager or DSP) only ever sees their OWN house anywhere in
+  // the desktop — sidebar branches, schedule, residents, timesheets. Only a
+  // supervisor spans every house. Match the user's house by id OR slug so it
+  // holds in both the demo (house id === slug) and real Supabase (house id is a
+  // UUID; user carries house_id + house_slug) shapes. In real mode fetchHouses
+  // is already RLS-scoped to the user's houses; this also scopes the demo, which
+  // has no row-level security.
+  const myHouseKeys = [effUser.houseId, effUser.houseSlug].filter(Boolean)
+  const visibleHouses = role === 'supervisor'
+    ? houses
+    : houses.filter(h => myHouseKeys.includes(h.id) || myHouseKeys.includes(h._uuid))
+
   // Pending shift-edit requests, surfaced as a badge on the Time clock tab for
   // approvers. Polls lightly; managers are scoped to their house.
   const [pendingReqs, setPendingReqs] = useState(0)
-  const role = user.role ?? user.id
   useEffect(() => {
     if (!effUser?.orgId || (role !== 'supervisor' && role !== 'manager')) { setPendingReqs(0); return }
     let stop = false
@@ -273,9 +286,9 @@ export function DesktopShell({ user, onLogout }) {
   return (
     <div className="web-app web-desktop" style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
       <GeoStatusBanner />
-      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={houses} counts={{ timeclock: pendingReqs, updates: unreadUpdates, schedule: openShifts }} />
+      <DesktopRail tab={tab} setTab={switchTab} user={user} onLogout={onLogout} houses={visibleHouses} counts={{ timeclock: pendingReqs, updates: unreadUpdates, schedule: openShifts }} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--a-bg)', overflow: 'hidden' }}>
-        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={houses} refreshHouses={refreshHouses} onNavigate={switchTab} onOpenResident={(r) => setResidentDetail(r)} />
+        <DesktopPage tab={tab} onHouseClick={(id) => setHouseDetail(id)} user={effUser} houses={visibleHouses} refreshHouses={refreshHouses} onNavigate={switchTab} onOpenResident={(r) => setResidentDetail(r)} />
       </div>
       {houseDetail && (
         <div
@@ -288,7 +301,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div role="dialog" aria-modal="true" aria-label="House detail" style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
+            <ScreenA_HouseDetail houseId={houseDetail} user={effUser} onBack={() => setHouseDetail(null)} houses={visibleHouses} />
           </div>
         </div>
       )}
@@ -303,7 +316,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setResidentDetail(null) }}
         >
           <div role="dialog" aria-modal="true" aria-label="Resident profile" style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ResidentProfile resident={residentDetail} user={effUser} onBack={() => setResidentDetail(null)} houses={houses} />
+            <ResidentProfile resident={residentDetail} user={effUser} onBack={() => setResidentDetail(null)} houses={visibleHouses} />
           </div>
         </div>
       )}

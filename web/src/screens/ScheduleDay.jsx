@@ -674,11 +674,15 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const isMine = (s) => employee && s.status !== 'open'
     && ((myStaffId && s.staffId === myStaffId) || (!!myName && (s.person || '').trim().toLowerCase() === myName))
 
+  // A non-supervisor only sees their own house. Match on id OR slug so this
+  // holds in both the demo (house id === slug) and real Supabase (house id is a
+  // UUID; the user carries house_slug + house_id) shapes.
+  const isMyHouse = (h) => h.id === user?.houseId || h.slug === user?.houseSlug || h.id === user?.houseSlug
   // Use the `houses` prop (real DB houses, normalized) instead of the HOUSES constant.
-  const displayHouses = isSupervisor ? houses : houses.filter(h => h.id === user?.houseSlug)
+  const displayHouses = isSupervisor ? houses : houses.filter(isMyHouse)
 
   // Picker options use raw DB houses (UUID ids) so addShift inserts a valid house_id.
-  const pickerHouses = isSupervisor ? houseList : houseList.filter(h => h.slug === user?.houseSlug)
+  const pickerHouses = isSupervisor ? houseList : houseList.filter(isMyHouse)
 
   // Fetch the shifts the current view needs: the visible week, or — in month
   // view — the whole visible month grid.
@@ -689,7 +693,7 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
 
   const reload = useCallback(() => {
     if (!user?.orgId) return
-    const houseId = isSupervisor ? null : (user.houseId || null)
+    const houseId = isSupervisor ? null : (user.houseId || user.houseSlug || null)
     fetchShiftsWeek(user.orgId, houseId, toDateStr(rangeStart), toDateStr(rangeEnd)).then(setWeekShifts)
     fetchHouses(user.orgId).then(setHouseList)
     // Approved time-off so the assignment flow can warn on leave overlaps.
