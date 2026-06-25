@@ -138,6 +138,20 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoAddMed({ houseId: maple.id, residentId: lindaPark.id,   name: 'Levetiracetam', dose: '500 mg', route: 'Oral', times: ['08:00', '20:00'], prescriber: 'Dr. Chen' })
   demoAddMed({ houseId: maple.id, residentId: robertHayes.id, name: 'Acetaminophen', dose: '500 mg', route: 'Oral', prn: true, prnReason: 'Mild pain or fever ≥ 100.4°F', prescriber: 'Dr. Alvarez' })
 
+  // ISP goals so the Goals section isn't empty (staff log prompt level per pass).
+  demoAddGoal({ houseId: maple.id, residentId: robertHayes.id, title: 'Brush teeth with minimal prompting', target: 'Independent 4 of 5 days for 30 days', method: 'Hand-over-hand fading to verbal prompts; chart prompt level each pass.' })
+  demoAddGoal({ houseId: maple.id, residentId: lindaPark.id,   title: 'Initiate a social greeting',          target: '3 peer greetings per day for 2 weeks',  method: 'Model the greeting, then pause for her to initiate; praise any attempt.' })
+
+  // Daily log / shift notes so the Notes section reads as an active house.
+  demoAddDailyLog({ houseId: maple.id, residentId: robertHayes.id, category: 'General',  text: 'Cheerful at breakfast, ate most of his meal. Walked the garden loop twice.', by: 'Aisha Mendez' })
+  demoAddDailyLog({ houseId: maple.id, residentId: lindaPark.id,   category: 'Behavior', text: 'Calm afternoon — enjoyed the music group and helped set the table.',       by: 'Aisha Mendez' })
+
+  // Health-tracker entries (diagnosis-appropriate) so the Health section demos.
+  demoAddHealthLog({ houseId: maple.id, residentId: robertHayes.id, kind: 'vitals', detail: { temp: 98.4, bp: '124/80', pulse: 74, o2: 98, glucose: 118 }, by: 'Aisha Mendez' })
+  demoAddHealthLog({ houseId: maple.id, residentId: robertHayes.id, kind: 'meal',   detail: { meal: 'Breakfast', intake: 'Most' }, by: 'Aisha Mendez' })
+  demoAddHealthLog({ houseId: maple.id, residentId: lindaPark.id,   kind: 'seizure', amount: 2, detail: { type: 'Brief tonic-clonic', trigger: 'Possible missed sleep', intervention: 'Stayed with her, timed it, cleared the area', postictal: 'Rested ~30 min, oriented after' }, note: 'On-call nurse notified.', by: 'Jay Brooks' })
+  demoAddHealthLog({ houseId: maple.id, residentId: lindaPark.id,   kind: 'fluid',  amount: 8, by: 'Aisha Mendez' })
+
   // A few supplies per house (with cost, so the Resources spend charts render).
   demoAddResource(maple.id, { name: 'Paper towels',       qty: 6, unit: 'rolls',   cost: 12.99 })
   demoAddResource(maple.id, { name: 'Nitrile gloves',     qty: 2, unit: 'boxes',   cost: 18.50 })
