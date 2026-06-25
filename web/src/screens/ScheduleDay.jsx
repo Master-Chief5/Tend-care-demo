@@ -588,6 +588,43 @@ function ClaimSheet({ shift, house, busy, onClaim, onClose }) {
   )
 }
 
+// DSP-facing "give up shift" sheet for one of the worker's own shifts. Releasing
+// it flips the shift back to the open (claimable) pool for a manager or peer.
+function DropSheet({ shift, house, busy, onDrop, onClose }) {
+  const color = house?.color || 'var(--a-clay)'
+  const dateLabel = fmtDayLabel(new Date(shift.date + 'T12:00:00'))
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}>
+      <div role="dialog" aria-modal="true" aria-label="Give up this shift" onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color, border: `1.5px solid ${color}`, padding: '2px 8px', borderRadius: 999 }}>Your shift</span>
+        </div>
+        <div className="serif" style={{ fontSize: 24, letterSpacing: '-0.02em', marginTop: 6 }}>Give up this shift?</div>
+        <div style={{ marginTop: 12, background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: color }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>{house?.name || shift.role}</span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 6 }}>{dateLabel} · {hourLabel(shift.start)}–{hourLabel(shift.end)}</div>
+          <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 2 }}>{shift.role}{shift.note ? ` · “${shift.note}”` : ''}</div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 10, lineHeight: 1.4 }}>
+          This releases the shift to the open list so your manager or a coworker can pick it up. You stay on it until someone does.
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: '1px solid var(--a-line)', background: 'var(--a-card)', color: 'var(--a-ink2)', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>Keep it</button>
+          <button onClick={onDrop} disabled={busy} style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: 0, background: '#a93a25', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>{busy ? 'Releasing…' : 'Give up shift'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
@@ -652,10 +689,30 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
     setClaiming(false)
     reload()
   }
-  // When a staffer taps a shift: open the claim sheet for an open shift, else edit.
+  // When a staffer taps a shift: a DSP can claim an open shift or give up one of
+  // their own (drop it back to the open pool); they can't edit the schedule, so
+  // tapping someone else's shift is a no-op. Managers/supervisors get the editor.
   const onShiftTap = (s) => {
-    if (isStaff && s.status === 'open') setModal({ mode: 'claim', shift: s })
-    else setModal({ mode: 'edit', shift: s })
+    if (isStaff) {
+      if (s.status === 'open') setModal({ mode: 'claim', shift: s })
+      else if (isMine(s)) setModal({ mode: 'drop', shift: s })
+      // else: not theirs and not open — DSPs can't edit, so ignore.
+      return
+    }
+    setModal({ mode: 'edit', shift: s })
+  }
+
+  // A DSP gives up their own shift: release it back to the open (claimable) pool
+  // so a manager or a covering peer can pick it up.
+  const [dropping, setDropping] = useState(false)
+  const dropMyShift = async (shift) => {
+    if (dropping) return
+    setDropping(true)
+    setWeekShifts(prev => prev.map(s => s.id === shift.id ? { ...s, status: 'open', person: '', staffId: null } : s))
+    setModal(null)
+    try { await updateShift(shift.id, { status: 'open', personName: '', staffId: null }) } catch { /* ignore */ }
+    setDropping(false)
+    reload()
   }
 
   // Navigation: a week step for day/week, a month step for month; Today resets.
@@ -783,7 +840,16 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           onClose={() => setModal(null)}
         />
       )}
-      {modal && modal.mode !== 'claim' && (
+      {modal && modal.mode === 'drop' && (
+        <DropSheet
+          shift={modal.shift}
+          house={displayHouses.find(h => h.id === modal.shift.house)}
+          busy={dropping}
+          onDrop={() => dropMyShift(modal.shift)}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal && (modal.mode === 'add' || modal.mode === 'edit') && (
         <ShiftModal
           user={user}
           houses={pickerHouses}

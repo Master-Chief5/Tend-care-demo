@@ -10,10 +10,13 @@ export const HOUSES = [
 // Demo "Preview as" personas. Subtitles + houseSlug align to the seeded houses
 // (Maple / Oak / Birch — see demoStore). The DSP persona (Aisha) is seeded at
 // Maple, so manager + DSP are scoped there; supervisor spans every house.
+// Names match the seeded Maple staff roster (see demoStore) so a previewed
+// manager/DSP maps to their own seeded shifts — "your shifts" highlight in the
+// schedule + My Day, and a DSP can give up a shift that's actually theirs.
 export const ROLES = [
-  { id: 'supervisor', name: 'Lina R.',  initial: 'L', color: 'var(--a-clay)',    role: 'Supervisor' },
-  { id: 'manager',    name: 'Devon P.', initial: 'D', color: '#2f9489',          role: 'House Mgr · Maple', houseSlug: 'maple-house' },
-  { id: 'staff',      name: 'Aisha M.', initial: 'A', color: 'var(--a-sage)',    role: 'DSP · Maple',       houseSlug: 'maple-house' },
+  { id: 'supervisor', name: 'Lina R.',       initial: 'L', color: 'var(--a-clay)', role: 'Supervisor' },
+  { id: 'manager',    name: 'Priya Nair',    initial: 'P', color: '#2f9489',       role: 'House Mgr · Maple', houseSlug: 'maple-house' },
+  { id: 'staff',      name: 'Aisha Mendez',  initial: 'A', color: 'var(--a-sage)', role: 'DSP · Maple',       houseSlug: 'maple-house' },
 ];
 
 export const STAFF_LIST = [
