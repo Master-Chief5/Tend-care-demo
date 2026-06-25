@@ -10,7 +10,6 @@ begin
     'public.create_org_and_supervisor(text, text, text)',
     'public.create_house(text, text, text, text, text, text, text)',
     'public.register_as_staff(uuid, text)',
-    'public.search_organizations(text)',
     'public.get_my_houses()',
     'public.get_my_staff_profile()'
   ] loop
@@ -18,3 +17,9 @@ begin
     execute format('grant execute on function %s to authenticated, service_role', fn);
   end loop;
 end $$;
+
+-- NOTE: search_organizations(text) is intentionally NOT in the list above — it
+-- runs during signup BEFORE the staff member is authenticated (they search for
+-- their org in the signup form while still `anon`), so it must stay anon-
+-- callable. It returns only org name/id for the picker.
+grant execute on function public.search_organizations(text) to anon;
