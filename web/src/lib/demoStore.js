@@ -12,7 +12,7 @@
 const KEY = 'tend-demo-store-v1'
 
 function blank() {
-  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], recognitions: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [], behaviorPlans: [], behaviorEvents: [], courses: [], courseCompletions: [], smartGroups: [] }
+  return { houses: [], shifts: [], staff: [], trips: [], vehicles: [], resources: [], residents: [], tasks: [], medAlerts: [], shiftNotes: [], items: [], meds: [], medAdmins: [], prnLog: [], dailyLog: [], incidents: [], drills: [], goals: [], goalData: [], healthLogs: [], messages: [], punches: [], shiftEditRequests: [], timeOffRequests: [], announcements: [], announcementReads: [], announcementVotes: [], recognitions: [], scheduleTemplates: [], shiftDocProgress: [], residentNotes: [], kbArticles: [], events: [], eventRsvps: [], shiftEvents: [], formTemplates: [], formSubmissions: [], surveys: [], surveyResponses: [], quickTasks: [], contacts: [], tickets: [], appointments: [], residentFunds: [], behaviorPlans: [], behaviorEvents: [], courses: [], courseCompletions: [], smartGroups: [], swapRequests: [] }
 }
 
 function load() {
@@ -350,6 +350,83 @@ export function demoClaimShift(id, { staffId, staffName } = {}) {
     persist()
   }
   return s
+}
+
+// ── Shift swap / cover requests ─────────────────────────────────────────────
+// A worker asks to be relieved of one of their shifts. They can name a preferred
+// coworker to take it, or leave it open for the manager to cover. A manager
+// approves (reassign to the coworker, or release to the open/claimable pool) or
+// denies (the shift stays with the requester). Demo-only activity events mirror
+// the claim/publish plumbing.
+export function demoCreateSwapRequest(req = {}) {
+  const shift = store.shifts.find(s => s.id === req.shiftId)
+  const row = {
+    id: uid('swap'), org_id: req.orgId || null, house_id: req.houseId || (shift?.house_id ?? null),
+    shift_id: req.shiftId, from_name: req.fromName || null, from_staff_id: req.fromStaffId || null,
+    to_name: req.toName || null, to_staff_id: req.toStaffId || null,
+    note: req.note || null, status: 'pending', created_at: now(),
+    resolved_by: null, resolved_at: null,
+  }
+  store.swapRequests.unshift(row)
+  store.shiftEvents.push({
+    id: uid('shev'), org_id: req.orgId || null, house_id: row.house_id, kind: 'swap_requested',
+    actor: row.from_name || 'Someone',
+    text: `${row.from_name || 'Someone'} requested ${row.to_name ? `${row.to_name} to cover` : 'cover for'} a shift on ${shift?.shift_date || ''}`.trim(),
+    at: now(),
+  })
+  persist()
+  return row
+}
+
+// Enriched pending+resolved requests for a manager/worker view. Each row carries
+// the underlying shift's date/hours/role/house so the UI can render it.
+export function demoFetchSwapRequests({ orgId = null, houseId = null, fromStaffId = null, status = null } = {}) {
+  demoSeedOrg()
+  return store.swapRequests
+    .filter(r => (!houseId || r.house_id === houseId) && (!fromStaffId || r.from_staff_id === fromStaffId) && (!status || r.status === status))
+    .map(r => {
+      const s = store.shifts.find(x => x.id === r.shift_id)
+      const h = s ? store.houses.find(x => x.id === s.house_id) : null
+      return {
+        id: r.id, shiftId: r.shift_id, fromName: r.from_name, fromStaffId: r.from_staff_id,
+        toName: r.to_name, toStaffId: r.to_staff_id, note: r.note, status: r.status,
+        createdAt: r.created_at, resolvedBy: r.resolved_by, resolvedAt: r.resolved_at,
+        houseId: r.house_id, houseName: h?.name || null, houseColor: h?.color || null,
+        date: s?.shift_date || null, start: s?.start_hour ?? null, end: s?.end_hour ?? null,
+        role: s?.role || null, stillAssignedTo: s?.person_name || null, shiftStatus: s?.status || null,
+      }
+    })
+}
+
+// Manager decision. approve=true reassigns to the named coworker (or releases the
+// shift to the open pool when none was named); approve=false leaves it untouched.
+export function demoResolveSwapRequest(id, { approve, by } = {}) {
+  const r = store.swapRequests.find(x => x.id === id)
+  if (!r || r.status !== 'pending') return null
+  if (approve) {
+    if (r.to_staff_id || r.to_name) demoUpdateShift(r.shift_id, { staffId: r.to_staff_id, personName: r.to_name, status: 'scheduled', publishedAt: now() })
+    else demoUpdateShift(r.shift_id, { status: 'open', personName: '', staffId: null })
+  }
+  r.status = approve ? 'approved' : 'denied'
+  r.resolved_by = by || null
+  r.resolved_at = now()
+  const shift = store.shifts.find(s => s.id === r.shift_id)
+  store.shiftEvents.push({
+    id: uid('shev'), org_id: r.org_id, house_id: r.house_id, kind: approve ? 'swap_approved' : 'swap_denied',
+    actor: by || 'Manager',
+    text: approve
+      ? `${by || 'Manager'} approved ${r.from_name || 'a'} swap${r.to_name ? ` — ${r.to_name} now covers ${shift?.shift_date || ''}` : ` — shift on ${shift?.shift_date || ''} reopened`}`.trim()
+      : `${by || 'Manager'} denied ${r.from_name || 'a'} swap request`,
+    at: now(),
+  })
+  persist()
+  return r
+}
+
+// Count of pending swap requests in scope, for the manager's nav badge.
+export function demoCountPendingSwaps({ houseId = null } = {}) {
+  demoSeedOrg()
+  return store.swapRequests.filter(r => r.status === 'pending' && (!houseId || r.house_id === houseId)).length
 }
 
 // Count of open shifts in scope, for the schedule nav badge.

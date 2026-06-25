@@ -280,11 +280,16 @@ export function MobileShell({ user, onLogout }) {
   const effUser = (() => {
     // Only the demo "Preview as" chip swaps role in-place; in real auth the
     // user's own houseSlug is authoritative and must never be overridden by a
-    // demo persona that happens to share a role id.
+    // demo persona that happens to share a role id. When previewing, adopt the
+    // persona's role + name (and house) wholesale so role-gated UI, greetings,
+    // and "your shifts" matching all reflect the previewed account — not the
+    // originally logged-in one.
     const persona = isDemoMode ? ROLES.find(r => r.id === role) : null
-    const base = persona && persona.houseSlug && persona.houseSlug !== user.houseSlug
-      ? { ...user, houseSlug: persona.houseSlug, houseId: undefined }
-      : user
+    let base = user
+    if (persona) {
+      base = { ...user, role: persona.id, name: persona.name }
+      if (persona.houseSlug && persona.houseSlug !== user.houseSlug) { base.houseSlug = persona.houseSlug; base.houseId = undefined }
+    }
     if (!role || role === 'supervisor') return base
     if (base.houseSlug) {
       if (base.houseId) return base

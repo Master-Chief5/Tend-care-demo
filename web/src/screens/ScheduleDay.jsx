@@ -4,7 +4,7 @@ import { summarizeWeek, fmtHrs } from '../lib/scheduleSummary'
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../hooks/useNowMinute'
-import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift, fetchTimeOffRequests } from '../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchHouses, claimShift, fetchTimeOffRequests, createSwapRequest, fetchSwapRequests, resolveSwapRequest } from '../lib/db'
 import { approvedLeaveOn, findOverlap } from '../lib/scheduleSafety'
 import { certStatus } from './People'
 
@@ -588,23 +588,36 @@ function ClaimSheet({ shift, house, busy, onClaim, onClose }) {
   )
 }
 
-// DSP-facing "give up shift" sheet for one of the worker's own shifts. Releasing
-// it flips the shift back to the open (claimable) pool for a manager or peer.
-function DropSheet({ shift, house, busy, onDrop, onClose }) {
+// DSP-facing sheet for one of the worker's own shifts. Two ways out: ask a
+// specific coworker to cover (a swap request a manager approves), or give the
+// shift up to the open/claimable pool right away.
+function SwapSheet({ shift, house, busy, user, houseUuid, onGiveUp, onRequestSwap, onClose }) {
   const color = house?.color || 'var(--a-clay)'
   const dateLabel = fmtDayLabel(new Date(shift.date + 'T12:00:00'))
+  const [coworkers, setCoworkers] = useState([])
+  const [toId, setToId] = useState('')
+  const [note, setNote] = useState('')
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+  useEffect(() => {
+    let alive = true
+    const myName = (user?.name || '').trim().toLowerCase()
+    Promise.resolve(fetchStaff(user?.orgId, houseUuid)).then(rows => {
+      if (alive) setCoworkers((rows || []).filter(s => (s.name || '').trim().toLowerCase() !== myName))
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [user?.orgId, houseUuid])
+  const picked = coworkers.find(c => c.id === toId) || null
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}>
-      <div role="dialog" aria-modal="true" aria-label="Give up this shift" onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
+      <div role="dialog" aria-modal="true" aria-label="Swap or give up this shift" onClick={e => e.stopPropagation()} style={{ background: 'var(--a-card)', width: '100%', maxHeight: '92vh', overflowY: 'auto', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 22px 26px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color, border: `1.5px solid ${color}`, padding: '2px 8px', borderRadius: 999 }}>Your shift</span>
         </div>
-        <div className="serif" style={{ fontSize: 24, letterSpacing: '-0.02em', marginTop: 6 }}>Give up this shift?</div>
+        <div className="serif" style={{ fontSize: 24, letterSpacing: '-0.02em', marginTop: 6 }}>Swap or give up</div>
         <div style={{ marginTop: 12, background: 'var(--a-paper)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ width: 9, height: 9, borderRadius: 2, background: color }} />
@@ -613,12 +626,25 @@ function DropSheet({ shift, house, busy, onDrop, onClose }) {
           <div style={{ fontSize: 13, color: 'var(--a-ink2)', marginTop: 6 }}>{dateLabel} · {hourLabel(shift.start)}–{hourLabel(shift.end)}</div>
           <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 2 }}>{shift.role}{shift.note ? ` · “${shift.note}”` : ''}</div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--a-ink3)', marginTop: 10, lineHeight: 1.4 }}>
-          This releases the shift to the open list so your manager or a coworker can pick it up. You stay on it until someone does.
-        </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-ink3)', letterSpacing: '0.04em', textTransform: 'uppercase', margin: '16px 0 6px' }}>Ask a coworker to cover</div>
+        <select value={toId} onChange={e => setToId(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }}>
+          <option value="">Choose a coworker…</option>
+          {coworkers.map(c => <option key={c.id} value={c.id}>{c.name}{c.role ? ` · ${c.role}` : ''}</option>)}
+        </select>
+        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note for your manager (optional)"
+          style={{ width: '100%', boxSizing: 'border-box', marginTop: 8, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none' }} />
+        <button onClick={() => onRequestSwap(picked, note)} disabled={busy || !picked}
+          style={{ width: '100%', marginTop: 10, padding: '13px 0', borderRadius: 12, border: 0, background: picked ? 'var(--a-ink)' : 'var(--a-line)', color: picked ? 'var(--a-card)' : 'var(--a-ink3)', fontWeight: 700, fontSize: 14, cursor: picked && !busy ? 'pointer' : 'default', fontFamily: 'Geist' }}>
+          {busy ? 'Sending…' : picked ? `Request ${picked.name.split(' ')[0]} to cover` : 'Request a swap'}
+        </button>
+        <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 6, lineHeight: 1.4 }}>Your manager approves the swap before it’s final.</div>
+
+        <div style={{ height: 1, background: 'var(--a-line)', margin: '18px 0 14px' }} />
+        <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: '1px solid var(--a-line)', background: 'var(--a-card)', color: 'var(--a-ink2)', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>Keep it</button>
-          <button onClick={onDrop} disabled={busy} style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: 0, background: '#a93a25', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>{busy ? 'Releasing…' : 'Give up shift'}</button>
+          <button onClick={onGiveUp} disabled={busy} style={{ flex: 2, padding: '13px 0', borderRadius: 12, border: '1px solid #a93a25', background: 'transparent', color: '#a93a25', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'Geist' }}>{busy ? 'Releasing…' : 'Give up to open list'}</button>
         </div>
       </div>
     </div>
@@ -715,6 +741,40 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
     reload()
   }
 
+  // A DSP asks a specific coworker to cover their shift — a swap request that the
+  // manager approves before it's final. The shift stays theirs until approved.
+  const [swapping, setSwapping] = useState(false)
+  const requestSwap = async (shift, coworker, note) => {
+    if (swapping || !coworker) return
+    setSwapping(true)
+    setModal(null)
+    try {
+      await createSwapRequest({
+        orgId: user?.orgId, houseId: user?.houseId || null, shiftId: shift.id,
+        fromName: user?.name, fromStaffId: user?.staffId || null,
+        toName: coworker.name, toStaffId: coworker.id, note,
+      })
+    } catch { /* ignore */ }
+    setSwapping(false)
+    reload()
+  }
+
+  // Pending swap requests a manager/supervisor can approve or deny.
+  const [swaps, setSwaps] = useState([])
+  const canManageSwaps = user?.role === 'supervisor' || user?.role === 'manager'
+  useEffect(() => {
+    if (!canManageSwaps || !user?.orgId) { setSwaps([]); return }
+    let alive = true
+    Promise.resolve(fetchSwapRequests({ orgId: user.orgId, houseId: isStaff ? user.houseId : (user.role === 'manager' ? user.houseId : null), status: 'pending' }))
+      .then(rows => { if (alive) setSwaps(rows || []) }).catch(() => { if (alive) setSwaps([]) })
+    return () => { alive = false }
+  }, [canManageSwaps, user?.orgId, user?.houseId, user?.role, weekShifts])
+  const resolveSwap = async (id, approve) => {
+    try { await resolveSwapRequest(id, { approve, by: user?.name || 'Manager' }) } catch { /* ignore */ }
+    setSwaps(prev => prev.filter(s => s.id !== id))
+    reload()
+  }
+
   // Navigation: a week step for day/week, a month step for month; Today resets.
   const step = view === 'month' ? (n) => setAnchorDate(d => addMonths(d, n)) : (n) => setAnchorDate(d => addDays(d, n * 7))
   const nav = { onPrev: () => step(-1), onNext: () => step(1), onToday: () => setAnchorDate(new Date()) }
@@ -767,6 +827,29 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
             </div>
           </div>
         </div>
+
+        {canManageSwaps && swaps.length > 0 && (
+          <div style={{ padding: '4px 22px 10px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#b9892f', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 }}>
+              Swap requests · {swaps.length}
+            </div>
+            {swaps.map(sw => (
+              <div key={sw.id} style={{ background: 'var(--a-card)', border: '1px solid #e6d4a8', borderRadius: 12, padding: '11px 14px', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, color: 'var(--a-ink)' }}>
+                  <strong>{sw.fromName || 'A worker'}</strong> → <strong>{sw.toName || 'open list'}</strong>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>
+                  {sw.date ? fmtDayLabel(new Date(sw.date + 'T12:00:00')) : ''}{sw.start != null ? ` · ${hourLabel(sw.start)}–${hourLabel(sw.end)}` : ''}{sw.role ? ` · ${sw.role}` : ''}{sw.houseName ? ` · ${sw.houseName}` : ''}
+                </div>
+                {sw.note && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3, fontStyle: 'italic' }}>“{sw.note}”</div>}
+                <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+                  <button onClick={() => resolveSwap(sw.id, true)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 12.5, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Approve</button>
+                  <button onClick={() => resolveSwap(sw.id, false)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--a-line)', background: 'transparent', color: 'var(--a-ink2)', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Deny</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {employee && myNext && (
           <div style={{ padding: '4px 22px 10px' }}>
@@ -841,11 +924,14 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
         />
       )}
       {modal && modal.mode === 'drop' && (
-        <DropSheet
+        <SwapSheet
           shift={modal.shift}
           house={displayHouses.find(h => h.id === modal.shift.house)}
-          busy={dropping}
-          onDrop={() => dropMyShift(modal.shift)}
+          busy={dropping || swapping}
+          user={user}
+          houseUuid={user?.houseId || null}
+          onGiveUp={() => dropMyShift(modal.shift)}
+          onRequestSwap={(coworker, note) => requestSwap(modal.shift, coworker, note)}
           onClose={() => setModal(null)}
         />
       )}

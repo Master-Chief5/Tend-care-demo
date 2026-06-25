@@ -174,6 +174,27 @@ export async function claimShift(shiftId, { staffId, staffName } = {}) {
   return updateShift(shiftId, { staffId, personName: staffName, status: 'scheduled', publishedAt: new Date().toISOString() })
 }
 
+// ── Shift swap / cover requests ──────────────────────────────────────────────
+// A worker asks to be relieved of a shift (optionally naming a coworker to take
+// it); a manager approves (reassign / open) or denies. Demo-backed; the Supabase
+// path is a safe no-op until a swap_requests table is added.
+export async function createSwapRequest(req = {}) {
+  if (isDemoMode) return demo.demoCreateSwapRequest(req)
+  return null
+}
+export async function fetchSwapRequests(opts = {}) {
+  if (isDemoMode) return demo.demoFetchSwapRequests(opts)
+  return []
+}
+export async function resolveSwapRequest(id, opts = {}) {
+  if (isDemoMode) return demo.demoResolveSwapRequest(id, opts)
+  return null
+}
+export async function countPendingSwaps({ houseId = null } = {}) {
+  if (isDemoMode) return demo.demoCountPendingSwaps({ houseId })
+  return 0
+}
+
 // Count of open (unfilled) shifts in scope, for the schedule nav badge.
 export async function countOpenShifts(orgId, { houseId = null } = {}) {
   if (isDemoMode) return demo.demoCountOpenShifts(orgId, { houseId })
