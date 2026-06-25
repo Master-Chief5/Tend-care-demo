@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { HOUSES, CHAT_DATA } from '../../data/constants'
-import { fetchStaff, removeStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts, fetchIncidents } from '../../lib/db'
+import { fetchStaff, removeStaff, fetchTrips, fetchVehicles, fetchShifts, fetchHouseAlerts, fetchIncidents, reviewIncident } from '../../lib/db'
 import { StaffFormModal, StaffStatus } from '../../components/StaffFormModal'
 import { fmtDayLabel, buildWeek } from '../../lib/utils'
 import { getGreeting } from '../../lib/utils'
@@ -649,14 +649,13 @@ export function PageComplianceDesktop({ user, houses = [], onHouseClick }) {
 
   // Org-wide open incidents. Fetch per house so each row carries its house
   // (slug/name/color) for the tappable link; managers stay scoped to their house.
-  useEffect(() => {
-    if (!user?.orgId || !houses.length) { setIncidents([]); setIncLoading(false); return }
-    let alive = true
+  const loadIncidents = useCallback(() => {
+    if (!user?.orgId || !houses.length) { setIncidents([]); setIncLoading(false); return Promise.resolve() }
     setIncLoading(true)
     const scoped = user.role === 'manager'
       ? houses.filter(h => h.id === user?.houseSlug)
       : houses
-    Promise.all(scoped.map(h =>
+    return Promise.all(scoped.map(h =>
       // fetchIncidents is keyed by the house UUID (h._uuid); h.id stays the slug
       // used for onHouseClick routing. Same key the mobile Houses panel uses.
       Promise.resolve(fetchIncidents(user.orgId, h._uuid))
@@ -665,15 +664,25 @@ export function PageComplianceDesktop({ user, houses = [], onHouseClick }) {
           .map(i => ({ ...i, house: h })))
         .catch(() => [])
     )).then(lists => {
-      if (!alive) return
       const all = lists.flat()
       // Newest first — prefer the incident date, fall back to created-at.
       all.sort((a, b) => String(b.date || b.at || '').localeCompare(String(a.date || a.at || '')))
       setIncidents(all)
       setIncLoading(false)
     })
-    return () => { alive = false }
   }, [user?.orgId, user?.houseSlug, user?.role, houses.map(h => h.id).join(',')])
+
+  useEffect(() => { let alive = true; loadIncidents(); return () => { alive = false } }, [loadIncidents])
+
+  // Triage straight from the oversight list: mark an open incident reviewed and
+  // drop it from the open list. Available to supervisors and house managers.
+  const [reviewingId, setReviewingId] = useState(null)
+  const reviewOne = async (id) => {
+    if (reviewingId) return
+    setReviewingId(id)
+    try { await reviewIncident(id, user?.name || 'Reviewer'); await loadIncidents() } catch { /* ignore */ }
+    setReviewingId(null)
+  }
 
   // Flatten certs → one row per (staff member, cert).
   const rows = []
@@ -767,25 +776,34 @@ export function PageComplianceDesktop({ user, houses = [], onHouseClick }) {
             <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 14, overflow: 'hidden' }}>
               {incidents.map((r, i) => {
                 const sevBad = /severe|major|critical/i.test(r.severity || '')
+                const navable = !!onHouseClick
                 return (
-                  <button
+                  <div
                     key={r.id || i}
-                    onClick={() => onHouseClick && onHouseClick(r.house.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: i < incidents.length - 1 ? '1px solid var(--a-line)' : '', fontFamily: 'Geist', cursor: 'pointer' }}>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: r.house.color, letterSpacing: '0.06em', textTransform: 'uppercase', background: `${r.house.color}1a`, padding: '3px 7px', borderRadius: 4, flexShrink: 0, minWidth: 64, textAlign: 'center' }}>{r.house.short}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.type || 'Incident'}{r.resident ? <span style={{ fontWeight: 500, color: 'var(--a-ink2)' }}> · {r.resident}</span> : null}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.house.name}{r.text ? ` — ${r.text}` : ''}</div>
-                    </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', textAlign: 'right', flexShrink: 0, minWidth: 92 }}>
-                      {r.date || r.at ? new Date(r.date || r.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                    </div>
-                    {r.severity && (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: sevBad ? 'var(--a-clay)' : '#a47012', background: sevBad ? 'var(--status-bad-bg, #fadcd7)' : 'var(--status-warn-bg, #f5e9d6)', padding: '3px 9px', borderRadius: 999, flexShrink: 0, minWidth: 56, textAlign: 'center' }}>{r.severity}</span>
-                    )}
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--a-clay)', background: 'var(--status-bad-bg, #fadcd7)', padding: '3px 9px', borderRadius: 999, flexShrink: 0 }}>Open</span>
-                    <IconChev size={16} color="var(--a-ink3)" />
-                  </button>
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < incidents.length - 1 ? '1px solid var(--a-line)' : '' }}>
+                    <button
+                      onClick={() => navable && onHouseClick(r.house.id)}
+                      disabled={!navable}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, fontFamily: 'Geist', cursor: navable ? 'pointer' : 'default' }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: r.house.color, letterSpacing: '0.06em', textTransform: 'uppercase', background: `${r.house.color}1a`, padding: '3px 7px', borderRadius: 4, flexShrink: 0, minWidth: 64, textAlign: 'center' }}>{r.house.short}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.type || 'Incident'}{r.resident ? <span style={{ fontWeight: 500, color: 'var(--a-ink2)' }}> · {r.resident}</span> : null}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.house.name}{r.text ? ` — ${r.text}` : ''}</div>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', textAlign: 'right', flexShrink: 0, minWidth: 92 }}>
+                        {r.date || r.at ? new Date(r.date || r.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      </div>
+                      {r.severity && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: sevBad ? 'var(--a-clay)' : '#a47012', background: sevBad ? 'var(--status-bad-bg, #fadcd7)' : 'var(--status-warn-bg, #f5e9d6)', padding: '3px 9px', borderRadius: 999, flexShrink: 0, minWidth: 56, textAlign: 'center' }}>{r.severity}</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => reviewOne(r.id)}
+                      disabled={reviewingId === r.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, background: 'transparent', border: '1px solid var(--a-line)', color: 'var(--a-sage)', fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', padding: '5px 10px', borderRadius: 999, cursor: reviewingId === r.id ? 'default' : 'pointer', opacity: reviewingId === r.id ? 0.6 : 1 }}>
+                      <IconCheck size={12} sw={2.5} /> {reviewingId === r.id ? 'Saving…' : 'Mark reviewed'}
+                    </button>
+                  </div>
                 )
               })}
             </div>
