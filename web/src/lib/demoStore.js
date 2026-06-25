@@ -79,7 +79,7 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
 
   // Residents — with quick-reference safety flags + allergies (drive the Care tab)
   const robertHayes = demoAddResident(maple.id, { name: 'Robert Hayes',    room: '1', flags: ['Fall risk', 'Diabetic'],           allergies: 'Penicillin',         diagnoses: 'Type 2 diabetes, mild dementia', diet: 'Low sugar' })
-  demoAddResident(maple.id, { name: 'Linda Park',      room: '2', flags: ['Seizure', '1:1 support'],          allergies: 'Latex',              diagnoses: 'Epilepsy',                       diet: 'Regular' })
+  const lindaPark = demoAddResident(maple.id, { name: 'Linda Park',      room: '2', flags: ['Seizure', '1:1 support'],          allergies: 'Latex',              diagnoses: 'Epilepsy',                       diet: 'Regular' })
   demoAddResident(oak.id,   { name: 'James Whitaker',  room: '1', flags: ['Behavior plan', 'Elopement risk'], allergies: 'Peanuts, tree nuts', diagnoses: 'Autism spectrum disorder',       diet: 'Gluten-free' })
   demoAddResident(oak.id,   { name: 'Maria Gomez',     room: '2', flags: ['Allergy'],                         allergies: 'Sulfa drugs',        diagnoses: 'Generalized anxiety',            diet: 'Regular' })
   demoAddResident(birch.id, { name: 'Daniel Cho',      room: '1', flags: ['Fall risk'],                       allergies: '',                   diagnoses: 'Cerebral palsy',                 diet: 'Pureed' })
@@ -129,6 +129,14 @@ export function demoSeedOrg(orgId = DEMO_ORG) {
   demoAddIncident({ houseId: oak.id,   residentId: null, type: 'Behavioral', severity: 'Moderate', text: 'Escalation during the afternoon transition; redirected per behavior plan.', actions: 'Followed BSP de-escalation, offered a quiet space, 1:1 support for ~20 min.', by: 'Reni Tate' })
   demoAddDrill({ houseId: maple.id, type: 'Fire',    evacTime: '2:45', notes: 'All residents evacuated to the front lawn within the target time.', by: 'Priya Nair',   date: dateFor(-3) })
   demoAddDrill({ houseId: oak.id,   type: 'Tornado', evacTime: '1:30', notes: 'Sheltered in the interior hallway; accounted for all residents.',    by: 'Marcus Lewis', date: dateFor(-1) })
+
+  // Scheduled meds at Maple so the eMAR / med-pass flow has data out of the box
+  // (doses match each resident's seeded diagnoses). The morning Maple shift
+  // requires a Medication Administration cert — this is the pass it covers.
+  demoAddMed({ houseId: maple.id, residentId: robertHayes.id, name: 'Metformin',     dose: '500 mg', route: 'Oral', times: ['08:00', '18:00'], prescriber: 'Dr. Alvarez' })
+  demoAddMed({ houseId: maple.id, residentId: robertHayes.id, name: 'Donepezil',     dose: '5 mg',   route: 'Oral', times: ['20:00'],           prescriber: 'Dr. Alvarez' })
+  demoAddMed({ houseId: maple.id, residentId: lindaPark.id,   name: 'Levetiracetam', dose: '500 mg', route: 'Oral', times: ['08:00', '20:00'], prescriber: 'Dr. Chen' })
+  demoAddMed({ houseId: maple.id, residentId: robertHayes.id, name: 'Acetaminophen', dose: '500 mg', route: 'Oral', prn: true, prnReason: 'Mild pain or fever ≥ 100.4°F', prescriber: 'Dr. Alvarez' })
 
   // A few supplies per house (with cost, so the Resources spend charts render).
   demoAddResource(maple.id, { name: 'Paper towels',       qty: 6, unit: 'rolls',   cost: 12.99 })
