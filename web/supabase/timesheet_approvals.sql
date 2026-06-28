@@ -33,7 +33,7 @@ create policy timesheet_approvals_insert on public.timesheet_approvals
   for insert with check (
     org_id = auth_org_id()
     and (auth_staff_role() = 'supervisor'
-         or (auth_staff_role() = 'manager' and (house_id is null or house_id = auth_house_id())))
+         or (auth_staff_role() = 'manager' and house_id = auth_house_id()))
   );
 
 drop policy if exists timesheet_approvals_update on public.timesheet_approvals;
@@ -41,11 +41,11 @@ create policy timesheet_approvals_update on public.timesheet_approvals
   for update using (
     org_id = auth_org_id()
     and (auth_staff_role() = 'supervisor'
-         or (auth_staff_role() = 'manager' and (house_id is null or house_id = auth_house_id())))
+         or (auth_staff_role() = 'manager' and house_id = auth_house_id()))
   ) with check (
     org_id = auth_org_id()
     and (auth_staff_role() = 'supervisor'
-         or (auth_staff_role() = 'manager' and (house_id is null or house_id = auth_house_id())))
+         or (auth_staff_role() = 'manager' and house_id = auth_house_id()))
   );
 
 drop policy if exists timesheet_approvals_delete on public.timesheet_approvals;
@@ -53,7 +53,7 @@ create policy timesheet_approvals_delete on public.timesheet_approvals
   for delete using (
     org_id = auth_org_id()
     and (auth_staff_role() = 'supervisor'
-         or (auth_staff_role() = 'manager' and (house_id is null or house_id = auth_house_id())))
+         or (auth_staff_role() = 'manager' and house_id = auth_house_id()))
   );
 
 grant select, insert, update, delete on public.timesheet_approvals to authenticated;

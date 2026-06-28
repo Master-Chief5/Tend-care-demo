@@ -648,7 +648,9 @@ function SwapRequestsBanner({ user, onResolved }) {
   const [busy, setBusy] = useState(false)
   const isSup = user?.role === 'supervisor'
   const canManage = isSup || user?.role === 'manager'
-  const houseId = isSup ? null : (user?.houseId || user?.houseSlug || null)
+  // Must be the real uuid — fetchSwapRequests filters house_id (a uuid column),
+  // so a slug here would throw and silently show zero swaps.
+  const houseId = isSup ? null : (user?.houseId || null)
   const load = () => {
     if (!user?.orgId || !canManage) { setSwaps([]); return }
     fetchSwapRequests({ orgId: user.orgId, houseId, status: 'pending' }).then(setSwaps).catch(() => setSwaps([]))

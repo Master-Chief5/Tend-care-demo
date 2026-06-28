@@ -1645,11 +1645,14 @@ export async function clockOut(punchId, { lat, lng, paidBreakMin, unpaidBreakMin
 // Approval used to live in local React state and vanished on refresh. These
 // persist it. They degrade gracefully if the timesheet_approvals table hasn't
 // been created yet (returns []/optimistic) so there's no regression pre-migration.
-export async function fetchTimesheetApprovals(orgId, { houseId = null, periodStart, periodEnd } = {}) {
+export async function fetchTimesheetApprovals(orgId, { periodStart, periodEnd } = {}) {
   if (isDemoMode || !supabase || !orgId || !periodStart) return []
-  let q = supabase.from('timesheet_approvals').select('*')
+  // Deliberately NOT filtered by house_id: a sign-off is identified by
+  // (org, staff, period) — a supervisor's approval carries house_id=null, so
+  // filtering by house would hide it from a house manager. RLS already scopes
+  // which rows each role can read.
+  const q = supabase.from('timesheet_approvals').select('*')
     .eq('org_id', orgId).eq('period_start', periodStart).eq('period_end', periodEnd)
-  if (houseId) q = q.eq('house_id', houseId)
   const { data, error } = await q
   if (error) {
     if (!/relation .*timesheet_approvals.* does not exist/i.test(error.message)) console.error('fetchTimesheetApprovals:', error.message)

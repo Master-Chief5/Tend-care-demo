@@ -285,7 +285,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
     // session yet, App replays this on first authenticated load instead of making
     // the user re-search the org and re-pick their home).
     const pendingReg = accountType === 'supervisor'
-      ? { kind: 'supervisor', email, name: name.trim(), orgName: orgName.trim(), orgSlug: orgSlug || toSlug(orgName) }
+      ? { kind: 'supervisor', email, name: name.trim(), orgName: orgName.trim(), orgSlug: orgSlug || toSlug(orgName) || 'org' }
       : { kind: 'staff', email, name: name.trim(), orgId: selectedOrg.id, houseId: selectedHouse?.id || null }
     try { localStorage.setItem('tend-pending-reg', JSON.stringify(pendingReg)) } catch { /* ignore */ }
 

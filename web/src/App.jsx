@@ -31,19 +31,36 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 // home the user picked can't be registered yet. We stash it under this key and
 // replay it on the first authenticated load that still has no staff row.
 const PENDING_REG_KEY = 'tend-pending-reg'
-async function applyPendingRegistration(session) {
-  try {
-    const raw = localStorage.getItem(PENDING_REG_KEY)
-    if (!raw) return false
-    const p = JSON.parse(raw)
-    const email = (session?.user?.email || '').toLowerCase()
-    if (!p?.email || p.email.toLowerCase() !== email) return false
-    const res = p.kind === 'supervisor'
-      ? await createOrgAndSupervisor(p.orgName, p.orgSlug, p.name)
-      : await registerAsStaff(p.orgId, p.name, p.houseId || null)
-    if (!res?.error) { try { localStorage.removeItem(PENDING_REG_KEY) } catch { /* ignore */ } return true }
-    return false
-  } catch { return false }
+// enrichUser can run concurrently (getSession + onAuthStateChange both fire on a
+// fresh load), so this must NOT double-register — createOrgAndSupervisor isn't
+// idempotent and a second call would make a duplicate org or strand the user.
+// We dedupe with a module-level in-flight promise AND claim the stash (remove it)
+// before the RPC so a racing call sees nothing to do.
+let pendingRegInFlight = null
+function applyPendingRegistration(session) {
+  if (pendingRegInFlight) return pendingRegInFlight
+  pendingRegInFlight = (async () => {
+    let raw = null
+    try {
+      raw = localStorage.getItem(PENDING_REG_KEY)
+      if (!raw) return false
+      const p = JSON.parse(raw)
+      const email = (session?.user?.email || '').toLowerCase()
+      if (!p?.email || p.email.toLowerCase() !== email) return false
+      // Claim it atomically so a concurrent enrich can't replay the same stash.
+      try { localStorage.removeItem(PENDING_REG_KEY) } catch { /* ignore */ }
+      const res = p.kind === 'supervisor'
+        ? await createOrgAndSupervisor(p.orgName, p.orgSlug, p.name)
+        : await registerAsStaff(p.orgId, p.name, p.houseId || null)
+      if (res?.error) {
+        // Re-stash so a transient failure can still be retried via NeedsSetup.
+        try { localStorage.setItem(PENDING_REG_KEY, raw) } catch { /* ignore */ }
+        return false
+      }
+      return true
+    } catch { return false }
+  })()
+  return pendingRegInFlight.finally(() => { pendingRegInFlight = null })
 }
 
 async function enrichUser(session, setUser, seq, seqRef) {

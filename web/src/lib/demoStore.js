@@ -380,6 +380,8 @@ export function demoCreateSwapRequest(req = {}) {
     resolved_by: null, resolved_at: null,
   }
   store.swapRequests.unshift(row)
+  // Flag the shift so the "SWAP REQ" badge lights up (parity with real mode).
+  if (req.shiftId) demoUpdateShift(req.shiftId, { status: 'swap' })
   store.shiftEvents.push({
     id: uid('shev'), org_id: req.orgId || null, house_id: row.house_id, kind: 'swap_requested',
     actor: row.from_name || 'Someone',
@@ -418,6 +420,8 @@ export function demoResolveSwapRequest(id, { approve, by } = {}) {
   if (approve) {
     if (r.to_staff_id || r.to_name) demoUpdateShift(r.shift_id, { staffId: r.to_staff_id, personName: r.to_name, status: 'scheduled', publishedAt: now() })
     else demoUpdateShift(r.shift_id, { status: 'open', personName: '', staffId: null })
+  } else {
+    demoUpdateShift(r.shift_id, { status: 'scheduled' })   // denied → clear the 'swap' flag
   }
   r.status = approve ? 'approved' : 'denied'
   r.resolved_by = by || null
