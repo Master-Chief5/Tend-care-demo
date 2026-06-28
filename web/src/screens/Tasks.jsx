@@ -29,7 +29,10 @@ function isOverdue(dateLike) {
   if (!dateLike) return false
   const d = dateLike instanceof Date ? dateLike : new Date(dateLike)
   if (isNaN(d.getTime())) return false
-  return d.getTime() < Date.now()
+  // A task due *today* isn't overdue until the day ends — the due date is stored
+  // at local midnight, so compare against end-of-day, not the raw timestamp.
+  const endOfDay = new Date(d); endOfDay.setHours(23, 59, 59, 999)
+  return endOfDay.getTime() < Date.now()
 }
 
 const card = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }

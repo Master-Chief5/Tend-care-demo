@@ -94,7 +94,9 @@ function StaffTimeOff({ orgId, houseId, staffId, staffName, pad }) {
   const [hours, setHours] = useState('')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState(null)
   const [mine, setMine] = useState([])
+  const badRange = !!(endDate && startDate && endDate < startDate)
 
   const load = () => {
     if (!orgId) return Promise.resolve()
@@ -108,6 +110,8 @@ function StaffTimeOff({ orgId, houseId, staffId, staffName, pad }) {
   const submit = async (e) => {
     e?.preventDefault?.()
     if (!orgId || !startDate || saving) return
+    if (badRange) { setErr('The end date must be on or after the start date.'); return }
+    setErr(null)
     setSaving(true)
     try {
       const h = hours === '' ? null : Number(hours)
@@ -166,9 +170,10 @@ function StaffTimeOff({ orgId, houseId, staffId, staffName, pad }) {
             style={{ ...inputStyle, marginTop: 4, resize: 'vertical', fontFamily: 'Geist' }} />
         </label>
 
-        <button type="submit" disabled={saving || !orgId} style={{
+        {(err || badRange) && <div style={{ fontSize: 12, color: 'var(--a-clay)' }}>{err || 'The end date must be on or after the start date.'}</div>}
+        <button type="submit" disabled={saving || !orgId || badRange} style={{
           background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 999, padding: '11px',
-          fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
+          fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: (saving || badRange) ? 'default' : 'pointer', opacity: (saving || badRange) ? 0.6 : 1,
         }}>{saving ? 'Submitting…' : 'Submit request'}</button>
       </form>
 

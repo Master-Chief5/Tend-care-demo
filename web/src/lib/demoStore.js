@@ -445,6 +445,22 @@ export function demoCountPendingSwaps({ houseId = null } = {}) {
   return store.swapRequests.filter(r => r.status === 'pending' && (!houseId || r.house_id === houseId)).length
 }
 
+// ── Notifications (demo) ─────────────────────────────────────────────────────
+export function demoCreateNotification(orgId, n = {}) {
+  store.notifications = store.notifications || []
+  const row = {
+    id: uid('ntf'), org_id: orgId, house_id: n.houseId || null,
+    recipient_staff_id: n.recipientStaffId || null, recipient_role: n.recipientRole || null,
+    kind: n.kind, title: n.title, body: n.body || null, link: n.link || null,
+    read_at: null, created_at: now(),
+  }
+  store.notifications.unshift(row); persist(); return row
+}
+export function demoFetchNotifications() { return (store.notifications || []).slice(0, 30) }
+export function demoCountUnreadNotifications() { return (store.notifications || []).filter(n => !n.read_at).length }
+export function demoMarkNotificationRead(id) { const n = (store.notifications || []).find(x => x.id === id); if (n) { n.read_at = now(); persist() } }
+export function demoMarkAllNotificationsRead() { (store.notifications || []).forEach(n => { if (!n.read_at) n.read_at = now() }); persist() }
+
 // Count of open shifts in scope, for the schedule nav badge.
 export function demoCountOpenShifts(orgId, { houseId = null } = {}) {
   demoSeedOrg()

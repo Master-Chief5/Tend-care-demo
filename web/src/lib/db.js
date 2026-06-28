@@ -191,6 +191,13 @@ export async function createSwapRequest(req = {}) {
   // Flag the shift as 'swap' so the schedule badge actually lights up — managers
   // need an at-a-glance signal a swap is pending (cleared on approve/deny).
   if (req.shiftId) await updateShift(req.shiftId, { status: 'swap' })
+  // Notify managers a swap is waiting on their approval.
+  createNotification(req.orgId, {
+    houseId: req.houseId || null, recipientRole: 'manager', kind: 'swap_request',
+    title: 'Swap request needs approval',
+    body: `${req.fromName || 'A worker'} requested ${req.toName ? `${req.toName} to cover` : 'cover for a shift'}`,
+    link: 'schedule',
+  })
   return data
 }
 export async function fetchSwapRequests(opts = {}) {
@@ -251,6 +258,49 @@ export async function countOpenShifts(orgId, { houseId = null } = {}) {
   const { count, error } = await q
   if (error) { console.error('countOpenShifts:', error.message); return 0 }
   return count || 0
+}
+
+// ── Notifications (in-app inbox) ─────────────────────────────────────────────
+// One primitive that real events write to, so "manager notified" becomes true.
+// Addressed to a specific staff id OR to a role; RLS scopes reads to the
+// recipient. Degrades gracefully if the notifications table isn't migrated yet.
+export async function createNotification(orgId, n = {}) {
+  if (isDemoMode) return demo.demoCreateNotification(orgId, n)
+  if (!supabase || !orgId || !n.kind || !n.title) return null
+  const { data, error } = await supabase.from('notifications').insert({
+    org_id: orgId, house_id: n.houseId || null,
+    recipient_staff_id: n.recipientStaffId || null, recipient_role: n.recipientRole || null,
+    kind: n.kind, title: n.title, body: n.body || null, link: n.link || null,
+  }).select().single()
+  if (error) {
+    if (!/relation .*notifications.* does not exist/i.test(error.message)) console.error('createNotification:', error.message)
+    return null
+  }
+  return data
+}
+export async function fetchNotifications(orgId, { limit = 30 } = {}) {
+  if (isDemoMode) return demo.demoFetchNotifications(orgId)
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase.from('notifications').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit)
+  if (error) { if (!/relation .*notifications.* does not exist/i.test(error.message)) console.error('fetchNotifications:', error.message); return [] }
+  return data || []
+}
+export async function countUnreadNotifications(orgId) {
+  if (isDemoMode) return demo.demoCountUnreadNotifications(orgId)
+  if (!supabase || !orgId) return 0
+  const { count, error } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('org_id', orgId).is('read_at', null)
+  if (error) return 0
+  return count || 0
+}
+export async function markNotificationRead(id) {
+  if (isDemoMode) return demo.demoMarkNotificationRead(id)
+  if (!supabase || !id) return
+  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)
+}
+export async function markAllNotificationsRead(orgId) {
+  if (isDemoMode) return demo.demoMarkAllNotificationsRead(orgId)
+  if (!supabase || !orgId) return
+  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('org_id', orgId).is('read_at', null)
 }
 
 // ── Shared house items (cross-role to-do log) ────────────────────────────────
@@ -1280,6 +1330,13 @@ export async function addIncident(orgId, inc) {
     occurred_at: inc.occurredAt || null, photo: inc.photo || null,
   }).select().single()
   if (error) { console.error('addIncident:', error.message); return null }
+  // Make "manager notified" real: raise a notification for the house team + supervisor.
+  createNotification(orgId, {
+    houseId: inc.houseId || null, recipientRole: null, kind: 'incident',
+    title: `Incident reported${inc.reportable ? ' · reportable' : ''}`,
+    body: `${inc.type || 'Incident'}${inc.severity ? ` · ${inc.severity}` : ''} — filed by ${inc.by || 'staff'}`,
+    link: 'compliance',
+  })
   return data
 }
 // Update a reportable incident's follow-through (mark agency notified, add a

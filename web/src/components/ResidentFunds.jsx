@@ -27,7 +27,7 @@ function Stat({ label, big, sub, color }) {
   )
 }
 
-function EntryForm({ houseColor, onSave, onCancel, saving }) {
+function EntryForm({ houseColor, onSave, onCancel, saving, balance = 0 }) {
   const [type, setType] = useState('deposit')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState(DEPOSIT_CATS[0])
@@ -35,7 +35,10 @@ function EntryForm({ houseColor, onSave, onCancel, saving }) {
   const [note, setNote] = useState('')
 
   const cats = type === 'withdrawal' ? WITHDRAWAL_CATS : DEPOSIT_CATS
-  const ready = Number(amount) > 0 && !saving
+  // A withdrawal can't exceed the resident's on-hand balance — the PNI ledger
+  // must never go negative (regulatory/audit). Block it before saving.
+  const overdraw = type === 'withdrawal' && Number(amount) > balance
+  const ready = Number(amount) > 0 && !saving && !overdraw
 
   const setKind = (t) => { setType(t); setCategory((t === 'withdrawal' ? WITHDRAWAL_CATS : DEPOSIT_CATS)[0]) }
 
@@ -63,6 +66,7 @@ function EntryForm({ houseColor, onSave, onCancel, saving }) {
         </select>
       </div>
       <div><div style={lbl}>Note (optional)</div><input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. New socks" style={input} /></div>
+      {overdraw && <div style={{ fontSize: 12, color: 'var(--a-clay)' }}>Withdrawal exceeds the on-hand balance of {money(balance)}.</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={onCancel} style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 10, fontSize: 13, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>Cancel</button>
         <button type="submit" disabled={!ready} style={{ flex: 2, background: houseColor, color: '#fff', border: 0, borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: ready ? 'pointer' : 'default', opacity: ready ? 1 : 0.5 }}>
@@ -149,7 +153,7 @@ export function ResidentFunds({ user, houseUuid, houseColor = 'var(--a-ink)', re
       {canManage && (
         adding ? (
           <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, padding: '14px', marginBottom: 14 }}>
-            <EntryForm houseColor={houseColor} onSave={add} onCancel={() => setAdding(false)} saving={saving} />
+            <EntryForm houseColor={houseColor} onSave={add} onCancel={() => setAdding(false)} saving={saving} balance={balance} />
           </div>
         ) : (
           <button onClick={() => setAdding(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%', background: 'transparent', border: `1px solid ${houseColor}55`, color: houseColor, borderRadius: 999, padding: '10px', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', marginBottom: 14 }}>

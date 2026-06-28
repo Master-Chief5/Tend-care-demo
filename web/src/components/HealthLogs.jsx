@@ -320,7 +320,13 @@ export function HealthLogs({ user, houseUuid, houseColor = 'var(--a-ink)', resid
   }, [user?.orgId, houseUuid])
   useEffect(() => { reload() }, [reload])
 
-  const del = async (id) => { await deleteHealthLog(id); reload() }
+  // Health records (seizures, vitals, BMs) are retained, sometimes-reportable
+  // data — only supervisors/managers may delete, and only with a confirm.
+  const canEdit = user?.role === 'supervisor' || user?.role === 'manager'
+  const del = async (id) => {
+    if (!window.confirm('Delete this health record? This is retained clinical data and cannot be undone.')) return
+    await deleteHealthLog(id); reload()
+  }
 
   const resName = residents.find(r => r.id === residentId)?.name || 'resident'
   const visible = logs.filter(l => (!residentId || l.residentId === residentId) && (!filter || l.kind === filter))
@@ -385,7 +391,7 @@ export function HealthLogs({ user, houseUuid, houseColor = 'var(--a-ink)', resid
                       </div>
                       <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 1 }}>{fmtWhen(h.occurredAt)}{h.by ? ` · ${h.by}` : ''}{h.note ? ` · ${h.note}` : ''}</div>
                     </div>
-                    <button onClick={() => del(h.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: '0 2px', flexShrink: 0 }}><IconX size={16} /></button>
+                    {canEdit && <button onClick={() => del(h.id)} aria-label="Delete" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: '0 2px', flexShrink: 0 }}><IconX size={16} /></button>}
                   </div>
                 )
               })}
