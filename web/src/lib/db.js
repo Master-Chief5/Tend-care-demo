@@ -2711,8 +2711,11 @@ export async function deleteQuickTask(id) {
 export async function countOverdueQuickTasks(orgId, { houseId = null, assignedStaffId = null } = {}) {
   if (isDemoMode) return demo.demoCountOverdueQuickTasks(orgId, { houseId, assignedStaffId })
   if (!supabase || !orgId) return 0
+  // Overdue = due before TODAY (a task due today isn't overdue until day's end) —
+  // matches Tasks.jsx isOverdue so the badge count and the Overdue list agree.
+  const sod = new Date(); sod.setHours(0, 0, 0, 0)
   let q = supabase.from('quick_tasks').select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId).eq('status', 'open').lt('due_at', new Date().toISOString())
+    .eq('org_id', orgId).eq('status', 'open').lt('due_at', sod.toISOString())
   // Match the demo: scope to the house but include org-wide (null-house) rows.
   if (houseId) q = q.or('house_id.eq.' + houseId + ',house_id.is.null')
   if (assignedStaffId) q = q.eq('assigned_staff_id', assignedStaffId)

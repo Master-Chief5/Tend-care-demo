@@ -44,14 +44,24 @@ drop policy if exists notifications_insert on public.notifications;
 create policy notifications_insert on public.notifications
   for insert with check (org_id = auth_org_id());
 
--- A recipient marks their own (or their role's) notifications read.
+-- A recipient marks read ONLY rows they can see — mirror the SELECT scope exactly
+-- (incl. the house clause) so a DSP in one house can't clear another house's
+-- unread state (markAllNotificationsRead relies on this to stay house-scoped).
 drop policy if exists notifications_update on public.notifications;
 create policy notifications_update on public.notifications
   for update using (
     org_id = auth_org_id() and (
       recipient_staff_id = auth_staff_id()
-      or (recipient_staff_id is null and (recipient_role is null or recipient_role = auth_staff_role()))
+      or (recipient_staff_id is null
+          and (recipient_role is null or recipient_role = auth_staff_role())
+          and (auth_staff_role() = 'supervisor' or house_id is null or house_id = auth_house_id()))
     )
   ) with check (org_id = auth_org_id());
+
+-- NOTE (hardening before go-live): the INSERT policy above only checks org_id, so
+-- a member could in principle craft a spoofed notification. The robust fix is to
+-- create notifications server-side via AFTER INSERT triggers on incidents/
+-- swap_requests and lock INSERT to the trigger/service_role. Tracked for the
+-- activation migration; not a live risk while this table is unapplied.
 
 grant select, insert, update on public.notifications to authenticated;

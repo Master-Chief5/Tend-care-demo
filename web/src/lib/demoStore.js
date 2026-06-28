@@ -2564,9 +2564,9 @@ export function demoAddTaskEvent(orgId, { houseId, kind, actor, text, forName } 
 // and the Home/MyDay "N tasks overdue" surfacing.
 export function demoCountOverdueQuickTasks(orgId, { houseId = null, assignedStaffId = null } = {}) {
   demoSeedQuickTasks(orgId)
-  const nowMs = Date.now()
+  const sod = new Date(); sod.setHours(0, 0, 0, 0); const sodMs = sod.getTime()  // start of today
   return store.quickTasks.filter(t =>
-    t.status === 'open' && t.due_at && new Date(t.due_at).getTime() < nowMs &&
+    t.status === 'open' && t.due_at && new Date(t.due_at).getTime() < sodMs &&
     (!houseId || t.house_id === houseId || t.house_id == null) &&
     (!assignedStaffId || t.assigned_staff_id === assignedStaffId)
   ).length
