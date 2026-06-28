@@ -50,6 +50,7 @@ export function ClockCard({ user }) {
 
   const [punch, setPunch] = useState(null)   // active punch row, or null
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(Date.now())
   const tickRef = useRef(null)
@@ -79,13 +80,19 @@ export function ClockCard({ user }) {
 
   const doClockIn = async () => {
     if (busy || !orgId) return
-    setBusy(true)
+    setBusy(true); setErr(null)
     try {
       const { lat, lng } = await getPosition()
       const row = await clockIn(orgId, { houseId, staffId, staffName, role: user?.role, shiftId: null, lat, lng })
-      if (row) setPunch(row)
-      if (user?.staffId) { try { await setMyDuty(user.staffId, true) } catch { /* ignore */ } }
-    } catch { /* ignore */ }
+      // Only flip to "on the clock" / share duty if the punch actually recorded.
+      // Faking it meant staff worked full shifts with zero recorded time.
+      if (row) {
+        setPunch(row)
+        if (user?.staffId) { try { await setMyDuty(user.staffId, true) } catch { /* ignore */ } }
+      } else {
+        setErr("Couldn't clock in — your punch wasn't recorded. Check your connection, or ask your supervisor to confirm you're assigned to this home.")
+      }
+    } catch { setErr("Couldn't clock in — please try again.") }
     setBusy(false)
   }
 
@@ -161,6 +168,9 @@ export function ClockCard({ user }) {
           }}>
           {busy ? (isClockedIn ? 'Clocking out…' : 'Clocking in…') : (isClockedIn ? 'Clock out' : 'Clock in')}
         </button>
+      )}
+      {err && (
+        <div style={{ fontSize: 11.5, color: 'var(--a-clay)', marginTop: 10, lineHeight: 1.45 }}>{err}</div>
       )}
     </div>
   )

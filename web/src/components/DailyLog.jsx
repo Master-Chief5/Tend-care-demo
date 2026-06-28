@@ -26,6 +26,7 @@ export function DailyLog({ user, houseUuid, houseColor = 'var(--a-ink)', residen
   const [category, setCategory] = useState('General')
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState(null)
 
   const reload = useCallback(() => {
     if (!user?.orgId || !houseUuid) { setLog([]); return }
@@ -35,9 +36,12 @@ export function DailyLog({ user, houseUuid, houseColor = 'var(--a-ink)', residen
 
   const add = async (e) => {
     e.preventDefault(); if (!text.trim() || saving) return
-    setSaving(true)
-    await addDailyLog(user.orgId, { houseId: houseUuid, residentId: residentId || null, category, text: text.trim(), by: user?.name || 'Staff' })
-    setSaving(false); setText(''); setResidentId(''); setCategory('General'); setShowAdd(false); reload()
+    setSaving(true); setErr(null)
+    const saved = await addDailyLog(user.orgId, { houseId: houseUuid, residentId: residentId || null, category, text: text.trim(), by: user?.name || 'Staff' })
+    setSaving(false)
+    // Only clear/close on a real save — don't pretend a dropped log was recorded.
+    if (!saved) { setErr("This note didn't save — nothing was recorded. Check your home assignment or connection and try again."); return }
+    setText(''); setResidentId(''); setCategory('General'); setShowAdd(false); reload()
   }
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
 
@@ -65,6 +69,7 @@ export function DailyLog({ user, houseUuid, houseColor = 'var(--a-ink)', residen
             })}
           </div>
           <textarea autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="What happened this shift? (e.g. Ate full lunch, calm mood, joined group walk)" rows={3} style={{ ...input, resize: 'vertical' }} />
+          {err && <div style={{ fontSize: 11.5, color: 'var(--a-clay)', lineHeight: 1.45 }}>{err}</div>}
           <button type="submit" disabled={!text.trim() || saving} style={{ background: houseColor, color: '#fff', border: 0, borderRadius: 10, padding: '10px', fontSize: 13.5, fontWeight: 600, fontFamily: 'Geist', cursor: text.trim() ? 'pointer' : 'default', opacity: text.trim() ? 1 : 0.5 }}>
             {saving ? 'Saving…' : 'Save note'}
           </button>

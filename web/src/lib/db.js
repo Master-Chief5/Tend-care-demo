@@ -1576,12 +1576,25 @@ export async function createOrgAndSupervisor(orgName, orgSlug, name) {
 }
 
 // Create or link a staff profile after sign-up.
-// Returns { data, error } so callers can surface the actual DB error message.
-export async function registerAsStaff(orgId, name) {
+// Pass houseId so the new staffer is assigned to their group home — without it
+// auth_house_id() is null and every house-scoped write fails RLS. Safe to re-call
+// for an existing house-less account: it fills in the missing house (an existing
+// assignment is kept). Returns { data, error } so callers can surface the reason.
+export async function registerAsStaff(orgId, name, houseId = null) {
   if (!supabase) return { data: null, error: 'Not connected to database' }
-  const { data, error } = await supabase.rpc('register_as_staff', { p_org_id: orgId, p_name: name })
+  const { data, error } = await supabase.rpc('register_as_staff', { p_org_id: orgId, p_name: name, p_house_id: houseId || null })
   if (error) { console.error('registerAsStaff:', error.message) }
   return { data: error ? null : data, error: error?.message ?? null }
+}
+
+// List the houses in an org for the sign-up house picker. Callable before the
+// user is authenticated (uses the list_org_houses SECURITY DEFINER function,
+// granted to anon). Returns [{ id, name, slug }].
+export async function listOrgHouses(orgId) {
+  if (!supabase || !orgId) return []
+  const { data, error } = await supabase.rpc('list_org_houses', { p_org_id: orgId })
+  if (error) { console.error('listOrgHouses:', error.message); return [] }
+  return data || []
 }
 
 

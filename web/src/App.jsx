@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { LoginScreen, OrgSearchPicker, toSlug } from './components/layout/LoginScreen'
+import { LoginScreen, OrgSearchPicker, HousePicker, toSlug } from './components/layout/LoginScreen'
 import { MobileShell } from './components/layout/MobileShell'
 import { DesktopShell } from './components/layout/DesktopShell'
 import { useIsMobile } from './hooks/useIsMobile'
@@ -59,14 +59,17 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
   // whose role wasn't detected must never get stranded on the "join" path.
   const [isSupervisor, setIsSupervisor] = useState(user.role === 'supervisor')
   const [selectedOrg, setSelectedOrg] = useState(null)
+  const [selectedHouse, setSelectedHouse] = useState(null)
+  const [orgHasHouses, setOrgHasHouses] = useState(null)
   const [orgName, setOrgName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
   const handleJoin = async () => {
     if (!selectedOrg) return
+    if (orgHasHouses && !selectedHouse) { setError('Please pick the home you work at.'); return }
     setBusy(true)
-    const { error: e } = await registerAsStaff(selectedOrg.id, user.name)
+    const { error: e } = await registerAsStaff(selectedOrg.id, user.name, selectedHouse?.id || null)
     setBusy(false)
     if (e) { setError(`Could not link your account: ${e}`); return }
     onLinked()
@@ -112,9 +115,15 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
           </>
         ) : (
           <>
-            <OrgSearchPicker selected={selectedOrg} onSelect={setSelectedOrg} />
+            <OrgSearchPicker selected={selectedOrg} onSelect={(o) => { setSelectedOrg(o); setSelectedHouse(null); setOrgHasHouses(null) }} />
+            {selectedOrg && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 6, fontWeight: 500 }}>Which home do you work at?</div>
+                <HousePicker orgId={selectedOrg.id} selected={selectedHouse} onSelect={setSelectedHouse} onAvailability={setOrgHasHouses} />
+              </div>
+            )}
             {error && <div style={{ fontSize: 12.5, color: 'var(--a-clay)', marginTop: 10 }}>{error}</div>}
-            <button onClick={handleJoin} disabled={!selectedOrg || busy}
+            <button onClick={handleJoin} disabled={!selectedOrg || busy || (orgHasHouses && !selectedHouse)}
               style={{ width: '100%', marginTop: 16, padding: '12px', borderRadius: 999, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, fontSize: 14, fontWeight: 600, fontFamily: 'Geist, sans-serif', cursor: selectedOrg && !busy ? 'pointer' : 'default', opacity: selectedOrg && !busy ? 1 : 0.5 }}>
               {busy ? 'Joining…' : 'Join organization'}
             </button>
@@ -128,6 +137,53 @@ function NeedsSetupScreen({ user, onLinked, onLogout }) {
             : 'Setting up a new organization? Create one instead →'}
         </button>
 
+        <button onClick={onLogout}
+          style={{ width: '100%', marginTop: 10, padding: '10px', borderRadius: 999, background: 'transparent', border: '1px solid var(--a-line)', fontSize: 13, color: 'var(--a-ink3)', fontFamily: 'Geist, sans-serif', cursor: 'pointer' }}>
+          Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Shown when a staff/manager is linked to an org but has NO house yet. Without a
+// house, auth_house_id() is null and every house-scoped write (incidents,
+// clock-in, daily log, schedule) silently fails RLS — so we block here with an
+// honest prompt instead of letting them work into a void. Picking a home calls
+// register_as_staff again, which fills the missing house (self-heal).
+function AssignHouseScreen({ user, onAssigned, onLogout }) {
+  const [selectedHouse, setSelectedHouse] = useState(null)
+  const [orgHasHouses, setOrgHasHouses]   = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleAssign = async () => {
+    if (!selectedHouse) return
+    setBusy(true)
+    const { error: e } = await registerAsStaff(user.orgId, user.name, selectedHouse.id)
+    setBusy(false)
+    if (e) { setError(`Could not assign your home: ${e}`); return }
+    onAssigned()
+  }
+
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--a-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 400 }}>
+        <div className="serif" style={{ fontSize: 26, letterSpacing: '-0.02em', marginBottom: 8 }}>Pick your home</div>
+        <div style={{ fontSize: 14, color: 'var(--a-ink2)', marginBottom: 24, lineHeight: 1.6 }}>
+          Welcome, {user.name?.split(' ')[0] || 'there'}. You’re not assigned to a group home yet — choose where you work so your incidents, logs, and time punches save to the right place.
+        </div>
+        <HousePicker orgId={user.orgId} selected={selectedHouse} onSelect={setSelectedHouse} onAvailability={setOrgHasHouses} />
+        {orgHasHouses === false && (
+          <div style={{ fontSize: 12.5, color: 'var(--a-ink3)', marginTop: 12, lineHeight: 1.5 }}>
+            No homes have been set up in your organization yet. Ask your supervisor to add one and assign you to it.
+          </div>
+        )}
+        {error && <div style={{ fontSize: 12.5, color: 'var(--a-clay)', marginTop: 12 }}>{error}</div>}
+        <button onClick={handleAssign} disabled={!selectedHouse || busy}
+          style={{ width: '100%', marginTop: 18, padding: '12px', borderRadius: 999, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, fontSize: 14, fontWeight: 600, fontFamily: 'Geist, sans-serif', cursor: selectedHouse && !busy ? 'pointer' : 'default', opacity: selectedHouse && !busy ? 1 : 0.5 }}>
+          {busy ? 'Saving…' : 'Continue'}
+        </button>
         <button onClick={onLogout}
           style={{ width: '100%', marginTop: 10, padding: '10px', borderRadius: 999, background: 'transparent', border: '1px solid var(--a-line)', fontSize: 13, color: 'var(--a-ink3)', fontFamily: 'Geist, sans-serif', cursor: 'pointer' }}>
           Sign out
@@ -270,6 +326,13 @@ export default function App() {
   // Authenticated but no org profile — sign-up via email confirmation, or a fresh account.
   if (user && user.enriched && !user.orgId && !isDemoMode) return (
     <NeedsSetupScreen user={user} onLinked={retriggerEnrich} onLogout={handleLogout} />
+  )
+
+  // Linked to an org as staff/manager but assigned to NO house — block with an
+  // honest "pick your home" prompt; otherwise every house-scoped write 403s while
+  // the UI pretends it saved. Supervisors don't need a house, so they pass through.
+  if (user && user.enriched && user.orgId && !user.houseId && user.role !== 'supervisor' && !isDemoMode) return (
+    <AssignHouseScreen user={user} onAssigned={retriggerEnrich} onLogout={handleLogout} />
   )
 
   if (!user) return (

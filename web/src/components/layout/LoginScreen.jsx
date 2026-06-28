@@ -3,7 +3,7 @@ import { TendLogo } from '../ui/TendLogo'
 import { IconArrow, IconSearch, IconCheck, IconHome, IconPeople } from '../icons'
 import { ROLES } from '../../data/constants'
 import { supabase, isDemoMode } from '../../lib/supabase'
-import { searchOrganizations, registerAsStaff, createOrgAndSupervisor } from '../../lib/db'
+import { searchOrganizations, registerAsStaff, createOrgAndSupervisor, listOrgHouses } from '../../lib/db'
 
 export function LoginScreen({ onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
   return isDemoMode
@@ -191,6 +191,54 @@ export function OrgSearchPicker({ selected, onSelect }) {
   )
 }
 
+// ── House picker (which group home does this staffer work at?) ────────────────
+// Lists the org's houses so a joining staffer can pick their home. Assigning a
+// house at join is what makes house-scoped writes (incidents, clock-in, logs)
+// actually save — without it auth_house_id() is null and every write 403s.
+// Reports availability to the parent so it can require a pick only when houses exist.
+export function HousePicker({ orgId, selected, onSelect, onAvailability }) {
+  const [houses, setHouses]   = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!orgId) { setHouses([]); onAvailability?.(null); return }
+    let stop = false
+    setLoading(true)
+    listOrgHouses(orgId).then(hs => {
+      if (stop) return
+      setHouses(hs); setLoading(false); onAvailability?.(hs.length > 0)
+    })
+    return () => { stop = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId])
+
+  if (!orgId) return null
+  if (loading) return <div style={{ fontSize: 12, color: 'var(--a-ink3)', padding: '4px 2px' }}>Loading homes…</div>
+  if (houses.length === 0) return (
+    <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', padding: '4px 2px', lineHeight: 1.5 }}>
+      This organization hasn’t added any homes yet — your supervisor can assign you to one later.
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {houses.map(h => {
+        const active = selected?.id === h.id
+        return (
+          <button key={h.id} type="button" onClick={() => onSelect(h)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 10,
+              border: active ? '2px solid var(--a-sage)' : '1px solid var(--a-line)',
+              background: active ? 'var(--a-card)' : 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: 'Geist, sans-serif' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: active ? 'var(--a-sage)' : 'var(--a-line)', flexShrink: 0 }} />
+            <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--a-ink)', flex: 1 }}>{h.name}</span>
+            {active && <IconCheck size={14} color="var(--a-sage)" sw={2.2} />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Sign-up form (role selection + branching) ─────────────────────────────────
 export const toSlug = (name) =>
   (name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 40)
@@ -206,7 +254,9 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
   const [orgSlug, setOrgSlug]         = useState('')
   const [slugEdited, setSlugEdited]   = useState(false)
   // Staff fields
-  const [selectedOrg, setSelectedOrg] = useState(null)
+  const [selectedOrg, setSelectedOrg]     = useState(null)
+  const [selectedHouse, setSelectedHouse] = useState(null)
+  const [orgHasHouses, setOrgHasHouses]   = useState(null) // null=unknown, true/false once loaded
 
   const [error, setError]     = useState(null)
   const [loading, setLoading] = useState(false)
@@ -223,6 +273,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
     if (password !== confirm)       { setError('Passwords do not match.'); return }
     if (accountType === 'supervisor' && !orgName.trim()) { setError('Please enter your organization name.'); return }
     if (accountType === 'staff' && !selectedOrg)        { setError('Please select your organization.'); return }
+    if (accountType === 'staff' && orgHasHouses && !selectedHouse) { setError('Please pick the home you work at.'); return }
 
     setError(null); setLoading(true)
 
@@ -245,7 +296,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
         const { error: e } = await createOrgAndSupervisor(orgName.trim(), slug, name.trim())
         regError = e
       } else {
-        const { error: e } = await registerAsStaff(selectedOrg.id, name.trim())
+        const { error: e } = await registerAsStaff(selectedOrg.id, name.trim(), selectedHouse?.id || null)
         regError = e
       }
       if (regError) {
@@ -267,7 +318,9 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
   }
 
   const canSubmit = name.trim() && email && password && confirm && !loading &&
-    (accountType === 'supervisor' ? orgName.trim() : selectedOrg)
+    (accountType === 'supervisor'
+      ? orgName.trim()
+      : selectedOrg && (orgHasHouses === false || selectedHouse))
 
   return (
     <AuthShell wide>
@@ -332,7 +385,13 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
           ) : (
             <div>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 6, fontWeight: 500 }}>Your organization</div>
-              <OrgSearchPicker selected={selectedOrg} onSelect={setSelectedOrg} />
+              <OrgSearchPicker selected={selectedOrg} onSelect={(o) => { setSelectedOrg(o); setSelectedHouse(null); setOrgHasHouses(null) }} />
+              {selectedOrg && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 6, fontWeight: 500 }}>Which home do you work at?</div>
+                  <HousePicker orgId={selectedOrg.id} selected={selectedHouse} onSelect={setSelectedHouse} onAvailability={setOrgHasHouses} />
+                </div>
+              )}
             </div>
           )}
 
@@ -348,7 +407,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
           )}
           {accountType === 'staff' && (
             <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', lineHeight: 1.5, textAlign: 'center' }}>
-              Your account starts as Staff. Your supervisor can update your role from the app.
+              Pick the home you work at so your logs, incidents, and time punches save to the right place. Your supervisor can change your role or home later.
             </div>
           )}
         </form>

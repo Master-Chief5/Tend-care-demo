@@ -35,6 +35,7 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   const [photo, setPhoto] = useState('') // data URL or pasted image URL
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState(null)
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
   // Serious incidents and certain types are usually state-reportable — pre-tick
@@ -58,11 +59,18 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
   }
   const save = async (e) => {
     e.preventDefault(); if (!text.trim() || saving || done) return
-    setSaving(true)
+    setSaving(true); setError(null)
     // occurred_at + photo ride in the existing detail/fields (no new column / migration).
     const occurredAt = occurredDate ? `${occurredDate}T${occurredTime || '00:00'}` : null
-    await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, occurredAt, photo: photo || null, by: user?.name || 'Staff' })
+    const saved = await addIncident(user.orgId, { houseId: houseUuid, residentId: residentId || null, type, severity, text: text.trim(), actions: actions.trim(), notified: notified.trim(), reportable, aneFlag: isANE(aneFlag) ? aneFlag : null, occurredAt, photo: photo || null, by: user?.name || 'Staff' })
     setSaving(false)
+    // CRITICAL: only confirm if the record actually saved. A silent RLS/network
+    // failure here used to show "Incident reported" over nothing — a state-
+    // reportable incident lost without a trace. Surface the failure instead.
+    if (!saved) {
+      setError("This incident did NOT save — nothing was recorded. You may not be assigned to this home, or you're offline. Please try again, and tell your supervisor if it keeps failing.")
+      return
+    }
     // Refresh the parent list now so the filed incident (incl. its occurred_at) renders.
     onSaved?.()
     // Show a clear confirmation, then reset/close so a "Report incident" deep-link feels complete.
@@ -151,6 +159,7 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
               <span style={{ display: 'block', fontSize: 11, color: 'var(--a-ink3)', marginTop: 1 }}>Requires notifying the agency, usually within a set window.</span>
             </span>
           </button>
+          {error && <div style={{ fontSize: 12.5, color: 'var(--a-clay)', background: '#fbeae6', border: '1px solid #e8c4ba', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>{error}</div>}
           <button type="submit" disabled={!text.trim() || saving} style={{ background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: text.trim() ? 'pointer' : 'default', opacity: text.trim() ? 1 : 0.5 }}>{saving ? 'Saving…' : 'File report'}</button>
         </form>
         </>)}
