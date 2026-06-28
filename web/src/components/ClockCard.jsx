@@ -98,13 +98,19 @@ export function ClockCard({ user }) {
 
   const doClockOut = async () => {
     if (busy || !punch?.id) return
-    setBusy(true)
+    setBusy(true); setErr(null)
     try {
       const { lat, lng } = await getPosition()
-      await clockOut(punch.id, { lat, lng })
-      setPunch(null)
-      if (user?.staffId) { try { await setMyDuty(user.staffId, false) } catch { /* ignore */ } }
-    } catch { /* ignore */ }
+      const row = await clockOut(punch.id, { lat, lng })
+      // Only show "clocked out" if the punch actually closed. Faking it left an
+      // OPEN punch in time_punches while the card said done → payroll disputes.
+      if (row) {
+        setPunch(null)
+        if (user?.staffId) { try { await setMyDuty(user.staffId, false) } catch { /* ignore */ } }
+      } else {
+        setErr("Couldn't clock out — you're still on the clock. Check your connection and try again.")
+      }
+    } catch { setErr("Couldn't clock out — please try again.") }
     setBusy(false)
   }
 

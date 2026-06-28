@@ -91,8 +91,8 @@ function IncidentForm({ user, houseUuid, residents, onClose, onSaved }) {
             <div style={{ width: 56, height: 56, borderRadius: 999, margin: '0 auto 14px', background: '#dee6df', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <IconCheck size={28} sw={2.5} color="#3f604d" />
             </div>
-            <div className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Incident reported</div>
-            <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5, marginBottom: 18 }}>Your manager has been notified.</div>
+            <div className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Incident recorded</div>
+            <div style={{ fontSize: 13, color: 'var(--a-ink2)', lineHeight: 1.5, marginBottom: 18 }}>Saved to the log for your supervisor to review{reportable ? '. This one is flagged as state-reportable — make sure your supervisor follows up on the reporting deadline.' : '.'}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={reset} style={{ flex: 1, background: 'var(--a-card)', color: 'var(--a-ink)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Report another</button>
               <button type="button" onClick={onClose} style={{ flex: 1, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Done</button>
@@ -325,7 +325,7 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
         <div style={{ background: '#fadcd7', border: '1px solid #e0b4ab', borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16 }}>⚠️</span>
           <span style={{ fontSize: 12, color: '#a93a25', fontWeight: 600, lineHeight: 1.4 }}>
-            {reportableTodo} reportable {reportableTodo === 1 ? 'incident needs' : 'incidents need'} agency notification. Tap “Manage” to record it.
+            {reportableTodo} reportable {reportableTodo === 1 ? 'incident needs' : 'incidents need'} agency notification. {isSup ? 'Tap “Manage” to record it.' : 'Your supervisor needs to record it before the reporting deadline.'}
           </span>
         </div>
       )}

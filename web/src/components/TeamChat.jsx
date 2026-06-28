@@ -144,10 +144,10 @@ export function TeamChat({ user, desktop = false }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--a-bg)' }}>
         <div style={{ padding: '18px 28px 10px', borderBottom: '1px solid var(--a-line)' }}>
           <div className="serif" style={{ fontSize: 22, letterSpacing: '-0.01em', marginBottom: 10 }}>Team chat</div>
-          <ChannelChips />
+          {ChannelChips()}
         </div>
-        <Thread />
-        <Composer />
+        {Thread()}
+        {Composer()}
       </div>
     )
   }
@@ -157,9 +157,9 @@ export function TeamChat({ user, desktop = false }) {
       <div style={{ padding: '14px 22px 8px' }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>Team chat</div>
       </div>
-      <ChannelChips />
-      <Thread />
-      <Composer />
+      {ChannelChips()}
+      {Thread()}
+      {Composer()}
     </div>
   )
 }

@@ -188,6 +188,9 @@ export async function createSwapRequest(req = {}) {
     note: req.note || null, status: 'pending',
   }).select().single()
   if (error) { console.error('createSwapRequest:', error.message); return null }
+  // Flag the shift as 'swap' so the schedule badge actually lights up — managers
+  // need an at-a-glance signal a swap is pending (cleared on approve/deny).
+  if (req.shiftId) await updateShift(req.shiftId, { status: 'swap' })
   return data
 }
 export async function fetchSwapRequests(opts = {}) {
@@ -219,6 +222,9 @@ export async function resolveSwapRequest(id, { approve, by } = {}) {
     // Reassign the shift to the named coworker, or release it to the open pool.
     if (r.to_staff_id || r.to_name) await updateShift(r.shift_id, { staffId: r.to_staff_id, personName: r.to_name, status: 'scheduled', publishedAt: new Date().toISOString() })
     else await updateShift(r.shift_id, { status: 'open', personName: '', staffId: null })
+  } else {
+    // Denied — clear the 'swap' flag so the shift returns to normal scheduled state.
+    await updateShift(r.shift_id, { status: 'scheduled' })
   }
   const { data, error } = await supabase.from('swap_requests')
     .update({ status: approve ? 'approved' : 'denied', resolved_by: by || null, resolved_at: new Date().toISOString() })
