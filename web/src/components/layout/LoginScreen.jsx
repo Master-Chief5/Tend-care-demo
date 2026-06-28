@@ -281,6 +281,14 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
     // until our registration RPC has created the staff/org row.
     onSignupStart?.()
 
+    // Stash the org/home pick so it survives email-confirmation (when there's no
+    // session yet, App replays this on first authenticated load instead of making
+    // the user re-search the org and re-pick their home).
+    const pendingReg = accountType === 'supervisor'
+      ? { kind: 'supervisor', email, name: name.trim(), orgName: orgName.trim(), orgSlug: orgSlug || toSlug(orgName) }
+      : { kind: 'staff', email, name: name.trim(), orgId: selectedOrg.id, houseId: selectedHouse?.id || null }
+    try { localStorage.setItem('tend-pending-reg', JSON.stringify(pendingReg)) } catch { /* ignore */ }
+
     const { data, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
@@ -305,6 +313,8 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
         setError(`Could not set up your profile: ${regError}`)
         return
       }
+      // Registered directly (no email-confirm) — the stash isn't needed.
+      try { localStorage.removeItem('tend-pending-reg') } catch { /* ignore */ }
       setLoading(false)
       const role = data.user?.user_metadata?.role ?? 'staff'
       onLogin({ id: role, name: name.trim(), role, enriched: false })

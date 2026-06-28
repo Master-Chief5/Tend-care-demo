@@ -4,7 +4,7 @@ import { buildWeek, fmtDayLabel, fmtNow, fmtTime, expandRepeatDates } from '../.
 
 const WEEKDAYS = [['Su', 0], ['Mo', 1], ['Tu', 2], ['We', 3], ['Th', 4], ['Fr', 5], ['Sa', 6]]
 import { useNowMinute } from '../../hooks/useNowMinute'
-import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchTimeOffRequests } from '../../lib/db'
+import { fetchShiftsWeek, addShift, updateShift, deleteShift, fetchStaff, fetchTimeOffRequests, fetchSwapRequests, resolveSwapRequest } from '../../lib/db'
 import { approvedLeaveOn, findOverlap } from '../../lib/scheduleSafety'
 import { DTopBar, dBtnGhost, dBtnSolid } from './Desktop'
 import { IconChev, IconKey, IconPlus, IconFilter, IconAlert, IconCheck, IconX } from '../../components/icons'
@@ -639,6 +639,50 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, defaultStaffN
   )
 }
 
+// Desktop swap-request approval — the mobile schedule had approve/deny but the
+// desktop (primary daily-ops surface) only showed a dead "SWAP REQ" badge, so a
+// manager on desktop couldn't action a swap at all. Managers see their house's
+// pending requests; supervisors see all.
+function SwapRequestsBanner({ user, onResolved }) {
+  const [swaps, setSwaps] = useState([])
+  const [busy, setBusy] = useState(false)
+  const isSup = user?.role === 'supervisor'
+  const canManage = isSup || user?.role === 'manager'
+  const houseId = isSup ? null : (user?.houseId || user?.houseSlug || null)
+  const load = () => {
+    if (!user?.orgId || !canManage) { setSwaps([]); return }
+    fetchSwapRequests({ orgId: user.orgId, houseId, status: 'pending' }).then(setSwaps).catch(() => setSwaps([]))
+  }
+  useEffect(() => { load() }, [user?.orgId, user?.houseId, canManage]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!canManage || swaps.length === 0) return null
+  const resolve = async (id, approve) => {
+    if (busy) return
+    setBusy(true)
+    await resolveSwapRequest(id, { approve, by: user?.name || null })
+    setBusy(false); load(); onResolved?.()
+  }
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#b9892f', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>Swap requests · {swaps.length}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+        {swaps.map(sw => (
+          <div key={sw.id} style={{ background: 'var(--a-card)', border: '1px solid #e6d4a8', borderRadius: 12, padding: '11px 14px' }}>
+            <div style={{ fontSize: 13, color: 'var(--a-ink)' }}><strong>{sw.fromName || 'A worker'}</strong> → <strong>{sw.toName || 'open list'}</strong></div>
+            <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>
+              {sw.date || ''}{sw.start != null ? ` · ${sw.start}:00–${sw.end}:00` : ''}{sw.role ? ` · ${sw.role}` : ''}{sw.houseName ? ` · ${sw.houseName}` : ''}
+            </div>
+            {sw.note && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3, fontStyle: 'italic' }}>“{sw.note}”</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+              <button disabled={busy} onClick={() => resolve(sw.id, true)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 12.5, fontWeight: 700, fontFamily: 'Geist', cursor: busy ? 'default' : 'pointer' }}>Approve</button>
+              <button disabled={busy} onClick={() => resolve(sw.id, false)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--a-line)', background: 'transparent', color: 'var(--a-ink2)', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: busy ? 'default' : 'pointer' }}>Deny</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const isSupervisor = user?.role === 'supervisor'
   const isManager = user?.role === 'manager'
@@ -699,6 +743,7 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         </>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
+        <SwapRequestsBanner user={user} onResolved={reload} />
         {view === 'day' && (
           <DayScheduleView week={week} selectedDate={selectedDate} onPickDay={setAnchorDate} {...nav}
             houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={dayShifts} houses={houses} isManager={isManager}

@@ -1641,6 +1641,39 @@ export async function clockOut(punchId, { lat, lng, paidBreakMin, unpaidBreakMin
   return data
 }
 
+// ── Timesheet approvals (persisted payroll sign-off) ────────────────────────
+// Approval used to live in local React state and vanished on refresh. These
+// persist it. They degrade gracefully if the timesheet_approvals table hasn't
+// been created yet (returns []/optimistic) so there's no regression pre-migration.
+export async function fetchTimesheetApprovals(orgId, { houseId = null, periodStart, periodEnd } = {}) {
+  if (isDemoMode || !supabase || !orgId || !periodStart) return []
+  let q = supabase.from('timesheet_approvals').select('*')
+    .eq('org_id', orgId).eq('period_start', periodStart).eq('period_end', periodEnd)
+  if (houseId) q = q.eq('house_id', houseId)
+  const { data, error } = await q
+  if (error) {
+    if (!/relation .*timesheet_approvals.* does not exist/i.test(error.message)) console.error('fetchTimesheetApprovals:', error.message)
+    return []
+  }
+  return data || []
+}
+
+export async function approveTimesheet(orgId, { houseId = null, staffId, periodStart, periodEnd, approvedBy = null, approvedByStaff = null } = {}) {
+  if (isDemoMode) return { ok: true }              // demo: optimistic, no backend
+  if (!supabase || !orgId || !staffId) return null
+  const { data, error } = await supabase.from('timesheet_approvals').upsert({
+    org_id: orgId, house_id: houseId || null, staff_id: staffId,
+    period_start: periodStart, period_end: periodEnd,
+    approved_by: approvedBy, approved_by_staff: approvedByStaff, approved_at: new Date().toISOString(),
+  }, { onConflict: 'org_id,staff_id,period_start,period_end' }).select().single()
+  if (error) {
+    // Table not migrated yet → let the UI keep its optimistic local approval.
+    if (/relation .*timesheet_approvals.* does not exist/i.test(error.message)) return { ok: true, pending: true }
+    console.error('approveTimesheet:', error.message); return null
+  }
+  return data
+}
+
 // The caller's currently-open punch (clock_out_at IS NULL) for this staff, or null.
 export async function fetchActivePunch(orgId, staffId) {
   if (isDemoMode) return demo.demoFetchActivePunch(orgId, staffId)

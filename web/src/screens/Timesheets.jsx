@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   fetchClockedInNow, fetchPunches, fetchShifts,
   requestShiftEdit, fetchShiftEditRequests, reviewShiftEditRequest,
+  fetchTimesheetApprovals, approveTimesheet,
 } from '../lib/db'
 import {
   fmtHM, periodRange, shiftPrevPeriod, shiftNextPeriod,
@@ -158,12 +159,39 @@ function WhoseIn({ orgId, houseId }) {
 
 // Period grid shared by admin "Timesheets" and staff "My timesheet". When
 // `singleStaff` is true the Approve button is hidden.
-function PeriodGrid({ orgId, houseId, staffId, singleStaff }) {
+function PeriodGrid({ orgId, houseId, staffId, singleStaff, user }) {
   const [range, setRange] = useState(() => periodRange(new Date()))
   const [punches, setPunches] = useState([])
   const [shifts, setShifts] = useState([])
   const [loading, setLoading] = useState(true)
   const [approved, setApproved] = useState({})
+
+  // Load any persisted approvals for this period so a refresh keeps the sign-off.
+  useEffect(() => {
+    if (singleStaff || !orgId || !range?.start) return
+    let stop = false
+    fetchTimesheetApprovals(orgId, { houseId, periodStart: range.start, periodEnd: range.end })
+      .then(rows => {
+        if (stop) return
+        const map = {}
+        for (const r of rows) map[r.staff_id] = { by: r.approved_by, at: r.approved_at }
+        setApproved(map)
+      })
+      .catch(() => {})
+    return () => { stop = true }
+  }, [orgId, houseId, singleStaff, range?.start, range?.end])
+
+  const doApprove = async (row, i) => {
+    const sid = row?.staffId || row?.staff_id
+    const key = sid || row?.name || i
+    setApproved(a => ({ ...a, [key]: { by: user?.name || 'You', at: new Date().toISOString() } }))  // optimistic
+    if (sid) {
+      await approveTimesheet(orgId, {
+        houseId, staffId: sid, periodStart: range.start, periodEnd: range.end,
+        approvedBy: user?.name || null, approvedByStaff: user?.staffId || null,
+      })
+    }
+  }
 
   useEffect(() => {
     if (!orgId || !range) { setLoading(false); return }
@@ -237,8 +265,8 @@ function PeriodGrid({ orgId, houseId, staffId, singleStaff }) {
       {!loading && staffRows.map((row, i) => (
         <StaffSheetCard key={row?.staffId || row?.staff_id || row?.name || i}
           row={row} singleStaff={singleStaff}
-          approved={!!approved[row?.staffId || row?.staff_id || i]}
-          onApprove={() => setApproved(a => ({ ...a, [row?.staffId || row?.staff_id || i]: true }))} />
+          approved={!!approved[row?.staffId || row?.staff_id || row?.name || i]}
+          onApprove={() => doApprove(row, i)} />
       ))}
     </div>
   )
@@ -537,7 +565,7 @@ export function ScreenA_Timesheets({ user, desktop = false, houses = [] }) {
     if (tab === 'Time off') return <TimeOffPanel user={user} desktop={desktop} />
     if (isAdmin) {
       if (tab === 'Who’s in') return <WhoseIn orgId={orgId} houseId={scopeHouse} />
-      if (tab === 'Timesheets') return <PeriodGrid orgId={orgId} houseId={scopeHouse} staffId={staffId} singleStaff={false} />
+      if (tab === 'Timesheets') return <PeriodGrid orgId={orgId} houseId={scopeHouse} staffId={staffId} singleStaff={false} user={user} />
       return <AdminRequests orgId={orgId} houseId={scopeHouse} user={user} />
     }
     if (tab === 'My timesheet') return <PeriodGrid orgId={orgId} houseId={null} staffId={staffId} singleStaff={true} />

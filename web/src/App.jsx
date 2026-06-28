@@ -27,6 +27,25 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 //   • fetch error/timeout  → retry a few times, then flag profileError so the
 //     app shows a "couldn't load your account" retry screen — NOT the org-setup
 //     screen, which used to confusingly appear on any transient DB hiccup.
+// A signup with email-confirmation ON has no session at submit time, so the org/
+// home the user picked can't be registered yet. We stash it under this key and
+// replay it on the first authenticated load that still has no staff row.
+const PENDING_REG_KEY = 'tend-pending-reg'
+async function applyPendingRegistration(session) {
+  try {
+    const raw = localStorage.getItem(PENDING_REG_KEY)
+    if (!raw) return false
+    const p = JSON.parse(raw)
+    const email = (session?.user?.email || '').toLowerCase()
+    if (!p?.email || p.email.toLowerCase() !== email) return false
+    const res = p.kind === 'supervisor'
+      ? await createOrgAndSupervisor(p.orgName, p.orgSlug, p.name)
+      : await registerAsStaff(p.orgId, p.name, p.houseId || null)
+    if (!res?.error) { try { localStorage.removeItem(PENDING_REG_KEY) } catch { /* ignore */ } return true }
+    return false
+  } catch { return false }
+}
+
 async function enrichUser(session, setUser, seq, seqRef) {
   const apply = (updater) => { if (seqRef.current === seq) setUser(updater) }
   if (!supabase || !session?.user) { apply(prev => prev ? { ...prev, enriched: true } : null); return }
@@ -38,7 +57,19 @@ async function enrichUser(session, setUser, seq, seqRef) {
         const r = profile.role || quickUser(session).role
         apply(prev => prev ? { ...prev, ...profile, id: r, role: r, name: profile.name || prev.name, enriched: true, profileError: false } : null)
       } else {
-        // Authenticated but no staff row yet — a real "needs setup" state.
+        // No staff row yet. It may be an email-confirm signup whose org/home pick
+        // we stashed before the confirmation round-trip — replay it, then re-fetch
+        // so the user lands in the app instead of re-doing setup from scratch.
+        const replayed = await applyPendingRegistration(session)
+        if (replayed) {
+          const p2 = await fetchStaffProfile(session.user.id, session.user.email)
+          if (p2) {
+            const r2 = p2.role || quickUser(session).role
+            apply(prev => prev ? { ...prev, ...p2, id: r2, role: r2, name: p2.name || prev.name, enriched: true, profileError: false } : null)
+            return
+          }
+        }
+        // Genuinely no profile — a real "needs setup" state.
         apply(prev => prev ? { ...prev, enriched: true, profileError: false } : null)
       }
       return
