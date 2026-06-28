@@ -278,15 +278,16 @@ export async function createNotification(orgId, n = {}) {
   }
   return data
 }
-export async function fetchNotifications(orgId, { limit = 30 } = {}) {
-  if (isDemoMode) return demo.demoFetchNotifications(orgId)
+export async function fetchNotifications(orgId, { limit = 30, user = null } = {}) {
+  if (isDemoMode) return demo.demoFetchNotifications(orgId, user)
   if (!supabase || !orgId) return []
+  // Real mode: RLS already scopes rows to the recipient; user is only needed by demo.
   const { data, error } = await supabase.from('notifications').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(limit)
   if (error) { if (!/relation .*notifications.* does not exist/i.test(error.message)) console.error('fetchNotifications:', error.message); return [] }
   return data || []
 }
-export async function countUnreadNotifications(orgId) {
-  if (isDemoMode) return demo.demoCountUnreadNotifications(orgId)
+export async function countUnreadNotifications(orgId, user = null) {
+  if (isDemoMode) return demo.demoCountUnreadNotifications(orgId, user)
   if (!supabase || !orgId) return 0
   const { count, error } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('org_id', orgId).is('read_at', null)
   if (error) return 0
@@ -695,12 +696,35 @@ export async function pingTrip(id, coords) {
   if (error) console.error('pingTrip:', error.message)
 }
 
+// Great-circle distance in miles between two lat/lng points (null if any missing).
+function haversineMiles(aLat, aLng, bLat, bLng) {
+  if ([aLat, aLng, bLat, bLng].some(v => v == null)) return null
+  const R = 3958.8, toRad = d => (d * Math.PI) / 180
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng)
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
+// Estimate driven miles for a trip from its captured GPS (start → best end point).
+// Live trips used to record 0 miles because distance was never computed, so
+// mileage rollups and reimbursement were always zero. Road distance ≈ straight
+// line × 1.3. Returns null when there isn't enough GPS to estimate.
+async function estimateTripMiles(id, endLat, endLng) {
+  const { data: t } = await supabase.from('trips').select('start_lat,start_lng,cur_lat,cur_lng,dest_lat,dest_lng').eq('id', id).single()
+  if (!t) return null
+  const eLat = endLat ?? t.cur_lat ?? t.dest_lat
+  const eLng = endLng ?? t.cur_lng ?? t.dest_lng
+  const d = haversineMiles(t.start_lat, t.start_lng, eLat, eLng)
+  return (d != null && d > 0) ? Math.round(d * 1.3 * 10) / 10 : null
+}
+
 // Auto-arrival: worker reached the destination — end the trip + stamp arrival.
 export async function markArrived(id, coords) {
   if (isDemoMode) return demo.demoMarkArrived(id, coords)
   if (!supabase || !id) return null
   const upd = { status: 'ended', ended_at: new Date().toISOString(), arrived_at: new Date().toISOString() }
   if (coords?.lat != null) { upd.end_lat = coords.lat; upd.end_lng = coords.lng; upd.cur_lat = coords.lat; upd.cur_lng = coords.lng }
+  const miles = await estimateTripMiles(id, coords?.lat ?? null, coords?.lng ?? null)
+  if (miles != null) upd.miles = miles
   const { data, error } = await supabase.from('trips').update(upd).eq('id', id).select('*, houses(slug, name, color, short)').single()
   if (error) { console.error('markArrived:', error.message); return null }
   return data
@@ -711,9 +735,11 @@ export async function endTrip(id, patch = {}) {
   if (isDemoMode) return demo.demoEndTrip(id, patch)
   if (!supabase || !id) return null
   const upd = { status: 'ended', ended_at: new Date().toISOString() }
-  if (patch.miles != null) upd.miles = patch.miles
   if (patch.lat != null) upd.end_lat = patch.lat
   if (patch.lng != null) upd.end_lng = patch.lng
+  // Use the provided mileage, else estimate it from the trip's GPS track.
+  upd.miles = patch.miles != null ? patch.miles : (await estimateTripMiles(id, patch.lat ?? null, patch.lng ?? null))
+  if (upd.miles == null) delete upd.miles
   const { data, error } = await supabase.from('trips').update(upd).eq('id', id).select('*, houses(slug, name, color, short)').single()
   if (error) { console.error('endTrip:', error.message); return null }
   return data

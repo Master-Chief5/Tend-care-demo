@@ -456,8 +456,20 @@ export function demoCreateNotification(orgId, n = {}) {
   }
   store.notifications.unshift(row); persist(); return row
 }
-export function demoFetchNotifications() { return (store.notifications || []).slice(0, 30) }
-export function demoCountUnreadNotifications() { return (store.notifications || []).filter(n => !n.read_at).length }
+// Mirror the notifications RLS so a DSP doesn't see manager-only rows in demo.
+function demoNotifVisible(n, user) {
+  if (!user) return true
+  const role = user.role, staffId = user.staffId, houseId = user.houseId || user.houseSlug
+  if (n.recipient_staff_id) return n.recipient_staff_id === staffId
+  if (n.recipient_role && n.recipient_role !== role) return false
+  return role === 'supervisor' || n.house_id == null || n.house_id === houseId
+}
+export function demoFetchNotifications(orgId, user) {
+  return (store.notifications || []).filter(n => demoNotifVisible(n, user)).slice(0, 30)
+}
+export function demoCountUnreadNotifications(orgId, user) {
+  return (store.notifications || []).filter(n => !n.read_at && demoNotifVisible(n, user)).length
+}
 export function demoMarkNotificationRead(id) { const n = (store.notifications || []).find(x => x.id === id); if (n) { n.read_at = now(); persist() } }
 export function demoMarkAllNotificationsRead() { (store.notifications || []).forEach(n => { if (!n.read_at) n.read_at = now() }); persist() }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ROLES } from '../../data/constants'
 import { isDemoMode } from '../../lib/supabase'
+import { NotificationBell } from '../NotificationBell'
 import { fetchHouses } from '../../lib/db'
 import { ScreenA_Houses } from '../../screens/Houses'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
@@ -325,6 +326,7 @@ export function MobileShell({ user, onLogout }) {
       '--chip-clear': isDemoMode ? '116px' : '0px',
     }}>
       <GeoStatusBanner />
+      <NotificationBell user={effUser} style={{ position: 'fixed', top: 9, right: 'calc(var(--chip-clear) + 10px)', zIndex: 340 }} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}

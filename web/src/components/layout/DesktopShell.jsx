@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ROLES } from '../../data/constants'
 import { isDemoMode } from '../../lib/supabase'
 import { fetchHouses } from '../../lib/db'
+import { NotificationBell } from '../NotificationBell'
 import { ScreenA_HouseDetail } from '../../screens/HouseDetail'
 import { ScreenA_MyDay } from '../../screens/Employee'
 import { ScreenA_Resources } from '../../screens/Resources'
@@ -151,7 +152,10 @@ function DesktopRail({ tab, setTab, user, onLogout, houses, counts = {} }) {
 
   return (
     <div style={{ width: 240, background: 'var(--a-paper)', borderRight: '1px solid var(--a-line)', display: 'flex', flexDirection: 'column', padding: '20px 16px', flexShrink: 0, height: '100dvh', overflow: 'auto' }}>
-      <TendLogo size={16} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TendLogo size={16} />
+        <NotificationBell user={user} />
+      </div>
       <div style={{ marginTop: 22 }}>
         {groups.map((g, i) => (
           <div key={g.id} style={{ marginBottom: i < groups.length - 1 ? 18 : 0 }}>
