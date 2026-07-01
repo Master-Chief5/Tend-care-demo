@@ -53,7 +53,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
   const staffHouseSlug = user.houseSlug || houses.find(h => h._uuid === user.houseId)?.id || null
   if (role === 'staff') {
     switch (tab) {
-      case 'home':  return <ScreenA_MyDay user={user} onReportIncident={staffHouseSlug && onOpenHouseSection ? () => onOpenHouseSection(staffHouseSlug, 'compliance', true) : undefined} />
+      case 'home':  return <ScreenA_MyDay user={user} onReportIncident={staffHouseSlug && onOpenHouseSection ? (openReport = true) => onOpenHouseSection(staffHouseSlug, 'compliance', openReport) : undefined} />
       case 'care':  return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} scopeHouseId={staffHouseUuid} />
       case 'house': return <ScreenA_HouseDetail houseId={user.houseSlug} user={user} onBack={() => switchTab('home')} houses={houses} />
       case 'sched': return <ScreenA_ScheduleDay user={user} employee houses={houses} />
@@ -75,7 +75,7 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     }
   }
   switch (tab) {
-    case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} onReportIncident={onOpenHouseSection ? () => onOpenHouseSection(staffHouseSlug || houses[0]?.id, 'compliance', true) : undefined} />
+    case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} onReportIncident={onOpenHouseSection ? (openReport = true) => onOpenHouseSection(staffHouseSlug || houses[0]?.id, 'compliance', openReport) : undefined} />
     // A house manager is scoped to their own house's residents (like staff);
     // only the org-wide supervisor sees every resident.
     case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} scopeHouseId={role === 'manager' ? staffHouseUuid : undefined} />
@@ -356,7 +356,7 @@ export function MobileShell({ user, onLogout }) {
   const screen = residentDetail
     ? <ResidentProfile resident={residentDetail} user={effUser} houses={houses} onBack={() => setResidentDetail(null)} />
     : houseDetail
-    ? <ScreenA_HouseDetail houseId={hdId} initialSection={hdSection} autoOpenReport={hdAutoReport} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
+    ? <ScreenA_HouseDetail key={`${hdId}:${hdSection || ''}`} houseId={hdId} initialSection={hdSection} autoOpenReport={hdAutoReport} user={effUser} onBack={() => setHouseDetail(null)} houses={houses} />
     : pickScreen(role, tab, effUser, setHouseDetail, switchTab, onLogout, houses, refreshHouses, addHouseToState, setResidentDetail, openHouseSection)
 
   return (

@@ -197,7 +197,9 @@ function Card({ children }) {
 export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick, onReportIncident }) {
   // Log-incident affordance: open the report form when wired, else fall back
   // to the (read-only) Activity feed so the action never dead-ends.
-  const reportIncident = () => (onReportIncident ? onReportIncident() : onNavigate?.('activity'))
+  // openReport=true opens the blank report editor ("Log incident"); false opens
+  // the incidents list ("Incidents & alerts" glance tile — it shows what needs review).
+  const reportIncident = (openReport = true) => (onReportIncident ? onReportIncident(openReport) : onNavigate?.('activity'))
   const [snap, setSnap] = useState({ stats: {}, alerts: {}, shifts: [] })
   const [loading, setLoading] = useState(true)
   const [overdueTasks, setOverdueTasks] = useState(0)
@@ -373,7 +375,7 @@ export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick, onRe
               label="Incidents & alerts"
               sub={incidentRows.length > 0 ? `${incidentRows.length} need${incidentRows.length === 1 ? 's' : ''} review` : 'none open'}
               subTone={incidentRows.length > 0 ? 'bad' : undefined}
-              onClick={reportIncident}
+              onClick={() => reportIncident(false)}
             />
             <GlanceTile
               icon={IconClock} tone="good"
@@ -427,7 +429,7 @@ export function ScreenA_Home({ user, houses = [], onNavigate, onHouseClick, onRe
           <SectionHeader label="Quick actions" />
           <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             <QuickAction icon={IconPeople} label="Fill shift" onClick={() => onNavigate?.('sched')} />
-            <QuickAction icon={IconFlag} label="Log incident" onClick={reportIncident} />
+            <QuickAction icon={IconFlag} label="Log incident" onClick={() => reportIncident(true)} />
             <QuickAction icon={IconChat} label="Message" onClick={() => onNavigate?.('team')} />
             <QuickAction icon={IconMegaphone} label="Post update" onClick={() => onNavigate?.('updates')} />
           </div>

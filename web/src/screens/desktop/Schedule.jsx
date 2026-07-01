@@ -154,10 +154,10 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
       {shift.note && height > 64 && (
         <div style={{ fontSize: 10.5, opacity: open ? 0.85 : 0.82, marginTop: 4, lineHeight: 1.3, fontStyle: 'italic', overflow: 'hidden' }}>“{shift.note}”</div>
       )}
-      {((late && lateMin != null) || swap || here || open) && (
+      {(late || swap || here || open) && (
         <div style={{ marginTop: 'auto', paddingTop: 6, display: 'flex', gap: 4 }}>
           {here && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff', display: 'inline-block' }} /> CLOCKED IN</span>}
-          {late && lateMin != null && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>LATE · {lateMin}m</span>}
+          {late && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>LATE{lateMin != null ? ` · ${lateMin}m` : ''}</span>}
           {swap && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>SWAP REQ</span>}
           {open && <span style={{ fontSize: 9, fontWeight: 700, color: houseColor, background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>NEEDS FILL</span>}
         </div>

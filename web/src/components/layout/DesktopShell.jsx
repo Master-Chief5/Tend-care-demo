@@ -93,7 +93,7 @@ function DesktopPage({ tab, onHouseClick, user, houses, refreshHouses, onNavigat
   if (tab === 'today')       return <PageTodayDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'profile')     return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 480, margin: '0 auto' }}><ScreenA_Me user={user} onLogout={onLogout} onNavigate={(t) => onNavigate(t === 'sched' ? 'schedule' : t === 'drive' ? 'driving' : t)} /></div></div>
   if (tab === 'myday')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 480, margin: '0 auto' }}><ScreenA_MyDay user={user} /></div></div>
-  if (tab === 'care')        return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 760, margin: '0 auto' }}><ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} /></div></div>
+  if (tab === 'care')        return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 760, margin: '0 auto' }}><ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} scopeHouseId={user.role === 'manager' ? (user.houseId || null) : undefined} /></div></div>
   if (tab === 'houses')      return <PageHousesDesktop onHouseClick={onHouseClick} user={user} houses={houses} onNavigate={onNavigate} />
   if (tab === 'setup')       return <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}><div style={{ maxWidth: 600, margin: '0 auto' }}><ScreenA_HouseSetup user={user} onHousesChanged={refreshHouses} /></div></div>
   if (tab === 'schedule')    return <PageScheduleDesktopExpanded user={user} houses={houses} />
@@ -357,7 +357,7 @@ export function DesktopShell({ user, onLogout }) {
           onClick={(e) => { if (e.target === e.currentTarget) setHouseDetail(null) }}
         >
           <div role="dialog" aria-modal="true" aria-label="House detail" style={{ width: 420, background: 'var(--a-bg)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', marginBottom: 40 }}>
-            <ScreenA_HouseDetail houseId={typeof houseDetail === 'object' ? houseDetail.id : houseDetail} initialSection={typeof houseDetail === 'object' ? houseDetail.section : undefined} user={effUser} onBack={() => setHouseDetail(null)} houses={visibleHouses} />
+            <ScreenA_HouseDetail key={`${typeof houseDetail === 'object' ? houseDetail.id : houseDetail}:${typeof houseDetail === 'object' ? (houseDetail.section || '') : ''}`} houseId={typeof houseDetail === 'object' ? houseDetail.id : houseDetail} initialSection={typeof houseDetail === 'object' ? houseDetail.section : undefined} user={effUser} onBack={() => setHouseDetail(null)} houses={visibleHouses} />
           </div>
         </div>
       )}

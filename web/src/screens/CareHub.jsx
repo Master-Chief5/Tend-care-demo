@@ -160,7 +160,9 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
     if (!user?.orgId) { setAlerts({}); setOverdueTasks(0); setPrioLoading(false); return }
     let cancelled = false
     setPrioLoading(true)
-    const houseScope = scopeHouseId ? (houses.find(h => h._uuid === scopeHouseId)?.id || null) : null
+    // scopeHouseId is the house UUID; countOverdueQuickTasks filters the house_id
+    // (uuid) column, so pass it straight through — resolving to the slug returned 0.
+    const houseScope = scopeHouseId || null
     Promise.all([
       fetchHouseAlerts(user.orgId),
       countOverdueQuickTasks(user.orgId, { houseId: houseScope }),
@@ -237,7 +239,7 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
           out.push({ key: `${a.kind}-${h.id}-${a.text}`, tone: 'info', Icon: IconActivity,
             title: multi ? `${a.kind === 'drive' ? 'Transport' : 'Appointment'} — ${h.name}`
               : (a.kind === 'drive' ? 'Transport scheduled' : 'Upcoming appointment'),
-            sub: a.text, meta: a.kind === 'drive' ? 'Drive' : 'Appt', onClick: open(h.id, 'health') })
+            sub: a.text, meta: a.kind === 'drive' ? 'Drive' : 'Appt', onClick: open(h.id, 'appts') })
     return out
   }, [scopedHouses, multi, alerts, overdueTasks, targetHouse, onOpenHouseSection])
   const shownPriorities = priorities.slice(0, 6)
