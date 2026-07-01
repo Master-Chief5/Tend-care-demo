@@ -75,8 +75,10 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
     }
   }
   switch (tab) {
-    case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} />
-    case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} />
+    case 'home':   return <ScreenA_Home user={user} houses={houses} onNavigate={switchTab} onHouseClick={onHouseClick} onReportIncident={onOpenHouseSection ? () => onOpenHouseSection(staffHouseSlug || houses[0]?.id, 'compliance', true) : undefined} />
+    // A house manager is scoped to their own house's residents (like staff);
+    // only the org-wide supervisor sees every resident.
+    case 'care':   return <ScreenA_CareHub user={user} houses={houses} onOpenResident={onOpenResident} onOpenHouseSection={onOpenHouseSection} scopeHouseId={role === 'manager' ? staffHouseUuid : undefined} />
     case 'houses': return <ScreenA_Houses user={user} houses={houses} onHouseClick={onHouseClick} onTeamChat={() => switchTab('team')} onAddHouse={() => switchTab('setup')} />
     case 'setup':  return <ScreenA_HouseSetup user={user} onHouseAdded={addHouseToState} onHousesChanged={refreshHouses} />
     case 'sched':  return <ScreenA_ScheduleDay user={user} houses={houses} />
@@ -109,59 +111,100 @@ function pickScreen(role, tab, user, onHouseClick, switchTab, onLogout, houses, 
 function MoreMenu({ onNavigate, role = 'supervisor' }) {
   const isStaff = role === 'staff'
   const isSupervisor = role === 'supervisor'
-  const items = [
-    // Staff get a direct entry to their assigned home (the 'house' screen is
-    // otherwise unreachable from the mobile tab bar).
-    ...(isStaff ? [
-      { id: 'house', label: 'My house', icon: IconHome, sub: 'Your assigned home' },
-    ] : []),
-    { id: 'updates',  label: 'Updates',  icon: IconMegaphone, sub: 'Announcements & shoutouts' },
-    { id: 'team',     label: 'Team',     icon: IconChat,      sub: 'Messages & house channels' },
-    { id: 'drive',    label: 'Transport', icon: IconCar,      sub: 'Trips, mileage & vehicles' },
-    { id: 'supply',   label: 'Supplies', icon: IconCart,      sub: 'House inventory & shopping' },
-    // Supervisor/manager-only operational views.
-    ...(!isStaff ? [
-      { id: 'houses',   label: 'Houses',   icon: IconHome,     sub: 'Every house at a glance' },
-      { id: 'activity', label: 'Activity', icon: IconActivity, sub: 'Live map & on-shift status' },
-      { id: 'compliance', label: 'Compliance', icon: IconCheck, sub: 'Certifications & license expiry' },
-    ] : []),
-    ...(isSupervisor ? [
-      { id: 'staff',    label: 'Staff',    icon: IconPeople,   sub: 'Roster, roles & certifications' },
-      { id: 'setup',    label: 'Add house', icon: IconHome,    sub: 'Create & configure a house' },
-      { id: 'orientation', label: 'Orientation', icon: IconBook, sub: 'New-hire onboarding' },
-    ] : []),
-    { id: 'handbook', label: 'Handbook', icon: IconBook, sub: 'Policies, SOPs & house binders' },
-    { id: 'events',   label: 'Events',   icon: IconStar, sub: 'Trainings & house meetings' },
-    { id: 'forms',    label: 'Forms',    icon: IconClipboard, sub: 'Checklists, audits & walkthroughs' },
-    { id: 'surveys',  label: 'Surveys',  icon: IconChart, sub: 'Staff pulse & training feedback' },
-    { id: 'courses',  label: 'Training', icon: IconAward, sub: 'Courses & completion tracking' },
-    { id: 'tasks',    label: 'Tasks',    icon: IconCheck, sub: 'Assignable one-off tasks' },
-    { id: 'directory', label: 'Directory', icon: IconPhone, sub: 'Pharmacy, physicians & contacts' },
-    { id: 'helpdesk', label: 'Help Desk', icon: IconHelp, sub: 'HR, payroll, IT & maintenance' },
-    { id: 'me',       label: 'Me',       icon: IconPeople, sub: 'Profile, on-duty & sign out' },
-  ]
+  // Grouped like the desktop rail (Overview / Care / Org) so the long list is
+  // scannable instead of a flat ~17-item wall; each section is a collapsible
+  // dropdown. Every routing target from the old flat list is preserved.
+  const groups = [
+    { id: 'overview', label: 'Overview', items: [
+      ...(!isStaff ? [
+        { id: 'houses',   label: 'Houses',   icon: IconHome,     sub: 'Every house at a glance' },
+        { id: 'activity', label: 'Activity', icon: IconActivity, sub: 'Live map & on-shift status' },
+      ] : []),
+      { id: 'updates',  label: 'Updates',  icon: IconMegaphone, sub: 'Announcements & shoutouts' },
+      { id: 'team',     label: 'Team',     icon: IconChat,      sub: 'Messages & house channels' },
+    ] },
+    { id: 'care', label: 'Care', items: [
+      ...(!isStaff ? [
+        { id: 'compliance', label: 'Compliance', icon: IconCheck, sub: 'Certifications & license expiry' },
+      ] : []),
+      { id: 'drive',    label: 'Transport', icon: IconCar,      sub: 'Trips, mileage & vehicles' },
+      { id: 'supply',   label: 'Supplies', icon: IconCart,      sub: 'House inventory & shopping' },
+      { id: 'directory', label: 'Directory', icon: IconPhone,   sub: 'Pharmacy, physicians & contacts' },
+      { id: 'handbook', label: 'Handbook', icon: IconBook,      sub: 'Policies, SOPs & house binders' },
+    ] },
+    { id: 'org', label: 'Org', items: [
+      ...(isSupervisor ? [
+        { id: 'staff',    label: 'Staff',    icon: IconPeople,  sub: 'Roster, roles & certifications' },
+        { id: 'setup',    label: 'Add house', icon: IconHome,   sub: 'Create & configure a house' },
+        { id: 'orientation', label: 'Orientation', icon: IconBook, sub: 'New-hire onboarding' },
+      ] : []),
+      { id: 'events',   label: 'Events',   icon: IconStar,      sub: 'Trainings & house meetings' },
+      { id: 'forms',    label: 'Forms',    icon: IconClipboard, sub: 'Checklists, audits & walkthroughs' },
+      { id: 'surveys',  label: 'Surveys',  icon: IconChart,     sub: 'Staff pulse & training feedback' },
+      { id: 'courses',  label: 'Training', icon: IconAward,     sub: 'Courses & completion tracking' },
+      { id: 'tasks',    label: 'Tasks',    icon: IconCheck,     sub: 'Assignable one-off tasks' },
+      { id: 'helpdesk', label: 'Help Desk', icon: IconHelp,     sub: 'HR, payroll, IT & maintenance' },
+      { id: 'me',       label: 'Me',       icon: IconPeople,    sub: 'Profile, on-duty & sign out' },
+    ] },
+  ].map(g => ({ ...g, items: g.items.filter(Boolean) })).filter(g => g.items.length > 0)
+
+  const [collapsed, setCollapsed] = useState({})
+  const toggleGroup = (id) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
+
+  const rowStyle = {
+    display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+    background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12,
+    padding: '14px 16px', marginBottom: 10, cursor: 'pointer', fontFamily: 'Geist',
+  }
+
   return (
     <div className="phone-screen" style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 22px 8px' }}>
         <div className="serif" style={{ fontSize: 30, letterSpacing: '-0.02em' }}>More</div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 22px 24px' }}>
-        {items.map(it => (
-          <button key={it.id} onClick={() => onNavigate(it.id)} style={{
-            display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-            background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12,
-            padding: '14px 16px', marginBottom: 10, cursor: 'pointer', fontFamily: 'Geist',
-          }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--a-paper)', border: '1px solid var(--a-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <it.icon size={18} color="var(--a-ink2)" />
+        {/* Staff: surface the assigned home as a prominent top shortcut rather
+            than burying it as a row inside the list. */}
+        {isStaff && (
+          <button onClick={() => onNavigate('house')} style={{ ...rowStyle, background: 'var(--a-sage)', border: '1px solid var(--a-sage)', marginBottom: 16 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconHome size={18} color="#fff" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--a-ink)' }}>{it.label}</div>
-              <div style={{ fontSize: 12, color: 'var(--a-ink3)' }}>{it.sub}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>My house</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>Your assigned home</div>
             </div>
-            <IconChev size={16} color="var(--a-ink3)" />
+            <IconChev size={16} color="#fff" />
           </button>
-        ))}
+        )}
+        {groups.map(g => {
+          const isOpen = !collapsed[g.id]
+          return (
+            <div key={g.id} style={{ marginBottom: 12 }}>
+              <button onClick={() => toggleGroup(g.id)} aria-expanded={isOpen} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+                background: 'transparent', border: 0, padding: '4px 4px 8px', cursor: 'pointer', fontFamily: 'Geist',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--a-ink3)' }}>{g.label}</span>
+                <span style={{ display: 'inline-flex', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <IconChev size={15} color="var(--a-ink3)" />
+                </span>
+              </button>
+              {isOpen && g.items.map(it => (
+                <button key={it.id} onClick={() => onNavigate(it.id)} style={rowStyle}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--a-paper)', border: '1px solid var(--a-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <it.icon size={18} color="var(--a-ink2)" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--a-ink)' }}>{it.label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--a-ink3)' }}>{it.sub}</div>
+                  </div>
+                  <IconChev size={16} color="var(--a-ink3)" />
+                </button>
+              ))}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -326,7 +369,16 @@ export function MobileShell({ user, onLogout }) {
       '--chip-clear': isDemoMode ? '116px' : '0px',
     }}>
       <GeoStatusBanner />
-      <NotificationBell user={effUser} style={{ position: 'fixed', top: 9, right: 'calc(var(--chip-clear) + 10px)', zIndex: 340 }} />
+      <NotificationBell user={effUser} onOpen={(n) => {
+        // Deep-link from a notification: schedule items jump to the Schedule tab;
+        // compliance items open the user's house Compliance section via the same
+        // openHouseSection path the DSP "Report incident" flow uses.
+        if (n?.link === 'schedule') { switchTab('sched'); return }
+        if (n?.link === 'compliance') {
+          const slug = effUser.houseSlug || houses.find(h => h._uuid === effUser.houseId)?.id || houses[0]?.id
+          if (slug) openHouseSection(slug, 'compliance', false)
+        }
+      }} style={{ position: 'fixed', top: 9, right: 'calc(var(--chip-clear) + 10px)', zIndex: 340 }} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
         {screen}
         {isDemoMode && <RoleSwitcher role={role} setRole={handleRoleChange} open={showRoleSwitcher} setOpen={setShowRoleSwitcher} />}

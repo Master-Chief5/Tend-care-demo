@@ -1163,6 +1163,18 @@ export async function deleteDailyLog(id) {
   if (isDemoMode) return demo.demoDeleteDailyLog(id)
   if (supabase) await supabase.from('daily_log').delete().eq('id', id)
 }
+// Edit a daily-log entry (category/text/resident). Returns the updated row or null.
+export async function updateDailyLog(id, updates = {}) {
+  if (isDemoMode) return demo.demoUpdateDailyLog(id, updates)
+  if (!supabase || !id) return null
+  const patch = {}
+  if (updates.category !== undefined) patch.category = updates.category
+  if (updates.text !== undefined) patch.body = updates.text
+  if (updates.residentId !== undefined) patch.resident_id = updates.residentId || null
+  const { data, error } = await supabase.from('daily_log').update(patch).eq('id', id).select('*, residents(name)').single()
+  if (error) { console.error('updateDailyLog:', error.message); return null }
+  return data
+}
 
 // ── ISP goals + daily goal data ─────────────────────────────────────────────
 export async function fetchGoals(orgId, houseId) {
@@ -1644,6 +1656,16 @@ export async function sendMessage(orgId, msg) {
 
 // Search organizations by name or slug — callable before the user is authenticated
 // (uses the search_organizations SECURITY DEFINER function which grants anon access).
+// Send a password-reset email so a locked-out user can recover (no self-service
+// path existed). Returns { error } so the UI can confirm or surface the reason.
+export async function resetPassword(email) {
+  if (!supabase || !email) return { error: 'Email required' }
+  const redirectTo = (typeof window !== 'undefined') ? `${window.location.origin}` : undefined
+  const { error } = await supabase.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined)
+  if (error) { console.error('resetPassword:', error.message); return { error: error.message } }
+  return { error: null }
+}
+
 export async function searchOrganizations(query) {
   if (!supabase || !query.trim()) return []
   const { data, error } = await supabase.rpc('search_organizations', { query: query.trim() })

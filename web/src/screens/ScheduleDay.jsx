@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { buildWeek, fmtDayLabel, fmtNow, fmtHour, fmtTime, expandRepeatDates } from '../lib/utils'
 import { summarizeWeek, fmtHrs } from '../lib/scheduleSummary'
 
@@ -33,6 +33,23 @@ import { SuggestInput } from '../components/SuggestInput'
 const HOUR_PX = 56
 const DAY_START = 0
 const DAY_END = 24
+const WINDOW_START = 6   // default first hour shown (6am)
+const WINDOW_END = 23    // default last hour shown (11pm)
+
+// Vertical window for the day grid: default ~6am–11pm so it isn't a wall of
+// empty midnight hours, but widened to include any shift that starts earlier or
+// ends later. Overnight shifts (end<=start) are treated as running to midnight
+// so their block stays visible.
+function dayWindow(shifts = []) {
+  let start = WINDOW_START, end = WINDOW_END
+  for (const s of shifts) {
+    const sStart = Math.floor(Number(s.start) || 0)
+    const sEnd = (Number(s.end) > Number(s.start)) ? Math.ceil(Number(s.end)) : 24
+    if (sStart < start) start = sStart
+    if (sEnd > end) end = sEnd
+  }
+  return [Math.max(0, start), Math.min(24, end)]
+}
 
 function ViewToggle({ view, setView }) {
   return (
@@ -125,9 +142,9 @@ function layoutShifts(items) {
   return out
 }
 
-function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
+function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false, dayStart = DAY_START }) {
   const { start, end, person, role, status } = shift
-  const top = (start - DAY_START) * HOUR_PX
+  const top = (start - dayStart) * HOUR_PX
   const height = (end - start) * HOUR_PX
   const open = status === 'open'
   const late = status === 'late'
@@ -163,10 +180,10 @@ function ShiftBlock({ shift, houseColor, expanded, onClick, mine = false }) {
   )
 }
 
-function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick, isMine }) {
+function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick, isMine, dayStart = DAY_START, dayEnd = DAY_END }) {
   const hours = []
-  for (let h = DAY_START; h <= DAY_END; h++) hours.push(h)
-  const nowTop = (nowFrac - DAY_START) * HOUR_PX
+  for (let h = dayStart; h <= dayEnd; h++) hours.push(h)
+  const nowTop = (nowFrac - dayStart) * HOUR_PX
   const single = houses.length === 1
   return (
     <div style={{ position: 'relative', display: 'flex', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, overflow: 'hidden' }}>
@@ -186,7 +203,7 @@ function TimeGrid({ shifts, houses, nowFrac = 9.8, onShiftClick, isMine }) {
               <div key={i} style={{ height: HOUR_PX, borderBottom: i === hours.length - 1 ? '' : '1px solid var(--a-line)', background: i % 2 === 1 ? 'rgba(216, 204, 177, 0.07)' : 'transparent' }} />
             ))}
             {layoutShifts(shifts.filter(s => s.house === h.id)).map((s, si) => (
-              <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} mine={isMine?.(s)} onClick={() => onShiftClick?.(s)} />
+              <ShiftBlock key={s.id ?? si} shift={s} houseColor={h.color} expanded={single} mine={isMine?.(s)} dayStart={dayStart} onClick={() => onShiftClick?.(s)} />
             ))}
           </div>
         ))}
@@ -651,6 +668,66 @@ function SwapSheet({ shift, house, busy, user, houseUuid, onGiveUp, onRequestSwa
   )
 }
 
+// One compact status line above the grid, replacing the old stack of full-width
+// banners (supervisor scope · publish status · your-next · swap requests) that
+// pushed the grid below the fold on a phone. Swap requests collapse into a
+// dropdown so a manager can still approve/deny without the tall banner.
+function ScheduleStatusBar({ supervisor, isStaff, schedulePublished, myNext, todayStr, swaps = [], onResolveSwap }) {
+  const [swapsOpen, setSwapsOpen] = useState(false)
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 999, padding: '5px 10px', fontSize: 11, color: 'var(--a-ink2)', fontFamily: 'Geist', whiteSpace: 'nowrap' }
+  if (!supervisor && !isStaff && !myNext && swaps.length === 0) return null
+  return (
+    <div style={{ padding: '4px 22px 8px', position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', overflowX: 'auto' }}>
+        {swaps.length > 0 && (
+          <button onClick={() => setSwapsOpen(o => !o)} style={{ ...chip, cursor: 'pointer', borderColor: '#e6d4a8', color: '#b9892f', fontWeight: 700 }}>
+            Swaps · {swaps.length}
+            <span style={{ fontSize: 8, opacity: 0.7 }}>{swapsOpen ? '▲' : '▼'}</span>
+          </button>
+        )}
+        {myNext && (
+          <span style={{ ...chip, borderColor: 'var(--a-sage)', color: 'var(--a-sage)', fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--a-sage)' }} />
+            Next · {myNext.date === todayStr ? 'Today' : fmtDayLabel(new Date(myNext.date + 'T12:00:00'))} {hourLabel(myNext.start)}–{hourLabel(myNext.end)}
+          </span>
+        )}
+        {isStaff && (
+          <span style={chip}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: schedulePublished ? 'var(--a-sage)' : '#b9892f' }} />
+            {schedulePublished ? 'Published' : 'Draft — may change'}
+          </span>
+        )}
+        {supervisor && (
+          <span style={chip}>
+            <IconKey size={12} color="var(--a-sage)" sw={1.8} />
+            All houses
+          </span>
+        )}
+      </div>
+      {swapsOpen && swaps.length > 0 && (
+        <div style={{ position: 'absolute', left: 22, right: 22, top: '100%', zIndex: 60, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 10, maxHeight: 320, overflowY: 'auto' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#b9892f', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 }}>Swap requests · {swaps.length}</div>
+          {swaps.map(sw => (
+            <div key={sw.id} style={{ background: 'var(--a-paper)', border: '1px solid #e6d4a8', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, color: 'var(--a-ink)' }}>
+                <strong>{sw.fromName || 'A worker'}</strong> → <strong>{sw.toName || 'open list'}</strong>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>
+                {sw.date ? fmtDayLabel(new Date(sw.date + 'T12:00:00')) : ''}{sw.start != null ? ` · ${hourLabel(sw.start)}–${hourLabel(sw.end)}` : ''}{sw.role ? ` · ${sw.role}` : ''}{sw.houseName ? ` · ${sw.houseName}` : ''}
+              </div>
+              {sw.note && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3, fontStyle: 'italic' }}>“{sw.note}”</div>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+                <button onClick={() => onResolveSwap(sw.id, true)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 12.5, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Approve</button>
+                <button onClick={() => onResolveSwap(sw.id, false)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--a-line)', background: 'transparent', color: 'var(--a-ink2)', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Deny</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const [view, setView] = useState('day')
   const [houseFilter, setHouseFilter] = useState('all')
@@ -792,6 +869,22 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
   const schedulePublished = !isStaff || weekShifts.every(s => s.status === 'open' || !!s.publishedAt)
   const visibleWeekShifts = isStaff ? weekShifts.filter(publishGate) : weekShifts
 
+  // Clamp the day grid to a sensible vertical window (default ~6am–11pm),
+  // widening for any earlier/later shift. Computed before the early returns so
+  // the scroll effect below obeys the rules of hooks.
+  const [dayStart, dayEnd] = dayWindow(visibleWeekShifts.filter(s => s.date === selectedDate))
+
+  // Auto-scroll the grid so "now" lands near the top on open / day change —
+  // otherwise the day view opens at the top of the window with current shifts
+  // and the Now line below the fold.
+  const gridScrollRef = useRef(null)
+  useEffect(() => {
+    const el = gridScrollRef.current
+    if (!el) return
+    el.scrollTop = Math.max(0, (nowFrac - dayStart) * HOUR_PX - HOUR_PX * 2)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, view, dayStart])
+
   if (view === 'week') return <ScreenA_ScheduleWeek setView={setView} houses={displayHouses} week={week} weekShifts={visibleWeekShifts} weekDates={weekDates} {...nav} />
   if (view === 'month') return <ScreenA_ScheduleMonth anchorDate={anchorDate} houses={displayHouses} shifts={visibleWeekShifts} setView={setView} onPickDay={pickDay} {...nav} />
 
@@ -832,66 +925,15 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           </div>
         </div>
 
-        {canManageSwaps && swaps.length > 0 && (
-          <div style={{ padding: '4px 22px 10px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#b9892f', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 }}>
-              Swap requests · {swaps.length}
-            </div>
-            {swaps.map(sw => (
-              <div key={sw.id} style={{ background: 'var(--a-card)', border: '1px solid #e6d4a8', borderRadius: 12, padding: '11px 14px', marginBottom: 8 }}>
-                <div style={{ fontSize: 13, color: 'var(--a-ink)' }}>
-                  <strong>{sw.fromName || 'A worker'}</strong> → <strong>{sw.toName || 'open list'}</strong>
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>
-                  {sw.date ? fmtDayLabel(new Date(sw.date + 'T12:00:00')) : ''}{sw.start != null ? ` · ${hourLabel(sw.start)}–${hourLabel(sw.end)}` : ''}{sw.role ? ` · ${sw.role}` : ''}{sw.houseName ? ` · ${sw.houseName}` : ''}
-                </div>
-                {sw.note && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 3, fontStyle: 'italic' }}>“{sw.note}”</div>}
-                <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-                  <button onClick={() => resolveSwap(sw.id, true)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 0, background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 12.5, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Approve</button>
-                  <button onClick={() => resolveSwap(sw.id, false)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--a-line)', background: 'transparent', color: 'var(--a-ink2)', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Deny</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {employee && myNext && (
-          <div style={{ padding: '4px 22px 10px' }}>
-            <div style={{ background: 'var(--a-sage)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, color: '#fff' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Your<br />next</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  {myNext.date === todayStr ? 'Today' : fmtDayLabel(new Date(myNext.date + 'T12:00:00'))} · {hourLabel(myNext.start)}–{hourLabel(myNext.end)}
-                </div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginTop: 1 }}>
-                  {(displayHouses.find(h => h.id === myNext.house)?.name) || myNext.role}{myNext.note ? ` · “${myNext.note}”` : ''}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {user?.role === 'supervisor' && (
-          <div style={{ padding: '4px 22px 10px' }}>
-            <div style={{ background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <IconKey size={13} color="var(--a-sage)" sw={1.8} />
-              <span style={{ fontSize: 11, color: 'var(--a-ink2)', flex: 1 }}>You see <strong>all houses</strong>. Staff only see their own shifts.</span>
-            </div>
-          </div>
-        )}
-
-        {isStaff && (
-          <div style={{ padding: '4px 22px 10px' }}>
-            <div style={{ background: 'var(--a-card)', border: `1px solid ${schedulePublished ? 'var(--a-line)' : '#e6d4a8'}`, borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: schedulePublished ? 'var(--a-sage)' : '#b9892f' }} />
-              <span style={{ fontSize: 11, color: 'var(--a-ink2)', flex: 1 }}>
-                {schedulePublished
-                  ? <><strong style={{ color: 'var(--a-sage)' }}>Published.</strong> This week’s schedule is final.</>
-                  : <><strong style={{ color: '#b9892f' }}>Schedule not yet published.</strong> Your manager is still finalizing this week — shifts may change.</>}
-              </span>
-            </div>
-          </div>
-        )}
+        <ScheduleStatusBar
+          supervisor={user?.role === 'supervisor'}
+          isStaff={isStaff}
+          schedulePublished={schedulePublished}
+          myNext={employee ? myNext : null}
+          todayStr={todayStr}
+          swaps={canManageSwaps ? swaps : []}
+          onResolveSwap={resolveSwap}
+        />
 
         <div style={{ padding: '0 22px 8px' }}><ScheduleNav {...nav} /></div>
         <DayStrip week={week} selectedDate={selectedDate} onPick={setAnchorDate} />
@@ -912,8 +954,8 @@ export function ScreenA_ScheduleDay({ user, employee = false, houses = [] }) {
           </div>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
-          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} isMine={isMine} onShiftClick={onShiftTap} />
+        <div ref={gridScrollRef} style={{ overflowY: 'auto', flex: 1, padding: '0 14px 24px' }}>
+          <TimeGrid shifts={filteredShifts} houses={visibleHouses} nowFrac={nowFrac} isMine={isMine} dayStart={dayStart} dayEnd={dayEnd} onShiftClick={onShiftTap} />
         </div>
       </div>
       <TabBar active="sched" />

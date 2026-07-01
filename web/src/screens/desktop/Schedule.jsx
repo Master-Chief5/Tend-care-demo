@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { HOUSES } from '../../data/constants'
 import { buildWeek, fmtDayLabel, fmtNow, fmtTime, expandRepeatDates } from '../../lib/utils'
 
@@ -129,6 +129,11 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
   const lanes = shift._lanes || 1
   const lane = shift._lane || 0
   const wPct = 100 / lanes
+  // Real minutes-late from an actual clock-in (decimal hour), when we have one.
+  // No clock-in recorded → we don't know how late, so the chip is hidden rather
+  // than showing a fabricated number.
+  const clockInHour = shift.clockInHour ?? shift.arrivedHour ?? null
+  const lateMin = (late && clockInHour != null) ? Math.max(0, Math.round((clockInHour - start) * 60)) : null
   return (
     <div onClick={onClick} title="Click to edit" style={{
       position: 'absolute', top: top + 3, left: `calc(${lane * wPct}% + 6px)`, width: `calc(${wPct}% - 12px)`, height: height - 6,
@@ -149,10 +154,10 @@ function DskShiftBlock({ shift, houseColor, onClick }) {
       {shift.note && height > 64 && (
         <div style={{ fontSize: 10.5, opacity: open ? 0.85 : 0.82, marginTop: 4, lineHeight: 1.3, fontStyle: 'italic', overflow: 'hidden' }}>“{shift.note}”</div>
       )}
-      {(late || swap || here || open) && (
+      {((late && lateMin != null) || swap || here || open) && (
         <div style={{ marginTop: 'auto', paddingTop: 6, display: 'flex', gap: 4 }}>
           {here && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff', display: 'inline-block' }} /> CLOCKED IN</span>}
-          {late && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>LATE · 12m</span>}
+          {late && lateMin != null && <span style={{ fontSize: 9, fontWeight: 700, color: '#a93a25', background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>LATE · {lateMin}m</span>}
           {swap && <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.22)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>SWAP REQ</span>}
           {open && <span style={{ fontSize: 9, fontWeight: 700, color: houseColor, background: 'rgba(255,255,255,0.92)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.06em' }}>NEEDS FILL</span>}
         </div>
@@ -325,8 +330,8 @@ function DayScheduleView({ week, selectedDate, onPickDay, onPrev, onNext, onToda
         <span style={{ fontSize: 12, color: 'var(--a-ink3)' }}>
           {`${filteredShifts.length} shifts · `}
           <strong style={{ color: 'var(--a-clay)' }}>{filteredShifts.filter(s => s.status === 'open').length} open</strong>
-          {filteredShifts.some(s => s.status === 'late') && <> · 1 late</>}
-          {filteredShifts.some(s => s.status === 'swap') && <> · 1 swap</>}
+          {(() => { const n = filteredShifts.filter(s => s.status === 'late').length; return n > 0 ? <> · {n} late</> : null })()}
+          {(() => { const n = filteredShifts.filter(s => s.status === 'swap').length; return n > 0 ? <> · {n} swap{n === 1 ? '' : 's'}</> : null })()}
         </span>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>Scale: 1 hr</span>
@@ -643,9 +648,11 @@ function ShiftModal({ user, houses, defaultHouseUuid, defaultDate, defaultStaffN
 // desktop (primary daily-ops surface) only showed a dead "SWAP REQ" badge, so a
 // manager on desktop couldn't action a swap at all. Managers see their house's
 // pending requests; supervisors see all.
-function SwapRequestsBanner({ user, onResolved }) {
+function SwapRequestsBanner({ user, onResolved, highlight }) {
   const [swaps, setSwaps] = useState([])
   const [busy, setBusy] = useState(false)
+  const [flashShiftId, setFlashShiftId] = useState(null)
+  const cardRefs = useRef({})
   const isSup = user?.role === 'supervisor'
   const canManage = isSup || user?.role === 'manager'
   // Must be the real uuid — fetchSwapRequests filters house_id (a uuid column),
@@ -656,6 +663,17 @@ function SwapRequestsBanner({ user, onResolved }) {
     fetchSwapRequests({ orgId: user.orgId, houseId, status: 'pending' }).then(setSwaps).catch(() => setSwaps([]))
   }
   useEffect(() => { load() }, [user?.orgId, user?.houseId, canManage]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Clicking a swap-flagged shift block scrolls its request card into view and
+  // flashes it, so the manager lands directly on the approve/deny controls.
+  useEffect(() => {
+    if (!highlight?.shiftId) return
+    const el = cardRefs.current[highlight.shiftId]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setFlashShiftId(highlight.shiftId)
+    const t = setTimeout(() => setFlashShiftId(null), 2200)
+    return () => clearTimeout(t)
+  }, [highlight?.shiftId, highlight?.k, swaps])
   if (!canManage || swaps.length === 0) return null
   const resolve = async (id, approve) => {
     if (busy) return
@@ -668,7 +686,8 @@ function SwapRequestsBanner({ user, onResolved }) {
       <div style={{ fontSize: 11, fontWeight: 700, color: '#b9892f', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>Swap requests · {swaps.length}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
         {swaps.map(sw => (
-          <div key={sw.id} style={{ background: 'var(--a-card)', border: '1px solid #e6d4a8', borderRadius: 12, padding: '11px 14px' }}>
+          <div key={sw.id} ref={el => { if (sw.shiftId) cardRefs.current[sw.shiftId] = el }}
+            style={{ background: 'var(--a-card)', border: `1px solid ${flashShiftId === sw.shiftId ? '#b9892f' : '#e6d4a8'}`, borderRadius: 12, padding: '11px 14px', boxShadow: flashShiftId === sw.shiftId ? '0 0 0 3px rgba(185,137,47,0.35)' : 'none', transition: 'box-shadow 0.2s, border-color 0.2s' }}>
             <div style={{ fontSize: 13, color: 'var(--a-ink)' }}><strong>{sw.fromName || 'A worker'}</strong> → <strong>{sw.toName || 'open list'}</strong></div>
             <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>
               {sw.date || ''}{sw.start != null ? ` · ${sw.start}:00–${sw.end}:00` : ''}{sw.role ? ` · ${sw.role}` : ''}{sw.houseName ? ` · ${sw.houseName}` : ''}
@@ -701,6 +720,16 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
   const [rangeShifts, setRangeShifts] = useState([])
   const [timeOff, setTimeOff] = useState([])   // approved time-off rows for safety checks
   const [modal, setModal] = useState(null) // null | { mode: 'add' } | { mode: 'edit', shift }
+  const [swapHighlight, setSwapHighlight] = useState(null) // { shiftId, k } → flash a swap card
+  const canManageSwaps = isSupervisor || isManager
+
+  // A swap-flagged shift block shouldn't open the plain edit modal (no approve/
+  // deny there). For managers/supervisors it jumps to the request's approve/deny
+  // card; everyone else falls back to the edit modal.
+  const onShiftClick = (s) => {
+    if (s?.status === 'swap' && canManageSwaps) { setSwapHighlight({ shiftId: s.id, k: Date.now() }); return }
+    setModal({ mode: 'edit', shift: s })
+  }
 
   const week = buildWeek(anchorDate)
   const selectedDate = toDateStr(anchorDate)
@@ -741,20 +770,20 @@ export function PageScheduleDesktopExpanded({ user, houses: housesProp = [] }) {
         </span>}
         actions={<>
           <ViewToggleDesktop view={view} setView={setView} />
-          <button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> New shift</button>
+          <button onClick={() => setModal({ mode: 'add' })} style={dBtnSolid}><IconPlus size={13} sw={2.4} /> Add shift</button>
         </>}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '20px 28px 40px' }}>
-        <SwapRequestsBanner user={user} onResolved={reload} />
+        <SwapRequestsBanner user={user} onResolved={reload} highlight={swapHighlight} />
         {view === 'day' && (
           <DayScheduleView week={week} selectedDate={selectedDate} onPickDay={setAnchorDate} {...nav}
             houseFilter={houseFilter} setHouseFilter={setHouseFilter} shifts={dayShifts} houses={houses} isManager={isManager}
-            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })} />
+            onShiftClick={onShiftClick} />
         )}
         {view === 'week' && (
           <WeekScheduleView week={week} houses={houses} shifts={rangeShifts} {...nav}
             user={user} onChanged={reload} timeOff={timeOff}
-            onShiftClick={(s) => setModal({ mode: 'edit', shift: s })}
+            onShiftClick={onShiftClick}
             onAddShift={(opts) => setModal({ mode: 'add', ...opts })} />
         )}
         {view === 'month' && (

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { fetchResidents } from '../lib/db'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { fetchResidents, fetchHouseAlerts, countOverdueQuickTasks } from '../lib/db'
 import {
   IconChev, IconSearch, IconFilter, IconHeart, IconChart, IconActivity,
   IconClipboard, IconClock, IconBook, IconCart,
@@ -66,14 +66,16 @@ function PriorityCard({ tone, Icon, title, sub, meta, onClick }) {
   )
 }
 
-// One module tile in the "Go to" grid.
-function ModTile({ Icon, label, sub, count, onClick }) {
+// One module tile in the "Go to" grid. When `disabled` (no house picked yet on a
+// cross-house view) the tile is greyed and its tap opens the house picker instead
+// of dead-ending in goToSection's early return.
+function ModTile({ Icon, label, sub, count, onClick, disabled }) {
   return (
-    <button type="button" onClick={onClick} style={{
+    <button type="button" onClick={onClick} aria-disabled={disabled || undefined} style={{
       position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
       padding: 12, minHeight: 84, textAlign: 'left', cursor: 'pointer',
       background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12,
-      fontFamily: 'Geist',
+      fontFamily: 'Geist', opacity: disabled ? 0.45 : 1,
     }}>
       {count != null && (
         <span style={{ position: 'absolute', top: 8, right: 8, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--a-clay)', color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{count}</span>
@@ -105,6 +107,14 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
   const [houseFilter, setHouseFilter] = useState(scopeHouseId || '')  // '' = all houses
   const [query, setQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  // Real cross-house alert map (keyed by house slug, same as the desktop dashboard)
+  // and the overdue-task count — drives the "care priorities" list instead of the
+  // old hardcoded literals.
+  const [alerts, setAlerts] = useState({})
+  const [overdueTasks, setOverdueTasks] = useState(0)
+  const [prioLoading, setPrioLoading] = useState(true)
+  // Lets a disabled module tile pull focus to the house picker.
+  const houseSelectRef = useRef(null)
 
   // House lookup keyed by db uuid (resident.house_id) so we can resolve the
   // resident's house color / short badge without another fetch.
@@ -144,6 +154,25 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
     return () => { cancelled = true }
   }, [user?.orgId, scopeHouseId])
 
+  // Real care priorities — mirrors how Home.jsx derives the dashboard's
+  // "Needs attention"/priorities from fetchHouseAlerts + countOverdueQuickTasks.
+  useEffect(() => {
+    if (!user?.orgId) { setAlerts({}); setOverdueTasks(0); setPrioLoading(false); return }
+    let cancelled = false
+    setPrioLoading(true)
+    const houseScope = scopeHouseId ? (houses.find(h => h._uuid === scopeHouseId)?.id || null) : null
+    Promise.all([
+      fetchHouseAlerts(user.orgId),
+      countOverdueQuickTasks(user.orgId, { houseId: houseScope }),
+    ]).then(([a, overdue]) => {
+      if (cancelled) return
+      setAlerts(a || {})
+      setOverdueTasks(Number(overdue) || 0)
+      setPrioLoading(false)
+    }).catch(() => { if (!cancelled) { setAlerts({}); setOverdueTasks(0); setPrioLoading(false) } })
+    return () => { cancelled = true }
+  }, [user?.orgId, scopeHouseId, houses.map(h => h._uuid).join(',')])
+
   const today = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
   // Resolve a resident's house (color + short badge). Falls back to the joined
@@ -172,6 +201,55 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
   const houseCount = new Set(residents.map(r => r.house_id)).size
   const filterLabel = houseFilter ? (houseByUuid[houseFilter]?.name || 'House') : 'All houses'
 
+  // Houses currently in scope for priorities (the explicit DSP scope, the chosen
+  // filter, or — spanning view — every house). Alerts are keyed by house slug (h.id).
+  const scopedHouses = useMemo(() => {
+    const pick = scopeHouseId || houseFilter
+    return pick ? houses.filter(h => h._uuid === pick) : houses
+  }, [houses, scopeHouseId, houseFilter])
+  const multi = scopedHouses.length > 1
+
+  // Build the priority list from real alerts (incidents → meds → appts/drives) plus
+  // overdue tasks. Each card deep-links into the relevant house's section. No literals.
+  const priorities = useMemo(() => {
+    const out = []
+    const open = (slug, section) => () => onOpenHouseSection?.(slug, section)
+    for (const h of scopedHouses)
+      for (const a of (alerts[h.id] || []))
+        if (a.kind === 'incident')
+          out.push({ key: `inc-${h.id}-${a.text}`, tone: 'bad', Icon: IconFilter,
+            title: multi ? `Incident — ${h.name}` : 'Incident needs review',
+            sub: a.text, meta: 'Review', onClick: open(h.id, 'compliance') })
+    for (const h of scopedHouses)
+      for (const a of (alerts[h.id] || []))
+        if (a.kind === 'med')
+          out.push({ key: `med-${h.id}-${a.text}`, tone: 'warn', Icon: IconClock,
+            title: multi ? `Med alert — ${h.name}` : 'Med alert needs attention',
+            sub: a.text, meta: 'Meds', onClick: open(h.id, 'meds') })
+    if (overdueTasks > 0)
+      out.push({ key: 'overdue', tone: 'bad', Icon: IconClipboard,
+        title: `${overdueTasks} task${overdueTasks === 1 ? '' : 's'} overdue`,
+        sub: 'Past their due date — needs attention', meta: 'Overdue',
+        onClick: targetHouse ? () => goToSection('shift') : undefined })
+    for (const h of scopedHouses)
+      for (const a of (alerts[h.id] || []))
+        if (a.kind === 'appt' || a.kind === 'drive')
+          out.push({ key: `${a.kind}-${h.id}-${a.text}`, tone: 'info', Icon: IconActivity,
+            title: multi ? `${a.kind === 'drive' ? 'Transport' : 'Appointment'} — ${h.name}`
+              : (a.kind === 'drive' ? 'Transport scheduled' : 'Upcoming appointment'),
+            sub: a.text, meta: a.kind === 'drive' ? 'Drive' : 'Appt', onClick: open(h.id, 'health') })
+    return out
+  }, [scopedHouses, multi, alerts, overdueTasks, targetHouse, onOpenHouseSection])
+  const shownPriorities = priorities.slice(0, 6)
+
+  // Real open-incident count for the Incidents tile badge (null = no badge).
+  const incidentCount = useMemo(() => {
+    let n = 0
+    for (const h of scopedHouses)
+      for (const a of (alerts[h.id] || [])) if (a.kind === 'incident') n++
+    return n
+  }, [scopedHouses, alerts])
+
   const input = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '9px 12px', fontSize: 13.5, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
 
   return (
@@ -195,6 +273,7 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
                 should only ever see their assigned home. */}
             {!scopeHouseId && houses.length > 1 && (
               <select
+                ref={houseSelectRef}
                 value={houseFilter}
                 onChange={e => setHouseFilter(e.target.value)}
                 aria-label="Filter by house"
@@ -216,16 +295,23 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
           </div>
         )}
 
-        {/* Today's care priorities */}
+        {/* Today's care priorities — derived from real alerts + overdue tasks. */}
         <SectionHeader
           label="Today's care priorities"
-          right={<span style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-clay)', background: '#fadcd7', padding: '2px 10px', borderRadius: 999 }}>{4} open</span>}
+          right={priorities.length > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-clay)', background: '#fadcd7', padding: '2px 10px', borderRadius: 999 }}>{priorities.length} open</span> : null}
         />
         <div style={{ padding: '0 16px' }}>
-          <PriorityCard tone="bad" Icon={IconFilter} title="Incident needs review" sub={targetHouse ? `Behavioral, moderate — open in ${targetHouse.name} Incidents` : 'Behavioral, moderate — open in the Incidents area'} meta="Today" onClick={targetHouse ? () => goToSection('compliance') : undefined} />
-          <PriorityCard tone="warn" Icon={IconClock} title="Meds due this hour" sub="Check the eMAR for due passes" meta="Now" onClick={targetHouse ? () => goToSection('meds') : undefined} />
-          <PriorityCard tone="warn" Icon={IconClipboard} title="Shift documentation incomplete" sub="Some residents not yet documented this shift" meta="Day shift" onClick={targetHouse ? () => goToSection('shift') : undefined} />
-          <PriorityCard tone="info" Icon={IconActivity} title="Health checks due" sub="Weekly weight + vitals for scheduled residents" meta="Today" onClick={targetHouse ? () => goToSection('health') : undefined} />
+          {prioLoading ? (
+            <div style={{ padding: '14px', fontSize: 12.5, color: 'var(--a-ink3)', textAlign: 'center', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12 }}>Loading priorities…</div>
+          ) : shownPriorities.length === 0 ? (
+            <div style={{ padding: '18px 14px', textAlign: 'center', background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12 }}>
+              <div className="serif" style={{ fontSize: 16, color: 'var(--a-ink)', marginBottom: 2 }}>All caught up</div>
+              <div style={{ fontSize: 12, color: 'var(--a-ink3)' }}>No open incidents, med alerts or overdue tasks.</div>
+            </div>
+          ) : shownPriorities.map(p => {
+            const { key, ...rest } = p
+            return <PriorityCard key={key} {...rest} />
+          })}
         </div>
 
         {/* Module grid — clear entry points. Each tile routes into the target
@@ -234,15 +320,24 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
             by opening the house filter. */}
         <SectionHeader label="Go to" right={!targetHouse && houses.length > 1 ? <span style={{ fontSize: 11, color: 'var(--a-ink3)' }}>Pick a house first</span> : null} />
         <div style={{ padding: '0 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-            <ModTile Icon={IconClipboard} label="Meds" sub="eMAR" onClick={() => goToSection('meds')} />
-            <ModTile Icon={IconChart} label="Goals" sub="ISP progress" onClick={() => goToSection('goals')} />
-            <ModTile Icon={IconActivity} label="Health" sub="Vitals · logs" onClick={() => goToSection('health')} />
-            <ModTile Icon={IconFilter} label="Incidents" sub="To review" count={1} onClick={() => goToSection('compliance')} />
-            <ModTile Icon={IconHeart} label="Behavior" sub="Plans · ABC" onClick={() => goToSection('behavior')} />
-            <ModTile Icon={IconBook} label="Notes" sub="Daily log" onClick={() => goToSection('log')} />
-            <ModTile Icon={IconCart} label="Funds" sub="Ledger · spending" onClick={() => goToSection('funds')} />
-          </div>
+          {/* When no house is picked (spanning >1 house) goToSection early-returns,
+              so tiles are greyed and a tap opens the house picker instead. */}
+          {(() => {
+            const tileFor = (section) => targetHouse
+              ? { onClick: () => goToSection(section) }
+              : { disabled: true, onClick: () => houseSelectRef.current?.focus() }
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                <ModTile Icon={IconClipboard} label="Meds" sub="eMAR" {...tileFor('meds')} />
+                <ModTile Icon={IconChart} label="Goals" sub="ISP progress" {...tileFor('goals')} />
+                <ModTile Icon={IconActivity} label="Health" sub="Vitals · logs" {...tileFor('health')} />
+                <ModTile Icon={IconFilter} label="Incidents" sub="To review" count={incidentCount || null} {...tileFor('compliance')} />
+                <ModTile Icon={IconHeart} label="Behavior" sub="Plans · ABC" {...tileFor('behavior')} />
+                <ModTile Icon={IconBook} label="Notes" sub="Daily log" {...tileFor('log')} />
+                <ModTile Icon={IconCart} label="Funds" sub="Ledger · spending" {...tileFor('funds')} />
+              </div>
+            )
+          })()}
         </div>
 
         {/* Residents — cross-house list */}
@@ -274,11 +369,9 @@ export function ScreenA_CareHub({ user, houses = [], onOpenResident, onOpenHouse
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   {h?.short && <span style={{ fontSize: 9.5, fontWeight: 700, color: c, letterSpacing: '0.06em', background: 'var(--a-paper)', padding: '2px 6px', borderRadius: 4 }}>{h.short}</span>}
-                  <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor(tone) }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor('good') }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor() }} />
-                  </span>
+                  {/* Single computed status dot (most pressing flag) — the two
+                      filler dots that used to sit here were hardcoded, not real. */}
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor(tone) }} />
                   <IconChev size={16} color="var(--a-ink3)" />
                 </span>
               </button>

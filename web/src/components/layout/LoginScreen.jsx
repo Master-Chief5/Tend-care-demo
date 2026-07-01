@@ -3,7 +3,7 @@ import { TendLogo } from '../ui/TendLogo'
 import { IconArrow, IconSearch, IconCheck, IconHome, IconPeople } from '../icons'
 import { ROLES } from '../../data/constants'
 import { supabase, isDemoMode } from '../../lib/supabase'
-import { searchOrganizations, registerAsStaff, createOrgAndSupervisor, listOrgHouses } from '../../lib/db'
+import { searchOrganizations, registerAsStaff, createOrgAndSupervisor, listOrgHouses, resetPassword } from '../../lib/db'
 
 export function LoginScreen({ onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
   return isDemoMode
@@ -99,6 +99,7 @@ function LoginForm({ onLogin, onCreateAccount }) {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState(null)
   const [loading, setLoading]   = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -110,13 +111,31 @@ function LoginForm({ onLogin, onCreateAccount }) {
     onLogin({ id: role, name: data.user?.user_metadata?.name ?? email, role })
   }
 
+  const handleForgot = async () => {
+    const target = window.prompt('Enter your email and we’ll send a password reset link:', email)
+    if (target == null) return
+    const addr = target.trim()
+    if (!addr) return
+    setError(null); setResetSent(false)
+    const { error: err } = await resetPassword(addr)
+    if (err) { setError(err); return }
+    setResetSent(true)
+  }
+
   return (
     <AuthShell>
       <form onSubmit={handleSubmit}>
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
           required autoComplete="email" style={{ ...inputStyle, marginBottom: 10 }} />
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-          required autoComplete="current-password" style={{ ...inputStyle, marginBottom: 16 }} />
+          required autoComplete="current-password" style={{ ...inputStyle, marginBottom: 10 }} />
+        <div style={{ textAlign: 'right', marginBottom: 14 }}>
+          <button type="button" onClick={handleForgot}
+            style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', fontSize: 12.5, fontFamily: 'Geist, sans-serif', padding: 0 }}>
+            Forgot password?
+          </button>
+        </div>
+        {resetSent && <div style={{ fontSize: 12.5, color: 'var(--a-sage)', marginBottom: 12, lineHeight: 1.5 }}>Check your email — if an account exists we just sent a password reset link.</div>}
         {error && <div style={{ fontSize: 12.5, color: 'var(--a-clay)', marginBottom: 12 }}>{error}</div>}
         <button type="submit" disabled={loading}
           style={{ width: '100%', padding: '12px', borderRadius: 999, background: 'var(--a-ink)', color: 'var(--a-card)', border: 0, fontSize: 14, fontWeight: 600, fontFamily: 'Geist, sans-serif', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1 }}>
@@ -245,6 +264,10 @@ export const toSlug = (name) =>
 
 function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, onSignupCancel }) {
   const [accountType, setAccountType] = useState(null) // 'supervisor' | 'staff'
+  // Within the staff path, the specific role to register as. Both 'staff' and
+  // 'manager' use the same staff registration path (registerAsStaff) and house
+  // picker — only the user_metadata role differs.
+  const [staffRole, setStaffRole]     = useState('staff') // 'staff' | 'manager'
   const [name, setName]               = useState('')
   const [email, setEmail]             = useState('')
   const [password, setPassword]       = useState('')
@@ -292,7 +315,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
     const { data, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name: name.trim(), role: accountType === 'supervisor' ? 'supervisor' : 'staff' } },
+      options: { data: { name: name.trim(), role: accountType === 'supervisor' ? 'supervisor' : staffRole } },
     })
 
     if (signUpErr) { setLoading(false); onSignupCancel?.(); setError(signUpErr.message); return }
@@ -345,7 +368,7 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
         {[
           { id: 'supervisor', label: 'Supervisor', sub: 'I run the organization', icon: IconHome },
-          { id: 'staff',      label: 'Staff / DSP', sub: 'I work at a group home', icon: IconPeople },
+          { id: 'staff',      label: 'Staff / Manager', sub: 'I work at a group home', icon: IconPeople },
         ].map(opt => {
           const active = accountType === opt.id
           return (
@@ -394,6 +417,14 @@ function SignUpForm({ onBack, onCheckEmail, onLogin, onSignedUp, onSignupStart, 
             </div>
           ) : (
             <div>
+              <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 6, fontWeight: 500 }}>Your role</div>
+              <select value={staffRole} onChange={e => setStaffRole(e.target.value)}
+                style={{ ...inputStyle, marginBottom: 14, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer',
+                  backgroundImage: 'linear-gradient(45deg, transparent 50%, var(--a-ink3) 50%), linear-gradient(135deg, var(--a-ink3) 50%, transparent 50%)',
+                  backgroundPosition: 'calc(100% - 18px) 50%, calc(100% - 13px) 50%', backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat' }}>
+                <option value="staff">Staff / DSP — I provide direct care</option>
+                <option value="manager">Manager — I oversee a home or team</option>
+              </select>
               <div style={{ fontSize: 11, color: 'var(--a-ink3)', marginBottom: 6, fontWeight: 500 }}>Your organization</div>
               <OrgSearchPicker selected={selectedOrg} onSelect={(o) => { setSelectedOrg(o); setSelectedHouse(null); setOrgHasHouses(null) }} />
               {selectedOrg && (

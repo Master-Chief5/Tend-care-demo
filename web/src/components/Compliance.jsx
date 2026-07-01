@@ -367,11 +367,22 @@ export function Compliance({ user, houseUuid, houseColor = 'var(--a-ink)', resid
                 </div>
               )}
               <div style={{ fontSize: 10.5, color: 'var(--a-ink3)', marginTop: 3 }}>by {it.by || 'someone'} · {fmtDate(it.date)}{it.reviewed_by ? ` · reviewed by ${it.reviewed_by}` : ''}</div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
-                {isSup && (it.reportable || it.ane_flag || it.severity === 'Serious') && <button onClick={() => setFollowUp(it)} style={{ background: 'transparent', border: 0, color: '#a93a25', fontSize: 12, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Manage</button>}
-                {isSup && it.status === 'open' && <button onClick={() => review(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><IconCheck size={12} sw={2.5} /> Mark reviewed</button>}
-                {isSup && <button onClick={() => delInc(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>}
-              </div>
+              {isSup ? (
+                <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                  {(it.reportable || it.ane_flag || it.severity === 'Serious') && <button onClick={() => setFollowUp(it)} style={{ background: 'transparent', border: 0, color: '#a93a25', fontSize: 12, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer' }}>Manage</button>}
+                  {it.status === 'open' && <button onClick={() => review(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-sage)', fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><IconCheck size={12} sw={2.5} /> Mark reviewed</button>}
+                  <button onClick={() => delInc(it.id)} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', fontSize: 12, fontFamily: 'Geist', cursor: 'pointer' }}>Delete</button>
+                </div>
+              ) : (
+                // DSPs can file incidents but can't review/manage/delete them — show the
+                // status they CAN act on (it's been reported) instead of a dead-end with
+                // supervisor-only buttons they can't tap.
+                <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 6, color: it.status === 'open' ? 'var(--a-ink3)' : '#3f604d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {it.status === 'open'
+                    ? '⏳ Reported — pending supervisor review'
+                    : <><IconCheck size={12} sw={2.5} color="#3f604d" /> Reviewed by your supervisor</>}
+                </div>
+              )}
             </div>
           )
         })}

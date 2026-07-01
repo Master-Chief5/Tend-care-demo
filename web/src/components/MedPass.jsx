@@ -95,6 +95,7 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
   const [prnLog, setPrnLog] = useState([])
   const [showAdd, setShowAdd] = useState(false)
   const [prnFor, setPrnFor] = useState(null)   // med being logged
+  const [menuFor, setMenuFor] = useState(null) // dose key whose change-menu is open
   const today = new Date()
 
   const reload = useCallback(() => {
@@ -105,17 +106,33 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
   }, [user?.orgId, houseUuid])
   useEffect(() => { reload() }, [reload])
 
+  // Record a status. Tapping the already-recorded status is a no-op (sticky) so a
+  // double-tap can never silently un-record a dose; changing/undoing goes through the menu.
   const record = async (d, status) => {
-    await recordMed(user.orgId, houseUuid, d.medId, today, d.time, d.status === status ? 'due' : status, user?.name || 'Staff')
+    setMenuFor(null)
+    if (d.status === status) return
+    await recordMed(user.orgId, houseUuid, d.medId, today, d.time, status, user?.name || 'Staff')
+    reload()
+  }
+  // Explicit undo — clears the recorded dose back to "due".
+  const undo = async (d) => {
+    setMenuFor(null)
+    await recordMed(user.orgId, houseUuid, d.medId, today, d.time, 'due', user?.name || 'Staff')
     reload()
   }
   const doneCount = doses.filter(d => d.status !== 'due').length
+  // Overdue: a still-due scheduled dose whose time window (scheduled time + grace) has passed.
+  const LATE_GRACE_MIN = 60
+  const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })()
+  const doseMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return (isNaN(h) ? 0 : h) * 60 + (m || 0) }
+  const isLate = (d) => d.status === 'due' && nowMin > doseMin(d.time) + LATE_GRACE_MIN
+  const lateCount = doses.filter(isLate).length
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 0 8px' }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--a-ink3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Med pass · today{doses.length > 0 && <span style={{ color: doneCount === doses.length ? 'var(--a-sage)' : 'var(--a-clay)', marginLeft: 6 }}>{doneCount}/{doses.length} done</span>}
+          Med pass · today{doses.length > 0 && <span style={{ color: doneCount === doses.length ? 'var(--a-sage)' : 'var(--a-clay)', marginLeft: 6 }}>{doneCount}/{doses.length} done</span>}{lateCount > 0 && <span style={{ color: 'var(--a-clay)', marginLeft: 6 }}>· {lateCount} late</span>}
         </span>
         {user?.role !== 'staff' && (
           <button onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: houseColor, fontSize: 12, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>
@@ -128,24 +145,48 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
         {doses.length === 0 && (
           <div style={{ padding: '14px', textAlign: 'center', fontSize: 12.5, color: 'var(--a-ink3)' }}>No scheduled meds today.{user?.role !== 'staff' ? ' Tap “Add medication”.' : ''}</div>
         )}
-        {doses.map((d, i) => (
+        {doses.map((d, i) => {
+          const late = isLate(d)
+          const recorded = d.status !== 'due'
+          return (
           <div key={d.key} style={{ padding: '10px 14px', borderBottom: i < doses.length - 1 ? '1px solid var(--a-line)' : '' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: 'var(--a-ink2)', minWidth: 62 }}>{fmt(d.time)}</span>
+              <span className="tnum" style={{ fontSize: 11, fontWeight: 700, color: late ? 'var(--a-clay)' : 'var(--a-ink2)', minWidth: 62 }}>{fmt(d.time)}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{d.resident}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--a-ink3)' }}>{d.med}{d.dose ? ` · ${d.dose}` : ''}{d.route ? ` · ${d.route}` : ''}</div>
               </div>
+              {late && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--a-clay)', background: '#fadcd7', borderRadius: 999, padding: '2px 8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Overdue</span>}
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              {Object.entries(STATUS).map(([k, v]) => {
-                const on = d.status === k
-                return <button key={k} onClick={() => record(d, k)} style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: on ? v.bg : 'transparent', color: on ? v.tc : 'var(--a-ink3)', border: `1px solid ${on ? v.tc + '55' : 'var(--a-line)'}` }}>{on && <IconCheck size={10} sw={3} style={{ marginRight: 3 }} />}{v.label}</button>
-              })}
-            </div>
-            {d.status !== 'due' && d.by && <div style={{ fontSize: 10, color: 'var(--a-ink3)', marginTop: 4 }}>{STATUS[d.status].label} by {d.by}</div>}
+            {recorded ? (
+              // Sticky recorded state: the status can't be un-recorded by tapping — use the menu to change/undo.
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, position: 'relative' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, background: STATUS[d.status].bg, color: STATUS[d.status].tc }}>
+                  <IconCheck size={10} sw={3} />{STATUS[d.status].label}{d.by ? ` · ${d.by}` : ''}
+                </span>
+                <button onClick={() => setMenuFor(menuFor === d.key ? null : d.key)} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3, padding: '5px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: 'transparent', color: 'var(--a-ink3)', border: '1px solid var(--a-line)' }}>Change ▾</button>
+                {menuFor === d.key && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 150, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', padding: 4, zIndex: 20 }}>
+                    {Object.entries(STATUS).map(([k, v]) => (
+                      <button key={k} onClick={() => record(d, k)} disabled={d.status === k} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: d.status === k ? 'default' : 'pointer', background: 'transparent', color: d.status === k ? 'var(--a-ink3)' : 'var(--a-ink)', border: 0, opacity: d.status === k ? 0.55 : 1 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 999, background: v.tc }} />Mark {v.label}{d.status === k ? ' ✓' : ''}
+                      </button>
+                    ))}
+                    <div style={{ height: 1, background: 'var(--a-line)', margin: '4px 2px' }} />
+                    <button onClick={() => undo(d)} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 7, fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: 'transparent', color: 'var(--a-clay)', border: 0 }}>Undo · mark due</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                {Object.entries(STATUS).map(([k, v]) => (
+                  <button key={k} onClick={() => record(d, k)} style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', background: 'transparent', color: 'var(--a-ink3)', border: `1px solid ${late ? 'var(--a-clay)' : 'var(--a-line)'}` }}>{v.label}</button>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {prnMeds.length > 0 && (
@@ -166,6 +207,7 @@ export function MedPass({ user, houseUuid, houseColor = 'var(--a-ink)', resident
         </div>
       )}
 
+      {menuFor && <div onClick={() => setMenuFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 15 }} />}
       {showAdd && <AddMedForm residents={residents} houseUuid={houseUuid} user={user} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); reload() }} />}
       {prnFor && <PrnLogForm med={prnFor} user={user} houseUuid={houseUuid} onClose={() => setPrnFor(null)} onSaved={() => { setPrnFor(null); reload() }} />}
     </>

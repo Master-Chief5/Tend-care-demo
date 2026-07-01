@@ -929,6 +929,14 @@ export function demoFetchDailyLog(houseId, limit = 40) {
 export function demoDeleteDailyLog(id) {
   store.dailyLog = store.dailyLog.filter(l => l.id !== id); persist()
 }
+export function demoUpdateDailyLog(id, updates = {}) {
+  const l = store.dailyLog.find(x => x.id === id)
+  if (!l) return null
+  if (updates.category !== undefined) l.category = updates.category
+  if (updates.text !== undefined) l.text = updates.text
+  if (updates.residentId !== undefined) { l.resident_id = updates.residentId || null; l.resident = updates.residentId ? residentName(updates.residentId) : null }
+  persist(); return l
+}
 
 // ── Incident reports ─────────────────────────────────────────────────────────
 export function demoAddIncident(inc) {

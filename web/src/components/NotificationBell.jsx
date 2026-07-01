@@ -22,7 +22,7 @@ function timeAgo(iso) {
 // In-app notification inbox — a bell with an unread badge that opens a panel of
 // the recipient's notifications (filing an incident, a pending swap, etc.). Reads
 // are recipient-scoped by RLS (real) / demoNotifVisible (demo).
-export function NotificationBell({ user, style }) {
+export function NotificationBell({ user, style, onOpen }) {
   const orgId = user?.orgId
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
@@ -57,6 +57,7 @@ export function NotificationBell({ user, style }) {
   const toggle = () => { const n = !open; setOpen(n); if (n) loadList() }
   const onItem = async (it) => {
     if (!it.read_at) { await markNotificationRead(it.id); setItems(p => p.map(x => x.id === it.id ? { ...x, read_at: new Date().toISOString() } : x)); loadCount() }
+    if (onOpen) { onOpen(it); setOpen(false) }
   }
   const markAll = async () => { await markAllNotificationsRead(orgId); setItems(p => p.map(x => ({ ...x, read_at: x.read_at || new Date().toISOString() }))); setUnread(0) }
 

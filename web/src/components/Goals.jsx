@@ -16,6 +16,14 @@ const levelOf = (id) => LEVELS.find(l => l.id === id) || { short: id, label: id,
 function GoalCard({ goal, user, houseUuid, houseColor, canEdit, onDelete }) {
   const [data, setData] = useState([])
   const [busy, setBusy] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [menuOpen])
 
   const load = useCallback(() => {
     if (!user?.orgId) return
@@ -44,7 +52,16 @@ function GoalCard({ goal, user, houseUuid, houseColor, canEdit, onDelete }) {
           {goal.target && <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 2 }}>🎯 {goal.target}</div>}
           {goal.method && <div style={{ fontSize: 11.5, color: 'var(--a-ink3)', marginTop: 2, lineHeight: 1.35 }}>{goal.method}</div>}
         </div>
-        {canEdit && <button onClick={() => onDelete(goal.id)} aria-label="Delete goal" style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}><IconX size={17} /></button>}
+        {canEdit && (
+          <div style={{ position: 'relative', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setMenuOpen(o => !o)} aria-label="Goal actions" aria-haspopup="menu" aria-expanded={menuOpen} style={{ background: 'transparent', border: 0, color: 'var(--a-ink3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', lineHeight: 1, padding: '0 4px', fontSize: 17, fontWeight: 700, letterSpacing: 1 }}>⋯</button>
+            {menuOpen && (
+              <div role="menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, minWidth: 150, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', zIndex: 50, overflow: 'hidden', padding: 4 }}>
+                <button role="menuitem" onClick={() => { setMenuOpen(false); onDelete(goal.id, goal.title) }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 0, color: '#a93a25', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer', padding: '8px 10px', borderRadius: 7, textAlign: 'left' }}><IconX size={15} /> Delete goal</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Quick data entry — tap the prompt level given this time. */}
@@ -123,6 +140,13 @@ export function Goals({ user, houseUuid, houseColor = 'var(--a-ink)', residents 
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 2600)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const reload = useCallback(() => {
     if (!user?.orgId || !houseUuid) { setGoals([]); setLoading(false); return }
@@ -131,7 +155,14 @@ export function Goals({ user, houseUuid, houseColor = 'var(--a-ink)', residents 
   }, [user?.orgId, houseUuid])
   useEffect(() => { reload() }, [reload])
 
-  const del = async (id) => { await deleteGoal(id); reload() }
+  const del = async (id, title) => {
+    if (!canEdit) return // only supervisor/manager may delete a regulated ISP goal
+    const name = title ? `“${title}”` : 'this ISP goal'
+    if (!window.confirm(`Delete ${name}? This removes a regulated ISP goal and its progress data. This can’t be undone.`)) return
+    await deleteGoal(id)
+    reload()
+    setToast('ISP goal deleted')
+  }
 
   // Group goals by resident for a clean per-person layout.
   const byResident = {}
@@ -181,6 +212,10 @@ export function Goals({ user, houseUuid, houseColor = 'var(--a-ink)', residents 
       )}
 
       {showForm && <GoalForm user={user} houseUuid={houseUuid} residents={residents} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); reload() }} />}
+
+      {toast && (
+        <div role="status" aria-live="polite" style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', background: 'var(--a-ink)', color: 'var(--a-card)', fontSize: 12.5, fontWeight: 600, fontFamily: 'Geist', padding: '10px 16px', borderRadius: 999, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', zIndex: 500, whiteSpace: 'nowrap' }}>{toast}</div>
+      )}
     </>
   )
 }

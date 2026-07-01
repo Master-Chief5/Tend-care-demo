@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchStaff, fetchResidents, fetchTrips, addResident, updateResident, deleteResident, fetchHouseGeofences, setHouseGeofence } from '../lib/db'
-import { IconChev, IconChat, IconPlus, IconPin, IconClipboard, IconAlert } from '../components/icons'
+import { IconChev, IconChat, IconPlus, IconPin, IconAlert } from '../components/icons'
 import { MapPicker } from '../components/MapPicker'
 import { useToast } from '../hooks/useToast'
 import { Toast } from '../components/ui/Toast'
@@ -19,14 +19,16 @@ import { ResidentFunds } from '../components/ResidentFunds'
 const HOUSE_SECTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'shift', label: 'Shift docs' },
-  { id: 'meds', label: 'Meds' },
-  { id: 'goals', label: 'Goals' },
-  { id: 'behavior', label: 'Behavior' },
-  { id: 'health', label: 'Health' },
-  { id: 'funds', label: 'Funds' },
+  // High-frequency daily care leads; back-office (funds/progress/compliance) trails.
   { id: 'log', label: 'Log' },
+  { id: 'meds', label: 'Meds' },
+  { id: 'health', label: 'Health' },
+  { id: 'behavior', label: 'Behavior' },
+  { id: 'goals', label: 'Goals' },
+  { id: 'appts', label: 'Appointments' },
+  { id: 'funds', label: 'Funds' },
   { id: 'progress', label: 'Progress' },
-  { id: 'compliance', label: 'Compliance' },
+  { id: 'compliance', label: 'Incidents' },
 ]
 
 // Quick-reference safety flags surfaced on the resident's card (surveyors and
@@ -89,6 +91,8 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
   const [physician, setPhysician] = useState(resident?.physician || '')
   const [notes, setNotes] = useState(resident?.notes || '')
   const [saving, setSaving] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)   // resident-actions overflow menu
+  const [confirmDel, setConfirmDel] = useState(false) // remove requires a confirm step
 
   const toggleFlag = (f) => setFlags(p => p.includes(f) ? p.filter(x => x !== f) : [...p, f])
 
@@ -100,6 +104,7 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
 
   const inputStyle = { background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 10, padding: '10px 12px', fontSize: 14, fontFamily: 'Geist', color: 'var(--a-ink)', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const lbl = { fontSize: 11, color: 'var(--a-ink3)', margin: '0 0 4px 2px' }
+  const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', padding: '9px 11px', background: 'transparent', border: 0, borderRadius: 8, fontSize: 13, fontWeight: 500, color: 'var(--a-ink)', fontFamily: 'Geist', cursor: 'pointer' }
 
   const save = async (e) => {
     e.preventDefault()
@@ -120,7 +125,28 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
       <div role="dialog" aria-modal="true" aria-label={resident ? (editing ? 'Edit resident' : (name || 'Resident')) : 'Add resident'} style={{ width: '100%', maxHeight: '92vh', overflowY: 'auto', background: 'var(--a-bg)', borderRadius: '20px 20px 0 0', padding: '20px 22px 36px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="serif" style={{ fontSize: 22 }}>{resident ? (editing ? 'Edit resident' : name) : 'Add resident'}</div>
-          {resident && !editing && canManage && <button type="button" onClick={() => setEditing(true)} style={{ border: 0, background: 'transparent', color: 'var(--a-sage)', fontSize: 13, fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>Edit</button>}
+          {resident && !editing && canManage && (
+            <div style={{ position: 'relative' }}>
+              <button type="button" aria-label="Resident actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => { setMenuOpen(o => !o); setConfirmDel(false) }} style={{ border: 0, background: 'transparent', color: 'var(--a-ink2)', fontSize: 22, lineHeight: 1, fontWeight: 700, fontFamily: 'Geist', cursor: 'pointer', padding: '0 6px' }}>⋯</button>
+              {menuOpen && (<>
+                <div onClick={() => { setMenuOpen(false); setConfirmDel(false) }} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+                <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 2, minWidth: 200, background: 'var(--a-card)', border: '1px solid var(--a-line)', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: 4 }}>
+                  {!confirmDel ? (<>
+                    <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setEditing(true) }} style={menuItemStyle}>Edit details</button>
+                    <button type="button" role="menuitem" onClick={() => setConfirmDel(true)} style={{ ...menuItemStyle, color: '#a93a25' }}>Remove resident…</button>
+                  </>) : (
+                    <div style={{ padding: '8px 10px' }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--a-ink2)', lineHeight: 1.45, marginBottom: 9 }}>Remove {name || 'this resident'} and all of their clinical records? This can’t be undone.</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" onClick={() => { setConfirmDel(false); setMenuOpen(false) }} disabled={saving} style={{ flex: 1, padding: '8px', background: 'transparent', border: '1px solid var(--a-line)', borderRadius: 8, fontSize: 12.5, color: 'var(--a-ink2)', fontFamily: 'Geist', cursor: 'pointer' }}>Cancel</button>
+                        <button type="button" onClick={remove} disabled={saving} style={{ flex: 1, padding: '8px', background: '#a93a25', border: 0, borderRadius: 8, fontSize: 12.5, color: '#fff', fontWeight: 600, fontFamily: 'Geist', cursor: 'pointer' }}>{saving ? 'Removing…' : 'Delete'}</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>)}
+            </div>
+          )}
         </div>
 
         {!editing && resident ? (
@@ -139,7 +165,6 @@ function ResidentModal({ user, houseUuid, resident, startEdit = false, canManage
             <ViewField label="Guardian / contact" value={guardian} />
             <ViewField label="Physician" value={physician} />
             <ViewField label="Notes" value={notes} />
-            {canManage && <button type="button" onClick={remove} disabled={saving} style={{ marginTop: 6, width: '100%', padding: '11px', background: 'transparent', border: '1px solid #e0b4ab', borderRadius: 10, fontSize: 13, color: '#a93a25', fontFamily: 'Geist', cursor: 'pointer' }}>Remove resident</button>}
           </div>
         ) : (
           <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -332,23 +357,6 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [], i
             <Stat label="Today's drives" big={drives} sub="logged" />
           </div>
 
-          {/* Prominent entry to the guided shift-documentation flow (a
-              one-question-at-a-time wizard per resident, exportable to PDF).
-              Front-and-center on every house so staff can't miss where the
-              day's documentation lives. */}
-          <button onClick={() => setSection('shift')} style={{
-            width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'Geist',
-            display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
-            background: `${c}12`, border: `1px solid ${c}55`, borderRadius: 14, padding: '13px 15px',
-          }}>
-            <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: c, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconClipboard size={19} color="#fff" /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--a-ink)' }}>Shift documentation</div>
-              <div style={{ fontSize: 11.5, color: 'var(--a-ink2)', marginTop: 1 }}>Guided, one question at a time — notes, health, goals, meds, incidents. Export to PDF.</div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: c, background: 'var(--a-card)', border: `1px solid ${c}55`, borderRadius: 999, padding: '6px 13px', flexShrink: 0 }}>Start →</span>
-          </button>
-
           {(user?.role === 'supervisor' || user?.role === 'manager') && <GeofenceCard user={user} house={house} color={c} />}
 
 
@@ -417,10 +425,8 @@ export function ScreenA_HouseDetail({ houseId = '', user, onBack, houses = [], i
           {section === 'shift' && <ShiftDocPanel user={user} houseUuid={houseUuid} houseColor={c} houseName={house.name} residents={residents} onOpenSection={setSection} />}
           {section === 'meds' && <MedPass user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}          {section === 'goals' && <Goals user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'behavior' && <Behavior user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
-          {section === 'health' && (<>
-            <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
-            <Appointments user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />
-          </>)}
+          {section === 'health' && <HealthLogs user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
+          {section === 'appts' && <Appointments user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'funds' && <ResidentFunds user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'log' && <DailyLog user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
           {section === 'progress' && <ProgressPanel user={user} houseUuid={houseUuid} houseColor={c} residents={residents} />}
