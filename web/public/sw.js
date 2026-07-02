@@ -29,9 +29,12 @@ self.addEventListener('fetch', (e) => {
 
   // Page navigations: network-first, fall back to cached shell when offline.
   if (request.mode === 'navigate') {
+    // Only the root navigation refreshes the cached app shell — standalone
+    // pages (e.g. /moodcast.html) must not overwrite the '/' cache entry.
+    const isShell = url.pathname === '/' || url.pathname === '/index.html'
     e.respondWith(
       fetch(request).then((res) => {
-        caches.open(CACHE).then((c) => c.put('/', res.clone())).catch(() => {})
+        if (isShell) caches.open(CACHE).then((c) => c.put('/', res.clone())).catch(() => {})
         return res
       }).catch(() => caches.match('/').then((r) => r || caches.match('/index.html')))
     )

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MoodCast — Partner Forecast</title>
+<meta name="description" content="A cycle-aware mood forecast for supportive boyfriends. All data stays on your device.">
+<style>
+  :root {
+    --bg0: #17111f;
+    --bg1: #241a33;
+    --card: rgba(255,255,255,0.055);
+    --card-border: rgba(255,255,255,0.10);
+    --text: #f3edf7;
+    --muted: #b3a6c4;
+    --pink: #ff7eb3;
+    --violet: #a78bfa;
+    --gold: #fbbf24;
+    --teal: #34d399;
+    --red: #fb7185;
+    --radius: 20px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(255,126,179,0.16), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(167,139,250,0.14), transparent 60%),
+      linear-gradient(180deg, var(--bg1), var(--bg0) 60%);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px 16px calc(40px + env(safe-area-inset-bottom));
+    line-height: 1.5;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 18px; }
+  .logo {
+    font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--pink), var(--violet));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.4px; color: var(--muted); margin-bottom: 14px;
+  }
+
+  /* ---- Today hero ---- */
+  .hero { text-align: center; }
+  .hero .weather { font-size: 72px; line-height: 1.1; filter: drop-shadow(0 6px 24px rgba(255,126,179,0.35)); }
+  .hero .headline { font-size: 24px; font-weight: 800; margin-top: 6px; }
+  .hero .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .phase-chip {
+    display: inline-block; margin-top: 12px; padding: 6px 14px;
+    border-radius: 999px; font-size: 13px; font-weight: 700;
+    border: 1px solid transparent;
+  }
+  .countdown { margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .countdown b { color: var(--text); }
+
+  /* ---- Gauges ---- */
+  .gauges { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .gauge { text-align: center; }
+  .gauge .glabel { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,0.10); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 99px; transition: width .6s ease; }
+  .gauge .gval { font-size: 12px; margin-top: 6px; font-weight: 600; }
+
+  /* ---- Briefing ---- */
+  .brief-list { list-style: none; }
+  .brief-list li { display: flex; gap: 10px; padding: 7px 0; font-size: 14.5px; align-items: flex-start; }
+  .brief-list .ico { flex: 0 0 22px; text-align: center; }
+  .say { border-left: 3px solid var(--teal); background: rgba(52,211,153,0.08); padding: 10px 12px; border-radius: 0 12px 12px 0; margin: 10px 0 6px; font-size: 14px; }
+  .nosay { border-left: 3px solid var(--red); background: rgba(251,113,133,0.08); padding: 10px 12px; border-radius: 0 12px 12px 0; margin: 6px 0; font-size: 14px; }
+  .say b, .nosay b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .say b { color: var(--teal); } .nosay b { color: var(--red); }
+
+  /* ---- 7-day strip ---- */
+  .strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .day {
+    text-align: center; padding: 10px 2px; border-radius: 14px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  }
+  .day.today { border-color: var(--pink); background: rgba(255,126,179,0.12); }
+  .day .dname { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .day .demoji { font-size: 22px; margin: 4px 0; }
+  .day .dnum { font-size: 11px; font-weight: 700; }
+
+  /* ---- Calendar ---- */
+  .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .cal-head .month { font-weight: 800; font-size: 15px; }
+  .cal-nav { background: rgba(255,255,255,0.08); border: none; color: var(--text); width: 32px; height: 32px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-grid .dow { text-align: center; font-size: 10px; color: var(--muted); padding: 4px 0; text-transform: uppercase; }
+  .cal-cell {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 12.5px; font-weight: 600; position: relative;
+  }
+  .cal-cell.dim { opacity: 0; pointer-events: none; }
+  .cal-cell.is-today { outline: 2px solid var(--text); outline-offset: -2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; }
+  .legend span { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* ---- Forms & buttons ---- */
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 5px; font-weight: 600; }
+  input, select {
+    width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 15px;
+    background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.12); color: var(--text);
+    color-scheme: dark;
+  }
+  input:focus, select:focus { outline: 2px solid var(--violet); border-color: transparent; }
+  .btn {
+    width: 100%; padding: 14px; border: none; border-radius: 14px; margin-top: 16px;
+    font-size: 15px; font-weight: 700; cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, var(--pink), var(--violet));
+    box-shadow: 0 8px 24px rgba(255,126,179,0.25);
+  }
+  .btn.ghost { background: rgba(255,255,255,0.08); box-shadow: none; color: var(--text); }
+  .btn.danger { background: rgba(251,113,133,0.15); box-shadow: none; color: var(--red); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .disclaimer {
+    font-size: 12px; color: var(--muted); text-align: center; padding: 0 8px; margin-top: 4px;
+  }
+  .disclaimer b { color: var(--pink); }
+  .hidden { display: none !important; }
+  .footer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .footer-actions .btn { margin-top: 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(80px);
+    background: #2c2140; border: 1px solid rgba(255,255,255,0.15); color: var(--text);
+    padding: 12px 20px; border-radius: 14px; font-size: 14px; font-weight: 600;
+    transition: transform .35s ease; z-index: 50; max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">MoodCast</div>
+    <div class="tagline">the weather report for being a great boyfriend</div>
+  </header>
+
+  <!-- ============ SETUP ============ -->
+  <section id="setup" class="card hidden">
+    <h2>Quick setup</h2>
+    <p style="font-size:14px; color:var(--muted);">
+      Three questions and you'll get a daily forecast. If you don't know the exact
+      numbers, ask her — that conversation alone earns you points.
+    </p>
+    <label for="inName">Her name (optional)</label>
+    <input id="inName" type="text" placeholder="e.g. Sam" maxlength="20" autocomplete="off">
+    <label for="inLast">First day of her last period</label>
+    <input id="inLast" type="date">
+    <div class="row2">
+      <div>
+        <label for="inCycle">Cycle length (days)</label>
+        <input id="inCycle" type="number" min="21" max="45" value="28" inputmode="numeric">
+      </div>
+      <div>
+        <label for="inPeriod">Period length (days)</label>
+        <input id="inPeriod" type="number" min="2" max="10" value="5" inputmode="numeric">
+      </div>
+    </div>
+    <button class="btn" id="btnSave">Start forecasting</button>
+    <p class="disclaimer" style="margin-top:14px;">
+      Everything stays in this browser — nothing is uploaded anywhere.
+    </p>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <div id="app" class="hidden">
+    <section class="card hero">
+      <div class="weather" id="tWeather">⛅</div>
+      <div class="headline" id="tHeadline">—</div>
+      <div class="sub" id="tSub">—</div>
+      <div><span class="phase-chip" id="tChip">—</span></div>
+      <div class="countdown" id="tCountdown">—</div>
+    </section>
+
+    <section class="card">
+      <h2>Today's readings</h2>
+      <div class="gauges">
+        <div class="gauge">
+          <div class="glabel">Energy</div>
+          <div class="bar"><i id="gEnergy"></i></div>
+          <div class="gval" id="gEnergyV">—</div>
+        </div>
+        <div class="gauge">
+          <div class="glabel">Patience</div>
+          <div class="bar"><i id="gPatience"></i></div>
+          <div class="gval" id="gPatienceV">—</div>
+        </div>
+        <div class="gauge">
+          <div class="glabel">Cuddle demand</div>
+          <div class="bar"><i id="gCuddle"></i></div>
+          <div class="gval" id="gCuddleV">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Boyfriend briefing</h2>
+      <ul class="brief-list" id="tTips"></ul>
+      <div class="say"><b>Safe to say</b><span id="tSay">—</span></div>
+      <div class="nosay"><b>Do not say</b><span id="tNoSay">—</span></div>
+    </section>
+
+    <section class="card">
+      <h2>7-day outlook</h2>
+      <div class="strip" id="strip"></div>
+    </section>
+
+    <section class="card">
+      <h2>Cycle calendar</h2>
+      <div class="cal-head">
+        <button class="cal-nav" id="calPrev" aria-label="Previous month">‹</button>
+        <div class="month" id="calMonth">—</div>
+        <button class="cal-nav" id="calNext" aria-label="Next month">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="legend" id="calLegend"></div>
+    </section>
+
+    <section class="footer-actions">
+      <button class="btn" id="btnPeriodToday">🩸 Period started today</button>
+      <button class="btn ghost" id="btnSettings">⚙️ Settings</button>
+    </section>
+
+    <section id="settings" class="card hidden" style="margin-top:16px;">
+      <h2>Settings</h2>
+      <label for="sName">Her name</label>
+      <input id="sName" type="text" maxlength="20" autocomplete="off">
+      <label for="sLast">First day of last period</label>
+      <input id="sLast" type="date">
+      <div class="row2">
+        <div>
+          <label for="sCycle">Cycle length</label>
+          <input id="sCycle" type="number" min="21" max="45" inputmode="numeric">
+        </div>
+        <div>
+          <label for="sPeriod">Period length</label>
+          <input id="sPeriod" type="number" min="2" max="10" inputmode="numeric">
+        </div>
+      </div>
+      <button class="btn" id="btnUpdate">Save changes</button>
+      <button class="btn danger" id="btnReset">Erase all data</button>
+    </section>
+
+    <p class="disclaimer" style="margin-top:20px;">
+      MoodCast is a playful estimate, not medicine or mind-reading. Cycles shift,
+      and no two people (or days) are alike — hormones are one ingredient, not the
+      whole recipe. <b>The killer feature is asking her how she actually feels.</b>
+    </p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var KEY = "moodcast-v1";
+
+  /* ---------- Phase definitions ---------- */
+  var PHASES = {
+    menstrual: {
+      name: "Menstrual", color: "#fb7185", emoji: "🌧️",
+      headline: "Rainy, with a chance of cramps",
+      sub: "Energy runs low and everything aches a bit. Comfort mode: activated.",
+      energy: 25, patience: 45, cuddle: 90,
+      tips: [
+        ["🔥", "Heating pad, blanket, and her comfort show — set the scene before she asks."],
+        ["🍫", "Show up with her favorite snack. Chocolate rarely misses; her usual order never does."],
+        ["🧺", "Quietly take over a chore or two. Doing it unprompted is the whole move."],
+        ["💊", "Know where the painkillers live and offer water with them."],
+        ["🛋️", "Cancel-friendly plans only. A cozy night in beats a big night out."]
+      ],
+      say: "“Want a heating pad, snacks, or just company? I'm on it.”",
+      nosay: "“Is it that time of the month?” — you know it is; saying it helps no one."
+    },
+    follicular: {
+      name: "Follicular", color: "#34d399", emoji: "🌤️",
+      headline: "Clearing skies, mood rising",
+      sub: "Energy and optimism climb day by day. Great window for plans and new things.",
+      energy: 75, patience: 85, cuddle: 55,
+      tips: [
+        ["🎯", "Pitch the adventure: the hike, the trip, the new restaurant. She's most game right now."],
+        ["🗓️", "Lock in date night — this is prime time for the fun stuff."],
+        ["💬", "Good week for the bigger conversations you've been putting off."],
+        ["🏃", "Suggest doing something active together; energy is up."],
+        ["👂", "She may be full of ideas and plans — be the hype man."]
+      ],
+      say: "“I booked us something fun this weekend.”",
+      nosay: "“Eh, let's just stay in again.” — don't waste the sunny window."
+    },
+    ovulation: {
+      name: "Ovulation", color: "#fbbf24", emoji: "☀️",
+      headline: "Heatwave: peak sparkle",
+      sub: "Confidence, energy and sociability at their highest point of the cycle.",
+      energy: 95, patience: 80, cuddle: 75,
+      tips: [
+        ["💃", "Say yes to going out — she's at her most social and magnetic."],
+        ["😍", "Compliments land extra well right now. Be specific, not generic."],
+        ["📸", "She'll probably feel great about how she looks — tell her before she asks."],
+        ["🍽️", "A proper date night now is worth three later."],
+        ["⚡", "Match her energy. Low-effort responses will be noticed."]
+      ],
+      say: "“You look incredible. What's the plan tonight?”",
+      nosay: "“I'm too tired to go out.” — find the energy, champ."
+    },
+    luteal: {
+      name: "Luteal", color: "#a78bfa", emoji: "⛅",
+      headline: "Partly cloudy, cooling down",
+      sub: "The wind-down. Energy dips, cravings rise, cozy beats chaotic.",
+      energy: 55, patience: 60, cuddle: 70,
+      tips: [
+        ["🛌", "Favor low-key plans: movie night, cooking together, early nights."],
+        ["🍜", "Cravings incoming — keep her favorites within reach."],
+        ["🧘", "She might want more downtime. Give space without disappearing."],
+        ["📉", "If she seems off, it's probably not about you. Don't make it about you."],
+        ["☕", "Small gestures land big: her drink order, a tidy kitchen, a long hug."]
+      ],
+      say: "“No plans tonight — want to order in and do nothing together?”",
+      nosay: "“You were fine yesterday…” — yes, and today is today."
+    },
+    pms: {
+      name: "PMS window", color: "#f472b6", emoji: "⛈️",
+      headline: "Storm watch in effect",
+      sub: "Hormones dropping fast. Patience is finite, feelings are amplified, snacks are structural.",
+      energy: 40, patience: 25, cuddle: 80,
+      tips: [
+        ["🤐", "Do not pick tonight to win an argument. There is no winning, only surviving."],
+        ["🍟", "Preemptive snack deployment. Salty AND sweet — cover both fronts."],
+        ["🫂", "Validate first, solve later (or never). “That sounds really frustrating” works wonders."],
+        ["🧹", "Handle the small annoyances (dishes, laundry) before they become The Issue."],
+        ["❤️", "Extra reassurance goes a long way. If she cries at a commercial, hand tissues, not logic."]
+      ],
+      say: "“You're right, that IS annoying. Also I bought your favorite snacks.”",
+      nosay: "“Calm down” / “You're overreacting” — historically, never once has this worked."
+    }
+  };
+
+  /* ---------- State ---------- */
+  var state = null;
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (!s || !s.lastPeriod || !s.cycleLen || !s.periodLen) return null;
+      return s;
+    } catch (e) { return null; }
+  }
+  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+  /* ---------- Date helpers (all local-midnight based) ---------- */
+  function parseISO(iso) {
+    var p = iso.split("-");
+    return new Date(+p[0], +p[1] - 1, +p[2]);
+  }
+  function toISO(d) {
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + "-" + (m < 10 ? "0" + m : m) + "-" + (day < 10 ? "0" + day : day);
+  }
+  function today() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var c = new Date(d); c.setDate(c.getDate() + n); return c; }
+  function diffDays(a, b) { return Math.round((b - a) / 86400000); }
+
+  /* ---------- Cycle math ---------- */
+  // Returns 1-based cycle day for a given date.
+  function cycleDay(date) {
+    var start = parseISO(state.lastPeriod);
+    var d = diffDays(start, date);
+    var L = state.cycleLen;
+    return ((d % L) + L) % L + 1;
+  }
+  // Maps a cycle day to a phase key.
+  function phaseOf(day) {
+    var L = state.cycleLen, P = state.periodLen;
+    var ovu = L - 14; // typical luteal phase is ~14 days
+    if (day <= P) return "menstrual";
+    if (day >= ovu - 1 && day <= ovu + 1) return "ovulation";
+    if (day >= L - 4) return "pms";
+    if (day < ovu - 1) return "follicular";
+    return "luteal";
+  }
+  function daysUntilNextPeriod(date) {
+    return (state.cycleLen - cycleDay(date) + 1) % state.cycleLen;
+  }
+
+  /* ---------- Rendering ---------- */
+  function el(id) { return document.getElementById(id); }
+  function show(id) { el(id).classList.remove("hidden"); }
+  function hide(id) { el(id).classList.add("hidden"); }
+
+  function barColor(v) { return v >= 70 ? "var(--teal)" : v >= 45 ? "var(--gold)" : "var(--red)"; }
+  function levelWord(v) { return v >= 85 ? "Very high" : v >= 65 ? "High" : v >= 45 ? "Moderate" : v >= 30 ? "Low" : "Critical"; }
+
+  function renderToday() {
+    var t = today();
+    var day = cycleDay(t);
+    var key = phaseOf(day);
+    var ph = PHASES[key];
+
+    el("tWeather").textContent = ph.emoji;
+    el("tHeadline").textContent = ph.headline;
+    el("tSub").textContent = ph.sub;
+
+    var chip = el("tChip");
+    chip.textContent = ph.name + " · day " + day + " of " + state.cycleLen;
+    chip.style.color = ph.color;
+    chip.style.borderColor = ph.color;
+    chip.style.background = ph.color + "1f";
+
+    var until = daysUntilNextPeriod(t);
+    el("tCountdown").innerHTML = until === 0
+      ? "Next period is due around <b>today</b> — heads up. 🚨"
+      : "Next period due in about <b>" + until + " day" + (until === 1 ? "" : "s") + "</b>.";
+
+    setGauge("gEnergy", "gEnergyV", ph.energy);
+    setGauge("gPatience", "gPatienceV", ph.patience);
+    setGauge("gCuddle", "gCuddleV", ph.cuddle);
+
+    var tips = el("tTips");
+    tips.innerHTML = "";
+    ph.tips.forEach(function (tp) {
+      var li = document.createElement("li");
+      var ico = document.createElement("span"); ico.className = "ico"; ico.textContent = tp[0];
+      var txt = document.createElement("span"); txt.textContent = tp[1];
+      li.appendChild(ico); li.appendChild(txt);
+      tips.appendChild(li);
+    });
+    el("tSay").textContent = ph.say;
+    el("tNoSay").textContent = ph.nosay;
+
+    document.querySelector(".tagline").textContent = state.name
+      ? "today's forecast for " + state.name
+      : "the weather report for being a great boyfriend";
+  }
+
+  function setGauge(barId, valId, v) {
+    var bar = el(barId);
+    bar.style.width = v + "%";
+    bar.style.background = barColor(v);
+    el(valId).textContent = levelWord(v);
+    el(valId).style.color = barColor(v);
+  }
+
+  var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function renderStrip() {
+    var strip = el("strip");
+    strip.innerHTML = "";
+    var t = today();
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(t, i);
+      var ph = PHASES[phaseOf(cycleDay(d))];
+      var cell = document.createElement("div");
+      cell.className = "day" + (i === 0 ? " today" : "");
+      cell.innerHTML =
+        '<div class="dname">' + (i === 0 ? "Today" : DOW[d.getDay()]) + "</div>" +
+        '<div class="demoji">' + ph.emoji + "</div>" +
+        '<div class="dnum" style="color:' + ph.color + '">' + d.getDate() + "</div>";
+      cell.title = ph.name;
+      strip.appendChild(cell);
+    }
+  }
+
+  var calCursor; // Date at first of displayed month
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function renderCalendar() {
+    var grid = el("calGrid");
+    grid.innerHTML = "";
+    el("calMonth").textContent = MONTHS[calCursor.getMonth()] + " " + calCursor.getFullYear();
+    DOW.forEach(function (d) {
+      var h = document.createElement("div"); h.className = "dow"; h.textContent = d[0];
+      grid.appendChild(h);
+    });
+    var first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+    var daysInMonth = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 0).getDate();
+    var t = today();
+    for (var pad = 0; pad < first.getDay(); pad++) {
+      var e = document.createElement("div"); e.className = "cal-cell dim"; grid.appendChild(e);
+    }
+    for (var dn = 1; dn <= daysInMonth; dn++) {
+      var date = new Date(calCursor.getFullYear(), calCursor.getMonth(), dn);
+      var ph = PHASES[phaseOf(cycleDay(date))];
+      var cell = document.createElement("div");
+      cell.className = "cal-cell" + (diffDays(t, date) === 0 ? " is-today" : "");
+      cell.textContent = dn;
+      cell.style.background = ph.color + "26";
+      cell.style.color = ph.color;
+      cell.title = ph.name;
+      grid.appendChild(cell);
+    }
+    var legend = el("calLegend");
+    legend.innerHTML = "";
+    Object.keys(PHASES).forEach(function (k) {
+      var s = document.createElement("span");
+      s.innerHTML = '<i style="background:' + PHASES[k].color + '"></i>' + PHASES[k].name;
+      legend.appendChild(s);
+    });
+  }
+
+  function renderAll() {
+    renderToday();
+    renderStrip();
+    renderCalendar();
+  }
+
+  /* ---------- Toast ---------- */
+  var toastTimer;
+  function toast(msg) {
+    var tEl = el("toast");
+    tEl.textContent = msg;
+    tEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { tEl.classList.remove("show"); }, 2600);
+  }
+
+  /* ---------- Setup / settings ---------- */
+  function readForm(nameId, lastId, cycleId, periodId) {
+    var last = el(lastId).value;
+    if (!last) { toast("Pick the first day of her last period"); return null; }
+    if (parseISO(last) > today()) { toast("That date is in the future — pick a past date"); return null; }
+    var cyc = Math.min(45, Math.max(21, parseInt(el(cycleId).value, 10) || 28));
+    var per = Math.min(10, Math.max(2, parseInt(el(periodId).value, 10) || 5));
+    if (per >= cyc) { toast("Period length must be shorter than the cycle"); return null; }
+    return { name: el(nameId).value.trim(), lastPeriod: last, cycleLen: cyc, periodLen: per };
+  }
+
+  el("btnSave").addEventListener("click", function () {
+    var s = readForm("inName", "inLast", "inCycle", "inPeriod");
+    if (!s) return;
+    state = s; save();
+    hide("setup"); show("app");
+    calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
+    renderAll();
+    toast("Forecast is live. Go be great. 💪");
+  });
+
+  el("btnSettings").addEventListener("click", function () {
+    var pane = el("settings");
+    if (pane.classList.contains("hidden")) {
+      el("sName").value = state.name || "";
+      el("sLast").value = state.lastPeriod;
+      el("sCycle").value = state.cycleLen;
+      el("sPeriod").value = state.periodLen;
+      show("settings");
+      pane.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      hide("settings");
+    }
+  });
+
+  el("btnUpdate").addEventListener("click", function () {
+    var s = readForm("sName", "sLast", "sCycle", "sPeriod");
+    if (!s) return;
+    state = s; save();
+    hide("settings");
+    renderAll();
+    toast("Settings saved");
+  });
+
+  el("btnPeriodToday").addEventListener("click", function () {
+    var t = today();
+    var prev = parseISO(state.lastPeriod);
+    var gap = diffDays(prev, t);
+    if (gap === 0) { toast("Already set to today"); return; }
+    // Learn from reality: blend the observed gap into the cycle length estimate.
+    if (gap >= 21 && gap <= 45) {
+      state.cycleLen = Math.min(45, Math.max(21, Math.round((state.cycleLen + gap) / 2)));
+    }
+    state.lastPeriod = toISO(t);
+    save();
+    renderAll();
+    toast("Recalibrated. Deploy heating pad + chocolate. 🍫");
+  });
+
+  el("btnReset").addEventListener("click", function () {
+    if (!confirm("Erase all MoodCast data from this device?")) return;
+    localStorage.removeItem(KEY);
+    location.reload();
+  });
+
+  el("calPrev").addEventListener("click", function () {
+    calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+    renderCalendar();
+  });
+  el("calNext").addEventListener("click", function () {
+    calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+    renderCalendar();
+  });
+
+  /* ---------- Boot ---------- */
+  state = load();
+  if (state) {
+    show("app");
+    calCursor = new Date(today().getFullYear(), today().getMonth(), 1);
+    renderAll();
+  } else {
+    show("setup");
+    el("inLast").max = toISO(today());
+  }
+  el("sLast") && (el("sLast").max = toISO(today()));
+})();
+</script>
+</body>
+</html>
